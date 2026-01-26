@@ -1,0 +1,40 @@
+---
+import Container from './Container.astro';
+
+const nav = [
+  { href: '/', label: 'Home' },
+  { href: '/cv', label: 'CV' },
+  { href: '/projects', label: 'Projects' },
+  { href: '/blog', label: 'Blog' },
+  { href: '/contact', label: 'Contact' },
+];
+---
+
+<header class="border-b border-border bg-bg/80 backdrop-blur supports-[backdrop-filter]:bg-bg/60 sticky top-0 z-40">
+  <Container class="py-4 flex items-center justify-between gap-4">
+    <a href="/" class="flex items-center gap-3 no-underline">
+      <img src="/brand/thumb.svg" alt="Yellow thumbs-up" width="28" height="28" class="h-7 w-7" />
+      <span class="font-semibold tracking-tight">Don’t Panic, V</span>
+    </a>
+
+    <nav class="hidden md:flex items-center gap-4 text-sm">
+      {nav.map((item) => (
+        <a class="no-underline text-muted hover:text-text" href={item.href}>{item.label}</a>
+      ))}
+    </nav>
+
+    <div class="flex items-center gap-2">
+      <button
+        type="button"
+        data-theme-toggle
+        class="rounded-md border border-border bg-panel px-3 py-2 text-sm text-text hover:border-accent"
+        aria-label="Toggle theme"
+        title="Toggle theme"
+      >
+        Theme
+      </button>
+
+      <a class="md:hidden rounded-md border border-border bg-panel px-3 py-2 text-sm no-underline" href="/">Menu</a>
+    </div>
+  </Container>
+</header>

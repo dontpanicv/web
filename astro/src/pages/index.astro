@@ -1,17 +1,47 @@
 ---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Header from '../components/Header.astro';
+import Footer from '../components/Footer.astro';
+import Button from '../components/Button.astro';
+import Card from '../components/Card.astro';
 
+const title = "Don’t Panic, V";
 ---
 
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<link rel="icon" href="/favicon.ico" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
-	</head>
-	<body>
-		<h1>Astro</h1>
-	</body>
-</html>
+<BaseLayout title={title} description="Personal site: CV, projects, and a blog. Don’t panic.">
+  <Header slot="header" />
+
+  <section class="space-y-6">
+    <p class="text-sm text-muted font-mono">The Guide says: stay calm.</p>
+
+    <h1 class="text-4xl sm:text-5xl font-semibold tracking-tight">
+      Don’t Panic, V.
+      <span class="block text-muted text-xl sm:text-2xl font-normal mt-3">
+        CV, projects, and notes from the road.
+      </span>
+    </h1>
+
+    <div class="flex flex-wrap gap-3">
+      <Button href="/cv">View CV</Button>
+      <Button href="/projects" variant="secondary">Projects</Button>
+      <Button href="/blog" variant="ghost">Blog</Button>
+    </div>
+
+    <div class="grid md:grid-cols-3 gap-4 pt-6">
+      <Card>
+        <h2 class="font-semibold">What I do</h2>
+        <p class="text-muted mt-2">Short, human summary goes here. (We’ll replace this with real copy.)</p>
+      </Card>
+      <Card>
+        <h2 class="font-semibold">Current focus</h2>
+        <p class="text-muted mt-2">A place for your latest role / obsession / mission.</p>
+      </Card>
+      <Card>
+        <h2 class="font-semibold">Latest notes</h2>
+        <p class="text-muted mt-2">Blog is coming online. For now: placeholders.</p>
+      </Card>
+    </div>
+  </section>
+
+  <Footer slot="footer" />
+</BaseLayout>

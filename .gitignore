@@ -1,0 +1,10 @@
+# Build outputs served by nginx
+preview/
+main/
+
+# Node
+astro/node_modules/
+astro/.astro/
+
+# OS/editor
+.DS_Store
