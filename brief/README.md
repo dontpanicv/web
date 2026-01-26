@@ -11,6 +11,7 @@ Suggested files:
 - `04-design.md`
 - `05-tech.md`
 - `06-todo.md`
+- `07-brand-assets.md`
 
 Workflow:
 1) Edit the briefs
