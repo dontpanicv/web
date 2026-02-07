@@ -5,13 +5,15 @@
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
-    "build:preview": "astro build",
     "build:main": "astro build --outDir ../main",
     "preview": "astro preview",
     "astro": "astro"
   },
   "dependencies": {
-    "astro": "^5.16.15"
+    "@iconify-json/lucide": "^1.2.89",
+    "@iconify-json/simple-icons": "^1.2.69",
+    "astro": "^5.16.15",
+    "astro-icon": "^1.1.5"
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.1.18",

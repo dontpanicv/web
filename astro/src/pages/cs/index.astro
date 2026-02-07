@@ -1,0 +1,59 @@
+---
+import BrutalLayout from '../../layouts/BrutalLayout.astro';
+import PostActions from '../../components/PostActions.astro';
+
+import { formatDate, postHref, postsPageHref } from '../../lib/i18n';
+import { getPublishedPosts } from '../../lib/posts';
+
+const lang = 'cs';
+const pageSize = 10;
+const allPosts = await getPublishedPosts(lang);
+const posts = allPosts.slice(0, pageSize);
+const hasMore = allPosts.length > pageSize;
+
+const langSwitchHref = '/';
+---
+
+<BrutalLayout
+  title="Dont's Panic, V!"
+  description="Osobní web: CV a příspěvky. Don't panic."
+  lang={lang}
+  langSwitchHref={langSwitchHref}
+>
+  <div class="space-y-6">
+    {posts.length ? (
+      <ul class="divide-y divide-border">
+        {posts.map((post) => (
+          <li class="py-6 first:pt-0">
+            <div class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+              <a class="link text-lg font-medium text-text" href={postHref(lang, post.slug)}>
+                {post.data.title}
+              </a>
+              <span class="inline-flex items-center gap-3 text-sm text-muted">
+                <PostActions
+                  body={post.body}
+                  title={post.data.title}
+                  xUrl={post.data.xUrl}
+                  linkedinUrl={post.data.linkedinUrl}
+                  facebookUrl={post.data.facebookUrl}
+                />
+                <span>{formatDate(post.data.date, lang)}</span>
+              </span>
+            </div>
+            {post.data.summary ? <p class="text-muted mt-2 leading-relaxed">{post.data.summary}</p> : null}
+          </li>
+        ))}
+      </ul>
+    ) : (
+      <p class="text-muted">Zatím tu nejsou žádné příspěvky.</p>
+    )}
+
+    {hasMore ? (
+      <div class="pt-2 flex justify-end">
+        <a class="link text-sm" href={postsPageHref(lang, 2)}>
+          Starší příspěvky →
+        </a>
+      </div>
+    ) : null}
+  </div>
+</BrutalLayout>

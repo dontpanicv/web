@@ -1,9 +1,10 @@
 # Content
 
 ## Home page
-- Short intro (who you are + what you do)
-- 3–6 highlight cards (projects / roles)
-- Latest 3 blog posts
+- Title + logo
+- Short intro paragraph (who you are + what you do)
+- Posts list (newest first)
+- Pagination (10 posts per page)
 
 ## CV page
 - Summary
@@ -12,16 +13,12 @@
 - Skills
 - Links (GitHub, LinkedIn, etc.)
 
-## Projects page
-- Grid/list of projects
-- Each project: title, short description, tech stack, links
+## Post detail
+- Title
+- Date
+- Content (Markdown)
+- Optional: tags
 
-## Blog
-- Markdown-based posts
-- Tags/categories (optional)
-- RSS (optional)
-
-## Contact
-- Email
-- Social links
-- Optional: simple form (only if we add backend later)
+## Languages
+- English default
+- Czech alternative routes under `/cs/`

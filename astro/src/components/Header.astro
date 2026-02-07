@@ -1,40 +1,49 @@
 ---
 import Container from './Container.astro';
 
-const nav = [
-  { href: '/', label: 'Home' },
-  { href: '/cv', label: 'CV' },
-  { href: '/projects', label: 'Projects' },
-  { href: '/blog', label: 'Blog' },
-  { href: '/contact', label: 'Contact' },
-];
+const {
+  lang = 'en',
+  cvHref = lang === 'cs' ? '/cs/cv' : '/cv',
+  langSwitchHref = lang === 'cs' ? '/' : '/cs/',
+} = Astro.props;
+
+const labels = {
+  en: {
+    home: 'Home',
+    cv: 'CV',
+  },
+  cs: {
+    home: 'Domů',
+    cv: 'CV',
+  },
+};
+
+const t = labels[lang] ?? labels.en;
+const homeHref = lang === 'cs' ? '/cs/' : '/';
+const otherLang = lang === 'cs' ? 'en' : 'cs';
+const otherLangLabel = lang === 'cs' ? 'EN' : 'CZ';
 ---
 
 <header class="border-b border-border bg-bg/80 backdrop-blur supports-[backdrop-filter]:bg-bg/60 sticky top-0 z-40">
   <Container class="py-4 flex items-center justify-between gap-4">
-    <a href="/" class="flex items-center gap-3 no-underline">
-      <img src="/brand/thumb.svg" alt="Yellow thumbs-up" width="28" height="28" class="h-7 w-7" />
+    <a href={homeHref} class="link flex items-center gap-3">
       <span class="font-semibold tracking-tight">Don’t Panic, V</span>
     </a>
 
-    <nav class="hidden md:flex items-center gap-4 text-sm">
-      {nav.map((item) => (
-        <a class="no-underline text-muted hover:text-text" href={item.href}>{item.label}</a>
-      ))}
-    </nav>
-
-    <div class="flex items-center gap-2">
-      <button
-        type="button"
-        data-theme-toggle
-        class="rounded-md border border-border bg-panel px-3 py-2 text-sm text-text hover:border-accent"
-        aria-label="Toggle theme"
-        title="Toggle theme"
+    <nav class="flex items-center gap-3 text-sm">
+      <a class="link text-muted hover:text-text" href={homeHref}>{t.home}</a>
+      <span class="text-muted">·</span>
+      <a class="link text-muted hover:text-text" href={cvHref}>{t.cv}</a>
+      <span class="text-muted">·</span>
+      <a
+        class="link text-muted hover:text-text"
+        href={langSwitchHref}
+        data-lang-switch={otherLang}
+        aria-label={`Switch language to ${otherLangLabel}`}
+        title={`Switch language to ${otherLangLabel}`}
       >
-        Theme
-      </button>
-
-      <a class="md:hidden rounded-md border border-border bg-panel px-3 py-2 text-sm no-underline" href="/">Menu</a>
-    </div>
+        {otherLangLabel}
+      </a>
+    </nav>
   </Container>
 </header>

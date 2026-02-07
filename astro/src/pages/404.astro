@@ -1,20 +1,13 @@
 ---
-import BaseLayout from '../layouts/BaseLayout.astro';
-import Header from '../components/Header.astro';
-import Footer from '../components/Footer.astro';
-import Button from '../components/Button.astro';
+import BrutalLayout from '../layouts/BrutalLayout.astro';
 ---
 
-<BaseLayout title="404 · Don’t Panic, V" description="Page not found">
-  <Header slot="header" />
-
-  <div class="space-y-4">
-    <h1 class="text-3xl font-semibold tracking-tight">404</h1>
+<BrutalLayout title="Dont's Panic, V!" description="Page not found" lang="en" langSwitchHref="/cs/">
+  <div class="space-y-4 max-w-[70ch]">
+    <h2 class="text-2xl font-semibold tracking-tight">404</h2>
     <p class="text-muted">This page has drifted into deep space.</p>
-    <div class="pt-2">
-      <Button href="/" variant="secondary">Back home</Button>
-    </div>
+    <p>
+      <a class="link" href="/">Back home</a>
+    </p>
   </div>
-
-  <Footer slot="footer" />
-</BaseLayout>
+</BrutalLayout>

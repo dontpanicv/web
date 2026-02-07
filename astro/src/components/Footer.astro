@@ -1,5 +1,18 @@
 ---
 import Container from './Container.astro';
+
+const { lang = 'en' } = Astro.props;
+
+const copy = {
+  en: {
+    tagline: 'Built iteratively, deployed when ready.',
+  },
+  cs: {
+    tagline: 'Stavěno postupně, do produkce až když je to připravené.',
+  },
+};
+
+const t = copy[lang] ?? copy.en;
 ---
 
 <footer class="border-t border-border mt-12">
@@ -8,14 +21,14 @@ import Container from './Container.astro';
       <img src="/brand/thumb.svg" alt="" width="22" height="22" class="h-5 w-5 opacity-90" />
       <div class="text-sm text-muted">
         <div class="text-text font-medium">Don’t Panic, V</div>
-        <div>Built in preview, promoted when ready.</div>
+        <div>{t.tagline}</div>
       </div>
     </div>
 
     <div class="text-sm text-muted">
-      <a href="https://github.com/kurkavojtech" rel="me">GitHub</a>
+      <a class="link" href="https://github.com/kurkavojtech" rel="me">GitHub</a>
       <span class="px-2">·</span>
-      <a href="mailto:kurka.vojtech@gmail.com">Email</a>
+      <a class="link" href="mailto:kurka.vojtech@gmail.com">Email</a>
     </div>
   </Container>
 </footer>

@@ -11,19 +11,13 @@ Tokens live in `src/styles/global.css`.
 
 - Colors are expressed as RGB triplets:
   - `--c-bg`, `--c-panel`, `--c-text`, `--c-muted`, `--c-border`, `--c-accent`, `--c-link`
-- Dark mode is activated via `html.dark`.
 
 Tailwind is configured to expose these as semantic colors:
 - `bg-bg`, `bg-panel`, `text-text`, `text-muted`, `border-border`, `bg-accent`, `text-link`
 
-## Dark mode
-- Default: OS preference (`prefers-color-scheme`)
-- Optional override: `localStorage.theme = 'light'|'dark'`
-- Toggle button: `[data-theme-toggle]` in the header
-
 ## Components
 Located in `src/components/`:
-- `Header.astro` (logo, nav, theme toggle)
+- `Header.astro` (site title, minimal nav, language switch)
 - `Footer.astro`
 - `Button.astro` (`primary`, `secondary`, `ghost`)
 - `Card.astro`
@@ -34,7 +28,6 @@ Located in `src/components/`:
   - includes meta tags
   - favicon links
   - imports global Tailwind stylesheet
-  - injects theme init + minimal toggle JS
 
 ## Brand assets
 - `public/brand/thumb.svg` (source-of-truth icon)
@@ -42,9 +35,12 @@ Located in `src/components/`:
 - `public/favicon.ico` (existing ICO for broad compatibility)
 
 ## Pages
-- `/` Home
+- `/` Home (posts list, newest first)
+- `/page/<n>` Posts pagination
+- `/posts/<slug>` Post detail
 - `/cv` CV
-- `/projects` Projects
-- `/blog` Blog index
-- `/contact` Contact
+- `/cs/` Czech home
+- `/cs/page/<n>` Czech posts pagination
+- `/cs/posts/<slug>` Czech post detail
+- `/cs/cv` Czech CV
 - `/404` Not found

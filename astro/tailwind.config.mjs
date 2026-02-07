@@ -3,7 +3,6 @@ export default {
   content: [
     './src/**/*.{astro,html,js,jsx,ts,tsx,md,mdx}',
   ],
-  darkMode: 'class',
   theme: {
     extend: {
       colors: {
@@ -28,7 +27,8 @@ export default {
         4.5: '1.125rem',
       },
       fontFamily: {
-        sans: ['system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
+        sans: ['GillSans2', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
+        display: ['Eagle2', 'GillSans2', 'system-ui', '-apple-system', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
         mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'monospace'],
       },
     },

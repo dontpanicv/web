@@ -1,47 +1,59 @@
 ---
-import BaseLayout from '../layouts/BaseLayout.astro';
-import Header from '../components/Header.astro';
-import Footer from '../components/Footer.astro';
-import Button from '../components/Button.astro';
-import Card from '../components/Card.astro';
+import BrutalLayout from '../layouts/BrutalLayout.astro';
+import PostActions from '../components/PostActions.astro';
 
-const title = "Don’t Panic, V";
+import { formatDate, postHref, postsPageHref } from '../lib/i18n';
+import { getPublishedPosts } from '../lib/posts';
+
+const lang = 'en';
+const pageSize = 10;
+const allPosts = await getPublishedPosts(lang);
+const posts = allPosts.slice(0, pageSize);
+const hasMore = allPosts.length > pageSize;
+
+const langSwitchHref = '/cs/';
 ---
 
-<BaseLayout title={title} description="Personal site: CV, projects, and a blog. Don’t panic.">
-  <Header slot="header" />
+<BrutalLayout
+  title="Dont's Panic, V!"
+  description="Personal site: CV and posts. Dont panic."
+  lang={lang}
+  langSwitchHref={langSwitchHref}
+>
+  <div class="space-y-6">
+    {posts.length ? (
+      <ul class="divide-y divide-border">
+        {posts.map((post) => (
+          <li class="py-6 first:pt-0">
+            <div class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
+              <a class="link text-lg font-medium text-text" href={postHref(lang, post.slug)}>
+                {post.data.title}
+              </a>
+              <span class="inline-flex items-center gap-3 text-sm text-muted">
+                <PostActions
+                  body={post.body}
+                  title={post.data.title}
+                  xUrl={post.data.xUrl}
+                  linkedinUrl={post.data.linkedinUrl}
+                  facebookUrl={post.data.facebookUrl}
+                />
+                <span>{formatDate(post.data.date, lang)}</span>
+              </span>
+            </div>
+            {post.data.summary ? <p class="text-muted mt-2 leading-relaxed">{post.data.summary}</p> : null}
+          </li>
+        ))}
+      </ul>
+    ) : (
+      <p class="text-muted">No posts yet.</p>
+    )}
 
-  <section class="space-y-6">
-    <p class="text-sm text-muted font-mono">The Guide says: stay calm.</p>
-
-    <h1 class="text-4xl sm:text-5xl font-semibold tracking-tight">
-      Don’t Panic, V.
-      <span class="block text-muted text-xl sm:text-2xl font-normal mt-3">
-        CV, projects, and notes from the road.
-      </span>
-    </h1>
-
-    <div class="flex flex-wrap gap-3">
-      <Button href="/cv">View CV</Button>
-      <Button href="/projects" variant="secondary">Projects</Button>
-      <Button href="/blog" variant="ghost">Blog</Button>
-    </div>
-
-    <div class="grid md:grid-cols-3 gap-4 pt-6">
-      <Card>
-        <h2 class="font-semibold">What I do</h2>
-        <p class="text-muted mt-2">Short, human summary goes here. (We’ll replace this with real copy.)</p>
-      </Card>
-      <Card>
-        <h2 class="font-semibold">Current focus</h2>
-        <p class="text-muted mt-2">A place for your latest role / obsession / mission.</p>
-      </Card>
-      <Card>
-        <h2 class="font-semibold">Latest notes</h2>
-        <p class="text-muted mt-2">Blog is coming online. For now: placeholders.</p>
-      </Card>
-    </div>
-  </section>
-
-  <Footer slot="footer" />
-</BaseLayout>
+    {hasMore ? (
+      <div class="pt-2 flex justify-end">
+        <a class="link text-sm" href={postsPageHref(lang, 2)}>
+          Older posts →
+        </a>
+      </div>
+    ) : null}
+  </div>
+</BrutalLayout>

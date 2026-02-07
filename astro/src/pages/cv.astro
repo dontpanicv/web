@@ -1,37 +1,71 @@
 ---
-import BaseLayout from '../layouts/BaseLayout.astro';
-import Header from '../components/Header.astro';
-import Footer from '../components/Footer.astro';
-import Card from '../components/Card.astro';
+import BrutalLayout from '../layouts/BrutalLayout.astro';
+
+const lang = 'en';
 ---
 
-<BaseLayout title="CV · Don’t Panic, V" description="Curriculum vitae">
-  <Header slot="header" />
+<BrutalLayout
+  title="Dont's Panic, V!"
+  description="Curriculum vitae"
+  lang={lang}
+  langSwitchHref="/cs/cv"
+>
+	  <div class="space-y-12">
+	    <header class="space-y-3">
+	      <p class="text-muted leading-relaxed">
+	        I want to understand systems end to end — how CPUs execute instructions, how operating systems, programming languages, databases, containers, proxies, and protocols all fit together. Some of that I picked up out of curiosity, the rest by debugging production. Almost ten years of building and operating Meiro taught me the domains: customer data infrastructure, identity resolution, real-time pipelines, and the edge cases that come with running a CDP for enterprise customers. What I enjoy most is picking up new technology, understanding how it actually works, and figuring out how to apply it. Right now that means AI — running Qwen locally, building agentic workflows with Claude, designing self-learning data analysis tools. I bring these to production, not just demos. I'm also the person who ends up explaining everything — to engineers, to customers, on stage when the occasion calls for it. Teaching is how I verify I actually understand something. On the commercial side, I've navigated enough RFPs and B2B sales cycles to speak the language of enterprise buyers.
+	      </p>
+	      <p class="text-muted leading-relaxed">
+	        Co-founder and Head of R&amp;D at Meiro (Customer Data Platform). Previously: Solutions Architect and Head Nerd at Keboola (Datadriven Co. Pte Ltd).
+	      </p>
+	    </header>
 
-  <div class="space-y-10">
-    <header class="space-y-2">
-      <h1 class="text-3xl font-semibold tracking-tight">CV</h1>
-      <p class="text-muted">A concise timeline. The rest is just improbability.</p>
-    </header>
+    <section class="space-y-6">
+      <h3 class="text-xs uppercase tracking-widest text-muted">Experience</h3>
 
-    <section class="grid gap-4">
-      <Card>
-        <h2 class="font-semibold">Summary</h2>
-        <p class="text-muted mt-2">Add a 2–3 sentence professional summary here.</p>
-      </Card>
-      <Card>
-        <h2 class="font-semibold">Experience</h2>
-        <ul class="mt-3 space-y-2 text-muted">
-          <li><span class="text-text font-medium">Role</span> — Company (YYYY–YYYY)</li>
-          <li><span class="text-text font-medium">Role</span> — Company (YYYY–YYYY)</li>
-        </ul>
-      </Card>
-      <Card>
-        <h2 class="font-semibold">Skills</h2>
-        <p class="text-muted mt-2">Tech stack, tools, and what you’re good at.</p>
-      </Card>
+      <div class="space-y-6">
+        <div class="space-y-2">
+          <div class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+            <h4 class="text-lg font-medium">Meiro</h4>
+            <span class="text-sm text-muted">Brno, Czechia</span>
+          </div>
+          <ul class="space-y-2 text-sm text-muted">
+            <li class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+              <span class="text-text font-medium">Head of R&amp;D &amp; Co-Founder</span>
+              <span>Mar 2024 – Present</span>
+            </li>
+            <li class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+              <span class="text-text font-medium">CTO &amp; Co-Founder</span>
+              <span>Sep 2018 – May 2024</span>
+            </li>
+          </ul>
+          <ul class="mt-3 list-disc pl-5 space-y-1 text-sm text-muted">
+            <li>Owned product architecture, development, and implementations of the Meiro CDP.</li>
+            <li>Hands-on with delivery and the real-world data integration edge cases that come with it.</li>
+          </ul>
+        </div>
+
+        <div class="space-y-2">
+          <div class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+            <h4 class="text-lg font-medium">Keboola (Datadriven Co. Pte Ltd)</h4>
+          </div>
+	          <ul class="space-y-2 text-sm text-muted">
+	            <li class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+	              <span class="text-text font-medium">Head Nerd</span>
+	              <span>Aug 2015 – Sep 2018</span>
+	            </li>
+	            <li class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
+	              <span class="text-text font-medium">Solutions Architect</span>
+	              <span>Aug 2015 – Jul 2018 (Bali, Indonesia)</span>
+	            </li>
+	          </ul>
+          <ul class="mt-3 list-disc pl-5 space-y-1 text-sm text-muted">
+            <li>Designed solutions to customer needs and helped teams ship data integrations end-to-end.</li>
+            <li>Worked on data transport and transformation challenges, including the messy edge cases.</li>
+          </ul>
+        </div>
+      </div>
     </section>
-  </div>
 
-  <Footer slot="footer" />
-</BaseLayout>
+	  </div>
+</BrutalLayout>

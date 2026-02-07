@@ -18,11 +18,10 @@ Define a small, consistent set of **original** brand assets so implementation is
 - `astro/public/brand/thumb-256.png` (optional)
 
 ### 2) Favicon set
-Generate from the same thumb mark.
+Use the same `brand/logo.svg` as the favicon (single source of truth).
 
 **Files**
-- `astro/public/favicon.svg`
-- `astro/public/favicon.ico`
+- `astro/public/brand/logo.svg` (used as `rel="icon"`)
 - Optional extras (nice-to-have):
   - `astro/public/apple-touch-icon.png` (180×180)
   - `astro/public/favicon-32x32.png`
@@ -38,7 +37,7 @@ Generate from the same thumb mark.
   - Yellow is mostly for accents on dark backgrounds or as border/underline
 
 ## Placement rules
-- Header: thumb icon left of site title
+- Home hero: thumb icon on the right side of the title block
 - Footer: smaller thumb, optional
 - Do not overuse the icon; keep it intentional
 
@@ -51,5 +50,5 @@ When implementing assets:
 
 ## Acceptance criteria
 - Favicon looks recognizable at 16×16
-- Header logo looks crisp on retina screens
-- Works in both light and dark mode
+- Thumb icon looks crisp on retina screens
+- Works in light mode

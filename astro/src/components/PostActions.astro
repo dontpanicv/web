@@ -1,0 +1,110 @@
+---
+import { Icon } from 'astro-icon/components';
+
+interface Props {
+  /** Raw markdown body for the copy-for-LLM button */
+  body: string;
+  /** Post title (prepended to the copied markdown) */
+  title: string;
+  /** URL to X.com post announcing this article */
+  xUrl?: string;
+  /** URL to LinkedIn post announcing this article */
+  linkedinUrl?: string;
+  /** URL to Facebook post announcing this article */
+  facebookUrl?: string;
+}
+
+const { body, title, xUrl, linkedinUrl, facebookUrl } = Astro.props;
+
+const id = `md-${Math.random().toString(36).slice(2, 9)}`;
+---
+
+<span class="post-actions inline-flex items-center gap-2">
+  <button
+    type="button"
+    class="post-action-btn"
+    data-md-id={id}
+    aria-label="Copy post as LLM friendly markdown"
+    title="Copy post as LLM friendly markdown"
+  >
+    <Icon name="lucide:clipboard-copy" class="size-4" />
+  </button>
+
+  {xUrl && (
+    <a href={xUrl} target="_blank" rel="noopener noreferrer" class="post-action-btn" aria-label="Discuss on X" title="Discuss on X">
+      <Icon name="simple-icons:x" class="size-4" />
+    </a>
+  )}
+
+  {linkedinUrl && (
+    <a href={linkedinUrl} target="_blank" rel="noopener noreferrer" class="post-action-btn" aria-label="Discuss on LinkedIn" title="Discuss on LinkedIn">
+      <Icon name="simple-icons:linkedin" class="size-4" />
+    </a>
+  )}
+
+  {facebookUrl && (
+    <a href={facebookUrl} target="_blank" rel="noopener noreferrer" class="post-action-btn" aria-label="Discuss on Facebook" title="Discuss on Facebook">
+      <Icon name="simple-icons:facebook" class="size-4" />
+    </a>
+  )}
+
+  <template id={id}>
+    <pre>{`# ${title}\n\n${body}`}</pre>
+  </template>
+</span>
+
+<script>
+  document.addEventListener('click', async (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-md-id]');
+    if (!btn) return;
+
+    const tpl = document.getElementById(btn.dataset.mdId!);
+    if (!tpl) return;
+
+    const md = (tpl as HTMLTemplateElement).content.textContent ?? '';
+
+    try {
+      await navigator.clipboard.writeText(md);
+      btn.classList.add('copied');
+      setTimeout(() => btn.classList.remove('copied'), 1500);
+    } catch {
+      // Fallback: select a temporary textarea
+      const ta = document.createElement('textarea');
+      ta.value = md;
+      ta.style.position = 'fixed';
+      ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      ta.remove();
+      btn.classList.add('copied');
+      setTimeout(() => btn.classList.remove('copied'), 1500);
+    }
+  });
+</script>
+
+<style>
+  .post-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0.25rem;
+    border-radius: var(--r-sm);
+    color: var(--c-muted);
+    transition: color 0.15s, background-color 0.15s;
+  }
+
+  .post-action-btn:hover {
+    color: var(--c-text);
+    background-color: var(--c-border);
+  }
+
+  .post-action-btn:focus-visible {
+    outline: 2px solid var(--c-accent);
+    outline-offset: 2px;
+  }
+
+  .post-action-btn.copied {
+    color: #16a34a;
+  }
+</style>

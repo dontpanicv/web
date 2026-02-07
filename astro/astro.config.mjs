@@ -2,12 +2,14 @@
 import { defineConfig } from 'astro/config';
 
 import tailwindcss from '@tailwindcss/vite';
+import icon from 'astro-icon';
 
 // https://astro.build/config
 export default defineConfig({
-  // Default build output goes to preview/, because that's where we iterate.
-  // For production builds, use: `npm run build:main` (sets --outDir ../main).
-  outDir: '../preview',
+  // Build output served by nginx.
+  outDir: '../main',
+
+  integrations: [icon()],
 
   vite: {
     plugins: [tailwindcss()],

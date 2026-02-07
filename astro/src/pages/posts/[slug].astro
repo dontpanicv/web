@@ -1,0 +1,52 @@
+---
+import BrutalLayout from '../../layouts/BrutalLayout.astro';
+import PostActions from '../../components/PostActions.astro';
+
+import { getCollection } from 'astro:content';
+
+import { formatDate, postHref } from '../../lib/i18n';
+
+const lang = 'en';
+
+export async function getStaticPaths() {
+  const posts = await getCollection('posts');
+  return posts
+    .filter((p) => p.data.status !== 'draft')
+    .map((post) => ({ params: { slug: post.slug }, props: { post } }));
+}
+
+const { post } = Astro.props;
+const { Content } = await post.render();
+
+const csPosts = await getCollection('postsCs');
+const key = post.data.translationKey ?? post.slug;
+const csPost = csPosts.find((p) => (p.data.translationKey ?? p.slug) === key && p.data.status !== 'draft');
+const langSwitchHref = csPost ? postHref('cs', csPost.slug) : '/cs/';
+---
+
+<BrutalLayout
+  title={`${post.data.title} · Dont's Panic, V!`}
+  description={post.data.summary ?? 'Post'}
+  lang={lang}
+  langSwitchHref={langSwitchHref}
+>
+  <article class="space-y-8">
+    <header class="space-y-3">
+      <h2 class="text-3xl sm:text-4xl font-semibold tracking-tight">{post.data.title}</h2>
+      <div class="flex items-center gap-3 text-sm text-muted">
+        <PostActions
+          body={post.body}
+          title={post.data.title}
+          xUrl={post.data.xUrl}
+          linkedinUrl={post.data.linkedinUrl}
+          facebookUrl={post.data.facebookUrl}
+        />
+        <span>{formatDate(post.data.date, lang)}</span>
+      </div>
+    </header>
+
+    <div class="content">
+      <Content />
+    </div>
+  </article>
+</BrutalLayout>
