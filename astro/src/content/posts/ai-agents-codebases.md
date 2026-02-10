@@ -1,6 +1,6 @@
 ---
 title: "Stop Letting AI Agents Guess Where Code Goes"
-date: 2026-02-07T12:00:00Z
+date: 2026-02-10T12:00:00Z
 status: published
 translationKey: ai-agents-codebases
 tags:
