@@ -10,6 +10,9 @@ tags:
   - codebase
   - typescript
 summary: "Refaktor do modulárního monolitu navržený pro AI agenty: předvídatelný layout modulů, centralizovaná autentizace a přísná hranice public.ts, která brání architektonickému driftu."
+xUrl: https://x.com/dontpanicv/status/2021227402043523429
+linkedinUrl: https://www.linkedin.com/posts/kurkavojtech_in-meiro-we-have-been-working-on-a-stealth-share-7426992773993541632-0OMb?utm_source=share&utm_medium=member_desktop&rcm=ACoAAAmof-kBTbNxfje0ck_wgUkzcng2qGtR2aM
+facebookUrl: https://www.facebook.com/share/1PNgYeL4ik/?mibextid=wwXIfr
 ---
 
 *Napsáno společně s [Adamem Sobotkou](https://www.linkedin.com/in/adamsobotka/).*

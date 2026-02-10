@@ -10,6 +10,9 @@ tags:
   - codebase
   - typescript
 summary: "A modular-monolith refactor designed for AI agents: predictable module layout, centralized auth, and a strict public.ts boundary that prevents architectural drift."
+xUrl: https://x.com/dontpanicv/status/2021227402043523429
+linkedinUrl: https://www.linkedin.com/posts/kurkavojtech_in-meiro-we-have-been-working-on-a-stealth-share-7426992773993541632-0OMb?utm_source=share&utm_medium=member_desktop&rcm=ACoAAAmof-kBTbNxfje0ck_wgUkzcng2qGtR2aM
+facebookUrl: https://www.facebook.com/share/1PNgYeL4ik/?mibextid=wwXIfr
 ---
 
 *Co-written with [Adam Sobotka](https://www.linkedin.com/in/adamsobotka/).*
