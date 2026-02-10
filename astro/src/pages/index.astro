@@ -7,6 +7,7 @@ import { getPublishedPosts } from '../lib/posts';
 
 const lang = 'en';
 const pageSize = 10;
+// getPublishedPosts already includes rawMarkdown
 const allPosts = await getPublishedPosts(lang);
 const posts = allPosts.slice(0, pageSize);
 const hasMore = allPosts.length > pageSize;
@@ -31,7 +32,7 @@ const langSwitchHref = '/cs/';
               </a>
               <span class="inline-flex items-center gap-3 text-sm text-muted">
                 <PostActions
-                  body={post.body}
+                  body={post.rawMarkdown ?? post.body}
                   title={post.data.title}
                   xUrl={post.data.xUrl}
                   linkedinUrl={post.data.linkedinUrl}

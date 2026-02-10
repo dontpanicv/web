@@ -12,6 +12,8 @@ tags:
 summary: "A modular-monolith refactor designed for AI agents: predictable module layout, centralized auth, and a strict public.ts boundary that prevents architectural drift."
 ---
 
+*Co-written with [Adam Sobotka](https://www.linkedin.com/in/adamsobotka/).*
+
 ![Modular monolith boundary diagram](/posts/ai-agents-codebases/hero.png)
 
 ## **The Insight We Didn't Expect**

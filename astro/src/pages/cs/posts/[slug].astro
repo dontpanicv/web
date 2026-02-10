@@ -18,6 +18,10 @@ export async function getStaticPaths() {
 const { post } = Astro.props;
 const { Content } = await post.render();
 
+// Use raw markdown if available from getPublishedPosts
+const rawMarkdown = (post as any).rawMarkdown;
+const bodyContent = rawMarkdown ?? post.body;
+
 const enPosts = await getCollection('posts');
 const key = post.data.translationKey ?? post.slug;
 const enPost = enPosts.find((p) => (p.data.translationKey ?? p.slug) === key && p.data.status !== 'draft');
@@ -35,7 +39,7 @@ const langSwitchHref = enPost ? postHref('en', enPost.slug) : '/';
       <h2 class="text-3xl sm:text-4xl font-semibold tracking-tight">{post.data.title}</h2>
       <div class="flex items-center gap-3 text-sm text-muted">
         <PostActions
-          body={post.body}
+          body={bodyContent}
           title={post.data.title}
           xUrl={post.data.xUrl}
           linkedinUrl={post.data.linkedinUrl}

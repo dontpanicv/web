@@ -12,6 +12,8 @@ tags:
 summary: "Refaktor do modulárního monolitu navržený pro AI agenty: předvídatelný layout modulů, centralizovaná autentizace a přísná hranice public.ts, která brání architektonickému driftu."
 ---
 
+*Napsáno společně s [Adamem Sobotkou](https://www.linkedin.com/in/adamsobotka/).*
+
 ![Schéma hranic modulárního monolitu](/posts/ai-agents-codebases/hero.png)
 
 ## **Nečekaný poznatek**

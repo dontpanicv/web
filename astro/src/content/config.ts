@@ -2,7 +2,7 @@ import { defineCollection, z } from 'astro:content';
 
 const postSchema = z.object({
   title: z.string(),
-  date: z.date(),
+  date: z.coerce.date(),
   summary: z.string().optional(),
   status: z.enum(['draft', 'published']).optional(),
   tags: z.array(z.string()).optional(),

@@ -11,7 +11,7 @@ tags:
 summary: "Why Claude Code and Codex aren’t interchangeable: prompting style and ambiguity tolerance shape the outcome."
 ---
 
-If you’ve tried multiple coding assistants, say **Claude Code** and **Codex**, you’ve probably noticed something odd:
+If you've tried multiple coding assistants, say **Claude Code** and **Codex**, you’ve probably noticed something odd:
 
 They don’t feel interchangeable.
 

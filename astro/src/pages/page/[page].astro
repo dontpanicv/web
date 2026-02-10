@@ -36,7 +36,7 @@ const langSwitchHref = `/cs/page/${page.currentPage}`;
             </a>
             <span class="inline-flex items-center gap-3 text-sm text-muted">
               <PostActions
-                body={post.body}
+                body={post.rawMarkdown ?? post.body}
                 title={post.data.title}
                 xUrl={post.data.xUrl}
                 linkedinUrl={post.data.linkedinUrl}

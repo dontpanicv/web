@@ -3,6 +3,8 @@ import BrutalLayout from '../../layouts/BrutalLayout.astro';
 import PostActions from '../../components/PostActions.astro';
 
 import { getCollection } from 'astro:content';
+import * as fs from 'fs';
+import * as path from 'path';
 
 import { formatDate, postHref } from '../../lib/i18n';
 
@@ -10,13 +12,29 @@ const lang = 'en';
 
 export async function getStaticPaths() {
   const posts = await getCollection('posts');
-  return posts
-    .filter((p) => p.data.status !== 'draft')
-    .map((post) => ({ params: { slug: post.slug }, props: { post } }));
+  const filteredPosts = posts.filter((p) => p.data.status !== 'draft');
+  
+  // Process each post to read raw markdown
+  const paths = [];
+  for (const post of filteredPosts) {
+    try {
+      const contentDir = path.join(process.cwd(), 'src', 'content');
+      const filePath = path.join(contentDir, post.collection, `${post.slug}.md`);
+      const raw = fs.readFileSync(filePath, 'utf-8');
+      paths.push({ params: { slug: post.slug }, props: { post, rawMarkdown: raw } });
+    } catch {
+      paths.push({ params: { slug: post.slug }, props: { post, rawMarkdown: null } });
+    }
+  }
+  
+  return paths;
 }
 
-const { post } = Astro.props;
+const { post, rawMarkdown } = Astro.props;
 const { Content } = await post.render();
+
+// Use raw markdown if available, otherwise fall back to post.body
+const bodyContent = rawMarkdown ?? post.body;
 
 const csPosts = await getCollection('postsCs');
 const key = post.data.translationKey ?? post.slug;
@@ -35,7 +53,7 @@ const langSwitchHref = csPost ? postHref('cs', csPost.slug) : '/cs/';
       <h2 class="text-3xl sm:text-4xl font-semibold tracking-tight">{post.data.title}</h2>
       <div class="flex items-center gap-3 text-sm text-muted">
         <PostActions
-          body={post.body}
+          body={bodyContent}
           title={post.data.title}
           xUrl={post.data.xUrl}
           linkedinUrl={post.data.linkedinUrl}

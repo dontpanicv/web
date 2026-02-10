@@ -22,28 +22,28 @@ const id = `md-${Math.random().toString(36).slice(2, 9)}`;
 <span class="post-actions inline-flex items-center gap-2">
   <button
     type="button"
-    class="post-action-btn"
+    class="post-action-btn llm-copy-btn"
     data-md-id={id}
     aria-label="Copy post as LLM friendly markdown"
-    title="Copy post as LLM friendly markdown"
   >
-    <Icon name="lucide:clipboard-copy" class="size-4" />
+    <Icon name="lucide:clipboard-copy" class="size-4 llm-icon" />
+    <span class="tooltip">Copy post as LLM friendly markdown</span>
   </button>
 
   {xUrl && (
-    <a href={xUrl} target="_blank" rel="noopener noreferrer" class="post-action-btn" aria-label="Discuss on X" title="Discuss on X">
+    <a href={xUrl} target="_blank" rel="noopener noreferrer" class="post-action-btn" aria-label="Discuss on X">
       <Icon name="simple-icons:x" class="size-4" />
     </a>
   )}
 
   {linkedinUrl && (
-    <a href={linkedinUrl} target="_blank" rel="noopener noreferrer" class="post-action-btn" aria-label="Discuss on LinkedIn" title="Discuss on LinkedIn">
+    <a href={linkedinUrl} target="_blank" rel="noopener noreferrer" class="post-action-btn" aria-label="Discuss on LinkedIn">
       <Icon name="simple-icons:linkedin" class="size-4" />
     </a>
   )}
 
   {facebookUrl && (
-    <a href={facebookUrl} target="_blank" rel="noopener noreferrer" class="post-action-btn" aria-label="Discuss on Facebook" title="Discuss on Facebook">
+    <a href={facebookUrl} target="_blank" rel="noopener noreferrer" class="post-action-btn" aria-label="Discuss on Facebook">
       <Icon name="simple-icons:facebook" class="size-4" />
     </a>
   )}
@@ -55,7 +55,7 @@ const id = `md-${Math.random().toString(36).slice(2, 9)}`;
 
 <script>
   document.addEventListener('click', async (e) => {
-    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-md-id]');
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('.llm-copy-btn');
     if (!btn) return;
 
     const tpl = document.getElementById(btn.dataset.mdId!);
@@ -65,8 +65,6 @@ const id = `md-${Math.random().toString(36).slice(2, 9)}`;
 
     try {
       await navigator.clipboard.writeText(md);
-      btn.classList.add('copied');
-      setTimeout(() => btn.classList.remove('copied'), 1500);
     } catch {
       // Fallback: select a temporary textarea
       const ta = document.createElement('textarea');
@@ -77,9 +75,13 @@ const id = `md-${Math.random().toString(36).slice(2, 9)}`;
       ta.select();
       document.execCommand('copy');
       ta.remove();
-      btn.classList.add('copied');
-      setTimeout(() => btn.classList.remove('copied'), 1500);
     }
+
+    // Animation feedback
+    btn.classList.add('animate-pulse', 'copied');
+    setTimeout(() => {
+      btn.classList.remove('animate-pulse', 'copied');
+    }, 1500);
   });
 </script>
 
