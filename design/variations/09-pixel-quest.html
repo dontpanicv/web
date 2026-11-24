@@ -1,0 +1,866 @@
+<!doctype html>
+<!--
+09-pixel-quest · an 8/16-bit RPG that stays readable.
+Signature interaction: a pixel overworld where a tiny V walks between places (← → or A D, the ◀ ▶ buttons, or tap/click a
+  place or its label). Every place is a section of the page; ENTER / SPACE (or the ENTER button) goes in.
+Easter eggs:
+  1. Konami code (↑ ↑ ↓ ↓ ← → ← → B A): god mode. Rainbow V, walks faster, every stat reads 99. Enter it again to turn it off.
+  2. The gloomy robot between the Server Dungeon and Golem's Cave: walk to it and press ENTER, or click it. Dialogue tree.
+  3. A hidden chest at the far east edge, past the Guild Tavern: open it for a towel (+42 to not panicking). It then
+     appears in the Inventory on the Character Sheet.
+  4. Random encounter: walk about 260 px with the keys or the ◀ ▶ buttons and "a wild PRODUCTION INCIDENT" appears.
+     Try "Panic" and "Run" before you win.
+  5. Day / dusk / night comes from the visitor's local clock. Click the sun or moon to cycle it.
+  6. Fill the XP bar (discover places, open the chest, win the fight) for the level-up message. The level is always 42.
+  7. The SAVE button in the footer.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Don't Panic, V! — Pixel Quest</title>
+<meta name="description" content="Vojtěch “V” Kurka — Head of R&D & Co-Founder at Meiro. Projects, writing and CV, as a readable RPG.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#171a2b; --deep:#10121f; --win:#1f2659; --cream:#f7f0dc; --cream2:#e6d9b4; --line:#cbbd94;
+    --gold:#FFD400; --red:#c93f33; --green:#2f8a48; --blue:#1d4fa3; --clay:#b5704a;
+    --px:'Press Start 2P',ui-monospace,'Courier New',monospace;
+    --body:'Atkinson Hyperlegible',system-ui,-apple-system,'Segoe UI',sans-serif;
+  }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{margin:0;background:var(--deep);color:#fff;font:18px/1.65 var(--body);
+    background-image:linear-gradient(45deg,rgba(255,255,255,.035) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.035) 75%),
+                     linear-gradient(45deg,rgba(255,255,255,.035) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.035) 75%);
+    background-size:8px 8px;background-position:0 0,4px 4px}
+  .px{font-family:var(--px);line-height:1.6;letter-spacing:0;text-transform:uppercase}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 20px}
+  a{color:var(--blue)}
+  :focus-visible{outline:3px solid var(--gold);outline-offset:3px}
+  button{font:inherit;cursor:pointer}
+
+  /* title */
+  .top{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:10px 24px;padding-top:26px;padding-bottom:18px}
+  .top h1{margin:0;font-size:clamp(20px,4.4vw,46px);line-height:1.25;text-shadow:4px 4px 0 #000}
+  .top h1 span{color:var(--gold)}
+  .top p{margin:0;font-size:10px;color:#aab1d6}
+
+  /* hud + stage */
+  .hud{display:flex;flex-wrap:wrap;gap:8px 22px;align-items:center;background:#000;border-top:4px solid #fff;border-bottom:4px solid #fff;
+    padding:10px 20px;font-size:10px}
+  .hud b{color:var(--gold)}
+  .meter{display:inline-flex;align-items:center;gap:8px}
+  .m{display:inline-block;width:84px;height:12px;border:2px solid #fff;background:#333;position:relative}
+  .m i{position:absolute;inset:0;background:var(--red);width:83%}
+  .m #xp{background:var(--gold);width:0;transition:width .4s steps(8)}
+  #tod{margin-left:auto;color:#aab1d6}
+  .stage{position:relative;overflow:hidden;background:#58b4f5;border-bottom:4px solid #fff;touch-action:manipulation}
+  #world{display:block;image-rendering:pixelated;image-rendering:crisp-edges;cursor:pointer}
+  #labels{position:absolute;inset:0;pointer-events:none}
+  .loc{position:absolute;transform:translateX(-50%);pointer-events:auto;font:8px/1.5 var(--px);text-transform:uppercase;white-space:nowrap;
+    color:#fff;background:rgba(16,18,31,.88);border:2px solid #fff;padding:5px 7px 4px;box-shadow:3px 3px 0 rgba(0,0,0,.45)}
+  .loc:hover,.loc.at{background:var(--gold);color:var(--ink);border-color:var(--ink)}
+  .controls{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;padding-top:14px;padding-bottom:4px}
+  .controls p{margin:0;font-size:9px;color:#aab1d6;flex:1 1 260px}
+  .pad{display:flex;gap:8px}
+  .pad button{font:11px/1 var(--px);color:#fff;background:var(--win);border:3px solid #fff;padding:11px 13px;box-shadow:3px 3px 0 #000;
+    touch-action:none;user-select:none;-webkit-user-select:none}
+  .pad button:active{transform:translate(2px,2px);box-shadow:1px 1px 0 #000}
+  #toast{position:absolute;left:50%;top:10px;transform:translate(-50%,-260%);transition:transform .25s steps(4);z-index:4;
+    font:9px/1.7 var(--px);text-transform:uppercase;background:var(--gold);color:var(--ink);border:3px solid var(--ink);padding:8px 12px;
+    max-width:calc(100% - 24px);text-align:center;box-shadow:4px 4px 0 rgba(0,0,0,.5)}
+  #toast.on{transform:translate(-50%,0)}
+
+  /* dialogue window (dark) */
+  .dwin{background:var(--win);color:#fff;border:4px solid #fff;box-shadow:0 0 0 4px var(--ink),10px 10px 0 rgba(0,0,0,.55);padding:22px 24px}
+  .who{display:table;position:relative;top:-40px;margin:0 0 -24px -8px;font:10px/1 var(--px);text-transform:uppercase;background:#fff;color:var(--ink);
+    padding:8px 10px 6px;border:3px solid var(--ink)}
+  .dlgwrap{position:relative;height:0;z-index:6}
+  #dlg{position:absolute;left:50%;top:-22px;transform:translateX(-50%);width:min(700px,calc(100% - 28px));padding:18px 20px}
+  #dlg[hidden]{display:none}
+  #dlg .who{top:0;margin:0 0 12px}
+  #dlg p{margin:0 0 12px;font-size:17px;line-height:1.55}
+  .opts{display:flex;flex-direction:column;gap:2px;margin:0;padding:0;list-style:none}
+  .opt{display:block;width:100%;text-align:left;background:none;border:0;color:#fff;font:17px/1.4 var(--body);padding:6px 8px 6px 30px;position:relative;text-decoration:none}
+  .opt::before{content:"▶";position:absolute;left:8px;top:8px;font-size:12px;color:var(--gold);opacity:0}
+  .opt:hover,.opt:focus-visible{background:rgba(255,255,255,.12);outline:0}
+  .opt:hover::before,.opt:focus-visible::before{opacity:1;animation:nudge .6s steps(2) infinite}
+  @keyframes nudge{50%{transform:translateX(3px)}}
+
+  #intro{margin-top:40px}
+  #intro p{margin:0 0 14px;max-width:68ch}
+  #intro .lead{font-size:21px;line-height:1.5}
+  #intro .opts{flex-direction:row;flex-wrap:wrap;gap:4px 10px;margin-top:8px}
+  #intro .opt{width:auto;font-family:var(--px);font-size:11px;text-transform:uppercase;padding:10px 10px 8px 30px}
+  #intro .opt::before{top:9px}
+
+  /* content windows (cream) */
+  section{scroll-margin-top:18px}
+  .win{background:var(--cream);color:var(--ink);border:4px solid var(--ink);
+    box-shadow:inset 0 0 0 4px #fffaf0,inset 0 0 0 6px var(--cream2),10px 10px 0 rgba(0,0,0,.55);padding:30px 32px;margin-top:44px}
+  .win h2{margin:0 0 6px;font-size:clamp(15px,2.2vw,20px);display:flex;align-items:center;gap:12px}
+  .win h2::before{content:"";width:14px;height:14px;background:var(--gold);box-shadow:0 0 0 3px var(--ink);flex:none}
+  .sub{font-size:9px;color:#6a6248;margin:0 0 22px}
+  .win h3{font-size:12px;margin:0 0 10px}
+  .win p{margin:0 0 14px;max-width:68ch}
+  .rule{height:4px;margin:26px 0;background:repeating-linear-gradient(90deg,var(--ink) 0 8px,transparent 8px 16px)}
+
+  /* character sheet */
+  .sheet{display:grid;grid-template-columns:230px 1fr;gap:30px;align-items:start}
+  .id{text-align:center}
+  #portrait{width:176px;height:198px;image-rendering:pixelated;border:4px solid var(--ink);background:#8fd0ff;box-shadow:5px 5px 0 var(--cream2)}
+  .sheet dl{margin:10px 0 0;font-size:17px;line-height:1.4}
+  .sheet dt{font:8px/1.6 var(--px);text-transform:uppercase;color:#6a6248;margin-top:9px}
+  .sheet dd{margin:0}
+  .facts{display:grid;grid-template-columns:1fr .7fr 1.5fr;gap:0 26px;margin:0 0 22px!important;padding-bottom:18px;border-bottom:3px dotted var(--line)}
+  .facts dt{margin-top:0!important}
+  .stats{display:grid;grid-template-columns:1fr 1fr;gap:16px 30px}
+  .stat .lab{display:flex;justify-content:space-between;font:10px/1.5 var(--px);text-transform:uppercase;margin-bottom:5px}
+  .bar{height:18px;background:linear-gradient(90deg,var(--c,var(--green)) calc(var(--v)*10%),#d6c9a2 0);
+    -webkit-mask:repeating-linear-gradient(90deg,#000 0 calc(10% - 3px),transparent 0 10%);mask:repeating-linear-gradient(90deg,#000 0 calc(10% - 3px),transparent 0 10%)}
+  .stat small{display:block;font-size:15px;line-height:1.4;color:#4c4633;margin-top:5px}
+  .god .bar{--v:10!important;--c:var(--gold)}
+  .god .bar{animation:hue 1.2s linear infinite}
+  @keyframes hue{to{filter:hue-rotate(360deg)}}
+  .two{display:grid;grid-template-columns:1.15fr 1fr;gap:34px}
+  .chapters{list-style:none;margin:0;padding:0}
+  .chapters li{padding:0 0 14px 22px;border-left:4px solid var(--ink);position:relative;margin-left:6px}
+  .chapters li::before{content:"";position:absolute;left:-10px;top:4px;width:12px;height:12px;background:var(--gold);border:2px solid var(--ink)}
+  .chapters li:last-child{padding-bottom:0}
+  .chapters b{display:block}
+  .chapters i{font:8px/1.6 var(--px);font-style:normal;text-transform:uppercase;color:#6a6248;display:block}
+  .inv{display:flex;flex-wrap:wrap;gap:12px;margin:0;padding:0;list-style:none}
+  .inv li{display:flex;align-items:center;gap:10px;border:3px solid var(--ink);background:#fffaf0;padding:8px 12px 8px 8px;font-size:16px;line-height:1.3}
+  .inv li i{width:28px;height:28px;flex:none;display:grid;place-items:center;background:var(--ink);color:var(--gold);font:11px/1 var(--px);font-style:normal}
+  .inv li.locked{border-style:dashed;color:#7a7257}
+  .inv li.locked i{background:#bfb38c;color:#fffaf0}
+
+  /* quests */
+  .quests{display:grid;grid-template-columns:1fr 1fr;gap:26px;margin-top:8px}
+  .quest{border:4px solid var(--ink);background:#fffaf0;padding:20px 22px;scroll-margin-top:18px;display:flow-root}
+  .quest canvas{float:right;width:160px;height:152px;margin:0 0 10px 16px;image-rendering:pixelated;border:3px solid var(--ink)}
+  .tag{display:inline-block;font:8px/1 var(--px);text-transform:uppercase;padding:6px 7px 4px;background:var(--green);color:#fff;margin-bottom:12px}
+  .tag.main{background:var(--red)}
+  .quest h3{font-size:15px;margin-bottom:4px}
+  .meta{font:8px/1.7 var(--px);text-transform:uppercase;color:#6a6248;margin:0 0 12px}
+  .quest p{font-size:18px}
+  .quest .meta{font:8px/1.7 var(--px)}
+  .obj{list-style:none;margin:0 0 14px;padding:0;clear:both}
+  .obj li{position:relative;padding:3px 0 3px 28px;font-size:17px;line-height:1.45}
+  .obj li::before{content:"";position:absolute;left:0;top:8px;width:14px;height:14px;border:3px solid var(--ink);background:#fffaf0}
+  .obj li.done::before{background:var(--green);box-shadow:inset 0 0 0 2px #fffaf0}
+  .reward{font-size:16px;margin:0;border-top:3px dotted var(--line);padding-top:12px}
+  .reward b{font:8px/1 var(--px);text-transform:uppercase;color:#6a6248;margin-right:8px}
+  code{font:.88em ui-monospace,Menlo,Consolas,monospace;background:#ece2c4;padding:1px 5px}
+
+  /* library */
+  .tomes{list-style:none;margin:0;padding:0;display:grid;gap:14px}
+  .tome{display:grid;grid-template-columns:18px 1fr auto;gap:0 18px;align-items:center;background:#fffaf0;border:3px solid var(--ink)}
+  .tome .spine{align-self:stretch;background:var(--c,var(--red));border-right:3px solid var(--ink);
+    background-image:linear-gradient(var(--gold),var(--gold));background-size:100% 4px;background-repeat:no-repeat;background-position:0 10px}
+  .tome div{padding:14px 0}
+  .tome h3{font-family:var(--body);font-size:20px;line-height:1.3;text-transform:none;margin:0 0 3px}
+  .tome p{margin:0;font-size:16.5px;line-height:1.45;color:#3c3727}
+  .tome .meta{margin:0 0 5px;font:8px/1.7 var(--px);color:#6a6248}
+  .btn{display:inline-block;font:9px/1 var(--px);text-transform:uppercase;text-decoration:none;color:var(--ink);background:var(--gold);
+    border:3px solid var(--ink);padding:11px 12px 9px;box-shadow:4px 4px 0 var(--ink);margin-right:18px;white-space:nowrap}
+  .btn:hover{transform:translate(2px,2px);box-shadow:2px 2px 0 var(--ink)}
+  .btn.ghost{background:#fffaf0}
+  .scrolls{display:grid;grid-template-columns:1fr 1fr;gap:14px 26px;margin:0;padding:0;list-style:none}
+  .scrolls li{border-left:6px solid var(--gold);padding:2px 0 2px 16px;font-size:18px;line-height:1.5;font-style:italic}
+  #tome[hidden]{display:none}
+  #tome{background:#fffdf6;padding:38px clamp(20px,6vw,72px)}
+  #tome:focus{outline:0}
+  #tome .kicker{font:9px/1.6 var(--px);text-transform:uppercase;color:#6a6248;margin:0 0 14px}
+  #tome h2{font-family:var(--body);text-transform:none;font-size:clamp(26px,3.4vw,36px);line-height:1.2;max-width:28ch;display:block;margin-bottom:22px}
+  #tome h2::before{display:none}
+  #tome .prose{max-width:66ch}
+  #tome .prose p{font-size:19px;line-height:1.72;margin-bottom:20px}
+  #tome .prose p:first-child::first-letter{font:44px/0.9 var(--px);float:left;margin:8px 12px 0 0;color:var(--red)}
+  #tome h3{font-family:var(--body);text-transform:none;font-size:23px;margin:30px 0 12px}
+
+  /* guild */
+  .guild{display:grid;grid-template-columns:1fr 1fr;gap:12px 26px;margin:6px 0 0;padding:0;list-style:none}
+  .guild a{display:block;position:relative;padding:14px 16px 14px 42px;background:#fffaf0;border:3px solid var(--ink);color:var(--ink);text-decoration:none}
+  .guild a::before{content:"▶";position:absolute;left:16px;top:17px;font-size:13px;color:var(--red);opacity:.25}
+  .guild a:hover,.guild a:focus-visible{background:var(--gold)}
+  .guild a:hover::before,.guild a:focus-visible::before{opacity:1;animation:nudge .6s steps(2) infinite}
+  .guild b{display:block;font:10px/1.6 var(--px);text-transform:uppercase}
+  .guild span{font-size:17px;overflow-wrap:anywhere}
+
+  footer{padding:46px 20px 90px;text-align:center;color:#aab1d6;font-size:9px}
+  footer button{font:9px/1 var(--px);text-transform:uppercase;color:#fff;background:none;border:3px solid #fff;padding:10px 12px 8px;margin-left:12px}
+  footer button:hover{background:#fff;color:var(--ink)}
+
+  @media (max-width:820px){
+    .sheet,.two,.quests,.scrolls,.guild{grid-template-columns:1fr}
+    .stats,.facts{grid-template-columns:1fr}
+    .facts{gap:10px 0}
+    .win{padding:22px 18px;box-shadow:inset 0 0 0 4px #fffaf0,inset 0 0 0 6px var(--cream2),6px 6px 0 rgba(0,0,0,.55)}
+    .quest{padding:16px}
+    .quest canvas{float:none;display:block;margin:0 auto 14px}
+    .tome{grid-template-columns:14px 1fr}
+    .tome .btn{grid-column:2;justify-self:start;margin:0 0 16px}
+    .loc{font-size:7px;padding:4px 5px 3px}
+    .hud{font-size:8px;gap:6px 14px;padding:8px 12px}
+    .m{width:56px}
+    #dlg p,.opt{font-size:16px}
+    .dwin{padding:20px 16px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    html{scroll-behavior:auto}
+    *,*::before,*::after{animation:none!important;transition:none!important}
+  }
+</style>
+</head>
+<body>
+
+<header class="top wrap">
+  <h1 class="px">Don't Panic, <span>V!</span></h1>
+  <p class="px">A readable RPG · Player 1: Vojtěch “V” Kurka</p>
+</header>
+
+<section id="hero" aria-label="Overworld map">
+  <div class="hud px" aria-label="Status">
+    <span><b>V</b> · LV 42</span>
+    <span class="meter">Coffee <span class="m"><i></i></span></span>
+    <span class="meter">XP <span class="m"><i id="xp"></i></span></span>
+    <span id="map">Map 1/8</span>
+    <span id="tod">Day</span>
+  </div>
+  <div class="stage" id="stage">
+    <canvas id="world" width="480" height="112" aria-hidden="true"></canvas>
+    <div id="labels"></div>
+    <div id="toast" role="status" aria-live="polite"></div>
+  </div>
+  <div class="dlgwrap">
+    <div id="dlg" class="dwin" role="dialog" aria-labelledby="dlg-who" hidden>
+      <span class="who" id="dlg-who"></span>
+      <p id="dlg-txt"></p>
+      <div class="opts" id="dlg-opts"></div>
+    </div>
+  </div>
+  <div class="controls wrap">
+    <div class="pad">
+      <button type="button" id="pl" aria-label="Walk west">◀</button>
+      <button type="button" id="pr" aria-label="Walk east">▶</button>
+      <button type="button" id="pa">Enter</button>
+    </div>
+    <p class="px" id="hint">Arrow keys or A D to walk · Enter to go in · or tap a place</p>
+  </div>
+  <noscript><p class="wrap">The map needs JavaScript. Everything below it does not.</p></noscript>
+</section>
+
+<main class="wrap">
+
+  <section id="intro" class="dwin">
+    <span class="who">V</span>
+    <p class="lead">Hi. I'm Vojtěch “V” Kurka, Head of R&amp;D &amp; Co-Founder at Meiro, playing from Brno, Czechia. I write code no one wants to read, but everyone needs to have. Data whatever.</p>
+    <p>I like knowing how things work — from CPUs and protocols to databases and containers. Almost ten years of building a data platform in production taught me most of it. Now I spend that curiosity on AI: local models, agentic workflows, and getting it all into production for real customers.</p>
+    <nav class="opts" aria-label="Sections">
+      <a class="opt" href="#sheet">Character sheet</a>
+      <a class="opt" href="#quests">Quest log</a>
+      <a class="opt" href="#library">Library</a>
+      <a class="opt" href="#guild">Join the party</a>
+    </nav>
+  </section>
+
+  <section id="sheet" class="win">
+    <h2 class="px">Character Sheet</h2>
+    <p class="px sub">Found in the Server Dungeon · about and CV</p>
+    <div class="sheet">
+      <div class="id">
+        <canvas id="portrait" width="16" height="18" aria-label="Pixel portrait of V in a yellow hoodie" role="img"></canvas>
+        <dl>
+          <dt>Name</dt><dd>Vojtěch “V” Kurka</dd>
+          <dt>Class</dt><dd>Head Nerd</dd>
+        </dl>
+      </div>
+      <div>
+        <dl class="facts">
+          <div><dt>Guild</dt><dd>Meiro — Head of R&amp;D &amp; Co-Founder</dd></div>
+          <div><dt>Home base</dt><dd>Brno, Czechia</dd></div>
+          <div><dt>Speciality</dt><dd>Enterprise data architecture · AI-native development · Customer data infrastructure</dd></div>
+        </dl>
+        <div class="stats">
+          <div class="stat"><div class="lab"><span>Systems</span><span class="val" data-v="9">9</span></div><div class="bar" style="--v:9"></div><small>CPUs, operating systems, databases, containers, proxies, protocols.</small></div>
+          <div class="stat"><div class="lab"><span>Data</span><span class="val" data-v="10">10</span></div><div class="bar" style="--v:10"></div><small>Customer data infrastructure, identity resolution, real-time pipelines.</small></div>
+          <div class="stat"><div class="lab"><span>Agents</span><span class="val" data-v="8">8</span></div><div class="bar" style="--v:8;--c:#1d4fa3"></div><small>Local Qwen, agentic workflows, self-learning analysis tools.</small></div>
+          <div class="stat"><div class="lab"><span>Explaining things</span><span class="val" data-v="9">9</span></div><div class="bar" style="--v:9;--c:#1d4fa3"></div><small>To engineers, to customers, on stage when the occasion calls for it.</small></div>
+          <div class="stat"><div class="lab"><span>Hype resistance</span><span class="val" data-v="10">10</span></div><div class="bar" style="--v:10;--c:#b5704a"></div><small>In production, not just demos.</small></div>
+          <div class="stat"><div class="lab"><span>Panic</span><span class="val" data-v="0">0</span></div><div class="bar" style="--v:0;--c:#c93f33"></div><small>It's in the name.</small></div>
+        </div>
+      </div>
+    </div>
+    <div class="rule" role="presentation"></div>
+    <div class="two">
+      <div>
+        <h3 class="px">Backstory</h3>
+        <p>I want to understand systems end to end: how CPUs execute instructions, how operating systems, programming languages, databases, containers, proxies and protocols all fit together. Some of that I picked up out of curiosity, the rest by debugging production.</p>
+        <p>What I enjoy most is picking up new technology, understanding how it actually works, and figuring out how to apply it. Right now that means AI — running Qwen locally, building agentic workflows, designing self-learning data analysis tools.</p>
+        <p>I'm also the person who ends up explaining everything. Teaching is how I verify I actually understand something. If I can't explain it to someone else, I don't understand it yet.</p>
+      </div>
+      <div>
+        <h3 class="px">Campaign history</h3>
+        <ol class="chapters">
+          <li><i>2024 – now · Brno</i><b>Meiro — Head of R&amp;D &amp; Co-Founder</b>Research, AI and the parts of the platform nobody has built yet.</li>
+          <li><i>2018 – 2024 · Brno</i><b>Meiro — CTO &amp; Co-Founder</b>Owned product architecture, development and implementations of the Meiro CDP.</li>
+          <li><i>2015 – 2018 · partly Bali, Indonesia</i><b>Keboola — Head Nerd / Solutions Architect</b>Designed data integrations end to end.</li>
+          <li><i>Tutorial level</i><b>VUT FIT</b>Brno University of Technology, Faculty of Information Technology.</li>
+        </ol>
+      </div>
+    </div>
+    <div class="rule" role="presentation"></div>
+    <h3 class="px" id="inventory" style="scroll-margin-top:24px">Inventory</h3>
+    <ul class="inv">
+      <li><i>&gt;_</i>A terminal, well worn</li>
+      <li><i>DB</i>SQLite and a stack of Markdown</li>
+      <li><i>Q</i>A local Qwen</li>
+      <li><i>M3</i>Machines named bender, glados and saturnin</li>
+      <li class="locked" id="slot"><i>?</i><span>Empty slot. Something is still out there, east of everything.</span></li>
+    </ul>
+  </section>
+
+  <section id="quests" class="win">
+    <h2 class="px">Quest Log</h2>
+    <p class="px sub">Three side quests on GitHub · one main quest since 2018</p>
+    <div class="quests">
+
+      <article class="quest" id="q-mycroft">
+        <canvas id="ic-tower" width="80" height="76" aria-hidden="true"></canvas>
+        <span class="tag">Active quest</span>
+        <h3 class="px">Mycroft</h3>
+        <p class="meta">Swift · 41 stars · Mycroft's Tower</p>
+        <p>A self-modifying, durable agent that lives on your iPhone. Brain on the phone, hands on your machines. Named after Mycroft Holmes, the brother who stayed in his armchair.</p>
+        <ul class="obj">
+          <li class="done">The agent loop, its state and its own source code live on the phone.</li>
+          <li class="done">It edits its own behaviour and screen, keeps known-good generations and can roll back.</li>
+          <li class="done"><code>hands</code>, a small daemon for macOS and Linux, gives it files, shell and supervised jobs.</li>
+          <li class="done">It drives a Mac, talks in every thread, and keeps one infinite chat with a memory tree.</li>
+          <li>Get out of the armchair. (Out of scope.)</li>
+        </ul>
+        <p class="reward"><b>Reward</b><a href="https://github.com/dontpanicv/mycroft">github.com/dontpanicv/mycroft</a></p>
+      </article>
+
+      <article class="quest" id="q-golem">
+        <canvas id="ic-cave" width="80" height="76" aria-hidden="true"></canvas>
+        <span class="tag">Active quest</span>
+        <h3 class="px">Golem</h3>
+        <p class="meta">TypeScript · Golem's Cave</p>
+        <p>A family AI assistant and second brain on our own machines. No cloud, no central server. In Prague legend, Rabbi Loew shaped the Golem from clay. This one is made from SQLite and Markdown.</p>
+        <ul class="obj">
+          <li class="done">One server at home, one app for the whole family: web, iPhone, Android.</li>
+          <li class="done">It remembers: topic briefs and learned facts, read before every answer.</li>
+          <li class="done">It does real work on your machines.</li>
+          <li class="done">It asks before it sends, buys or deletes.</li>
+        </ul>
+        <p class="reward"><b>Reward</b><a href="https://github.com/dontpanicv/golem">github.com/dontpanicv/golem</a></p>
+      </article>
+
+      <article class="quest" id="q-shadow">
+        <canvas id="ic-shadow" width="80" height="76" aria-hidden="true"></canvas>
+        <span class="tag">Active quest</span>
+        <h3 class="px">Shadow</h3>
+        <p class="meta">TypeScript · Shadow HQ</p>
+        <p>A shadow company for your team. Every employee gets a shadow: an agent that reads their Slack and mail, tracks what each conversation asks of them, and helps do the work when asked.</p>
+        <ul class="obj">
+          <li class="done">It lives in Slack, where the work already is.</li>
+          <li class="done">It stays quiet until you must act or you asked.</li>
+          <li class="done">It runs on your own server: one SQLite database, Markdown files.</li>
+        </ul>
+        <p class="reward"><b>Reward</b><a href="https://github.com/dontpanicv/shadow">github.com/dontpanicv/shadow</a></p>
+      </article>
+
+      <article class="quest" id="q-meiro">
+        <canvas id="ic-city" width="80" height="76" aria-hidden="true"></canvas>
+        <span class="tag main">Main quest</span>
+        <h3 class="px">Meiro</h3>
+        <p class="meta">Day job since 2018 · Meiro City</p>
+        <p>Customer data infrastructure. A CDP you can host yourself: “AI included, that you own, control and audit.”</p>
+        <ul class="obj">
+          <li class="done"><b>Pipes</b> — sources, events, identity, destinations.</li>
+          <li class="done"><b>Engage</b> — audiences, journeys, campaigns.</li>
+          <li class="done"><b>AI Analyst</b> — an analytical agent built on bash, a mounted in-memory filesystem and a JSON renderer instead of a tool-calling loop.</li>
+          <li>Whatever R&amp;D turns up next.</li>
+        </ul>
+        <p class="reward"><b>Reward</b><a href="https://meiro.io">meiro.io</a></p>
+      </article>
+
+    </div>
+  </section>
+
+  <section id="library" class="win">
+    <h2 class="px">The Library</h2>
+    <p class="px sub">Tomes, drafts and one unwritten scroll</p>
+    <ul class="tomes">
+      <li class="tome"><span class="spine"></span><div>
+          <p class="meta">2026-04-29 · Tome</p>
+          <h3>Beyond the Tool-Calling Loop: How We Built an AI Analyst with Bash, a Mounted Filesystem, and a JSON Renderer</h3>
+          <p>Why the naive AI SDK + tools + markdown loop runs out of room for analytical agents, and the three ideas that replaced it.</p>
+        </div><button type="button" class="btn" id="open-tome" aria-expanded="false" aria-controls="tome">Open tome</button></li>
+      <li class="tome" style="--c:#1d4fa3"><span class="spine"></span><div>
+          <p class="meta">2026-02-10 · Tome</p>
+          <h3>Stop Letting AI Agents Guess Where Code Goes</h3>
+          <p>A modular-monolith refactor designed for AI agents: predictable module layout, centralized auth, and a strict <code>public.ts</code> boundary.</p>
+        </div><a class="btn ghost" href="https://dontpanicv.com/posts/ai-agents-codebases/">Read</a></li>
+      <li class="tome" style="--c:#2f8a48"><span class="spine"></span><div>
+          <p class="meta">Draft · the ink is still wet</p>
+          <h3>Claude Code vs Codex: Same Coding AI, Different People</h3>
+          <p>Why the two aren't interchangeable: prompting style and ambiguity tolerance shape the outcome.</p>
+        </div></li>
+      <li class="tome" style="--c:#8a8262"><span class="spine"></span><div>
+          <p class="meta">Unwritten scroll · in the drawer</p>
+          <h3>Gaslighting Coding Agents for Better Security</h3>
+          <p>Tell an agent, as fact, that a pentester already got RCE, and let it work out how.</p>
+        </div></li>
+    </ul>
+
+    <article id="tome" class="win" hidden tabindex="-1">
+      <p class="kicker">Tome I · 2026-04-29 · excerpt</p>
+      <h2>Beyond the Tool-Calling Loop: How We Built an AI Analyst with Bash, a Mounted Filesystem, and a JSON Renderer</h2>
+      <div class="prose">
+        <p>Most AI features built today follow the same recipe: take the Vercel AI SDK, register a handful of tools, write a system prompt, and stream the result into a markdown component. It works. It is also where most teams stop — and where most AI products start to feel limited.</p>
+        <p>This article walks through the architecture we ended up with for the <b>AI Analyst</b> in Engage, and contrasts it with the more conventional <b>Piper chatbot</b> that lives next door in the same codebase. Both ship in the same product. They are wildly different inside.</p>
+        <p>We will start from the naive baseline, identify the two failure modes that pushed us off it (noisy tool results and metadata bloat), and then introduce the three ideas that replaced them: <b>just-bash with an in-memory filesystem</b>, a <b>SQL execution layer that mounts results as files</b>, and a <b>JSON renderer with a predefined component manifest</b>.</p>
+        <h3>Problem one: tool results that flood the context</h3>
+        <p>The first wall you hit is large tool outputs. Whatever the tool returns goes straight into the model's context as the tool result message. A query that returns 50k rows is now 50k rows of JSON sitting in the conversation, on every subsequent turn, paid for in tokens, and pushing earlier reasoning out of the window.</p>
+        <p>You can paginate. You can truncate. You can summarize. All of these are coping mechanisms — they either lose information or force the model to make decisions about data it cannot see. The fundamental problem is that <b>tool results are a terrible place to put data</b>.</p>
+      </div>
+      <p style="margin-top:28px"><a class="btn" href="https://dontpanicv.com/posts/ai-analyst-architecture/">Keep reading</a><button type="button" class="btn ghost" id="close-tome">Close tome</button></p>
+    </article>
+
+    <div class="rule" role="presentation"></div>
+    <h3 class="px">Scrolls of wisdom</h3>
+    <ul class="scrolls">
+      <li>“Most ‘AI agents’ shipped in 2026 are a streamText() call in a trench coat.”</li>
+      <li>“Your AI doesn't need more tools. It needs fewer tools and a filesystem. Possibly also therapy, but we're starting with the filesystem.”</li>
+      <li>“Jevons paradox vs Engel's law: will token spend behave like food spend?”</li>
+      <li>“How you prompt still matters. Human creativity still beats AI. For now.”</li>
+    </ul>
+  </section>
+
+  <section id="guild" class="win">
+    <h2 class="px">The Guild Tavern</h2>
+    <p class="px sub">Join the party · no phone, the mailbox works</p>
+    <p>Got a system that needs understanding, a data platform that misbehaves, or an agent that should be in production instead of a demo? Leave a note.</p>
+    <ul class="guild">
+      <li><a href="mailto:kurka.vojtech@gmail.com"><b>Send a raven</b><span>kurka.vojtech@gmail.com</span></a></li>
+      <li><a href="https://github.com/dontpanicv"><b>Inspect the loot</b><span>github.com/dontpanicv</span></a></li>
+      <li><a href="https://x.com/dontpanicv"><b>Town crier</b><span>x.com/dontpanicv</span></a></li>
+      <li><a href="https://www.linkedin.com/in/kurkavojtech/"><b>Official papers</b><span>linkedin.com/in/kurkavojtech</span></a></li>
+    </ul>
+  </section>
+
+</main>
+
+<footer class="px">Don't Panic, V! · dontpanicv.com · mostly harmless <button type="button" id="save">Save</button></footer>
+
+<script>
+(() => {
+'use strict';
+const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const $ = s => document.querySelector(s);
+const stage = $('#stage'), cv = $('#world'), hint = $('#hint'), HINT0 = hint.textContent;
+let c = cv.getContext('2d');
+const W = 600, H = 112, G = 88, INK = '#171a2b';
+
+const PAL = {
+  day:  {sky:['#58b4f5','#8fd0ff','#cfeeff'], mt:'#6f9ccb', mt2:'#9dc1e3', gr:'#5cb85c', gr2:'#3f9b55', path:'#e6d29c', path2:'#cdb679', win:'#d7f0ff', star:0},
+  dusk: {sky:['#3a2e6e','#b6527c','#ffb26b'], mt:'#5b3f76', mt2:'#8a5585', gr:'#4c9a5a', gr2:'#357a48', path:'#d9b98a', path2:'#bb9968', win:'#FFD400', star:0},
+  night:{sky:['#090c22','#141a44','#252c63'], mt:'#161b45', mt2:'#1f2759', gr:'#2c6150', gr2:'#1f463b', path:'#8d8a7c', path2:'#737063', win:'#FFD400', star:1},
+};
+const hr = new Date().getHours();
+let tod = hr >= 7 && hr < 17 ? 'day' : (hr >= 17 && hr < 20) || (hr >= 5 && hr < 7) ? 'dusk' : 'night';
+let P = PAL[tod];
+
+const LOCS = [
+  {x: 40, name:'Camp',            to:'intro',     ly:42},
+  {x:112, name:'Server Dungeon',  to:'sheet',     ly:38},
+  {x:186, name:"Golem's Cave",    to:'q-golem',   ly:44},
+  {x:258, name:"Mycroft's Tower", to:'q-mycroft', ly:2},
+  {x:328, name:'Shadow HQ',       to:'q-shadow',  ly:36},
+  {x:404, name:'Meiro City',      to:'q-meiro',   ly:30},
+  {x:482, name:'Library',         to:'library',   ly:36},
+  {x:552, name:'Guild Tavern',    to:'guild',     ly:32},
+];
+const NPC = {x:149}, CHEST = {x:590, open:false};
+const v = {x:40, dir:1, target:null, onArrive:null, walking:false};
+const keys = {l:false, r:false};
+let scale = 3, vw = 480, sky, t = 0, busy = false, enc = false, encDone = false, god = false;
+let walked = 0, near = -1, xp = 0, heroVisible = true;
+const found = new Set(), XPMAX = 150;
+
+const hsh = n => { const s = Math.sin(n * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
+const clampX = x => Math.max(8, Math.min(W - 8, x));
+const r = (x, y, w, h, col) => { c.fillStyle = col; c.fillRect(Math.round(x), Math.round(y), w, h); };
+function spr(rows, pal, x, y, flip) {
+  for (let j = 0; j < rows.length; j++) for (let i = 0, row = rows[j]; i < row.length; i++) {
+    const ch = row[flip ? row.length - 1 - i : i];
+    if (ch !== '.') { c.fillStyle = pal[ch]; c.fillRect(x + i, y + j, 1, 1); }
+  }
+}
+
+/* ---------- sprites ---------- */
+const VP = {h:'#3b2a1e', s:'#f1c9a0', k:INK, y:'#FFD400', b:'#2b3a67', d:INK};
+const VTOP = ['..hhhh..','.hhhhhh.','.hhssss.','.hsskss.','..sssss.','..yyyy..','.yyyyyy.','.yyyyyys','.yyyyyy.','.yyyyyy.'];
+const V1 = VTOP.concat(['..bbbb..','..b..b..','.dd..dd.']);
+const V2 = VTOP.concat(['..bbbb..','...bb...','..ddd...']);
+const ROB = ['....a...','....a...','.gggggg.','.goggog.','.gggggg.','..gmmg..','.GGGGGG.','gGGGGGGg','g.GGGG.g','..GGGG..','..g..g..','.gg..gg.'];
+const THUMB = ['...k..','..kk..','..kk..','kkkkkk','kkkkkk','kkkkkk','.kkkk.'];
+
+/* ---------- places (x = centre on screen, everything stands on y = G+2) ---------- */
+function camp(x) {
+  r(x-1, G-16, 2, 18, '#7a5230');
+  r(x-10, G-28, 20, 13, INK); r(x-9, G-27, 18, 11, '#FFD400');
+  spr(THUMB, {k:INK}, x-3, G-25);
+  const f = t & 1;
+  r(x+13, G+1, 9, 2, '#5b3a22'); r(x+15, G-3-f, 5, 4+f, '#ff7a2f'); r(x+16, G-1-f, 3, 2+f, '#FFD400');
+  if (t % 6 < 3) r(x+17, G-7-(t%6), 1, 1, '#ffb26b');
+}
+function dungeon(x) {
+  r(x-18, G-28, 36, 30, '#7b8496'); r(x-18, G-28, 36, 2, '#a3acbe');
+  for (let i = 0; i < 5; i++) r(x-18+i*8, G-32, 4, 4, '#7b8496');
+  for (let j = 0; j < 4; j++) r(x-18, G-21+j*7, 36, 1, '#5d6577');
+  r(x-11, G-20, 22, 22, '#0c0e1d'); r(x-9, G-22, 18, 2, '#0c0e1d');
+  for (const dx of [-9, 1]) {
+    r(x+dx, G-17, 8, 19, '#262c47');
+    for (let j = 0; j < 5; j++) {
+      r(x+dx+1, G-15+j*3, 2, 1, (t + j*3 + dx + 20) % 5 < 3 ? '#5fe37a' : '#1f5a30');
+      r(x+dx+5, G-15+j*3, 1, 1, ((t >> 1) + j) % 4 === 0 ? '#ffb02e' : '#5a4012');
+    }
+  }
+}
+function cave(x) {
+  let y = G + 2;
+  [[44,6],[38,6],[30,6],[20,5],[10,3]].forEach(([w, h], i) => { y -= h; r(x-w/2, y, w, h, i % 2 ? '#a9643f' : '#b5704a'); r(x-w/2, y, w, 1, '#cf8c5e'); });
+  r(x-8, G-11, 16, 13, '#2a1710'); r(x-6, G-14, 12, 3, '#2a1710');
+  const gx = x + 16;
+  r(gx, G-12, 9, 10, '#9a5a38'); r(gx+1, G-18, 7, 6, '#b5704a'); r(gx-2, G-11, 2, 7, '#9a5a38'); r(gx+9, G-11, 2, 7, '#9a5a38');
+  r(gx+1, G-2, 3, 4, '#8a4e30'); r(gx+5, G-2, 3, 4, '#8a4e30'); r(gx+3, G-9, 3, 1, '#6e3c24');
+  if (t % 40 > 1) { r(gx+2, G-16, 2, 2, '#FFD400'); r(gx+5, G-16, 2, 2, '#FFD400'); }
+}
+function tower(x) {
+  r(x-7, G-56, 14, 58, '#cfc7b4'); r(x+3, G-56, 4, 58, '#b3ab98');
+  for (let j = 0; j < 7; j++) r(x-7+(j%2)*5, G-38+j*5, 4, 1, '#a79f8c');
+  for (let i = 0; i < 8; i++) r(x-9+i, G-57-i, 18-2*i, 1, '#b8443a');
+  r(x, G-73, 1, 9, '#8a8f9c');
+  const k = t % 12;
+  if (k < 9) { const rr = 2 + ((k / 3) | 0) * 2; r(x-rr, G-73, 1, 2, '#FFD400'); r(x+rr, G-73, 1, 2, '#FFD400'); }
+  r(x-5, G-51, 10, 11, INK); r(x-4, G-50, 8, 9, P.win);
+  r(x-3, G-46, 5, 5, '#7a3b3b'); r(x-3, G-49, 2, 3, '#7a3b3b'); r(x-1, G-49, 2, 2, '#f1c9a0'); r(x-1, G-47, 3, 2, '#2b3a67');
+  r(x-3, G-8, 6, 10, '#5b3a22');
+}
+function shadowHQ(x) {
+  r(x-15, G-34, 30, 36, '#444b72'); r(x-15, G-34, 30, 2, '#6a72a0');
+  c.fillStyle = '#1b1e36';
+  for (let yy = G-32; yy < G+2; yy++) for (let xx = 0; xx < 15; xx++) if ((xx + yy) & 1) c.fillRect(Math.round(x) + xx, yy, 1, 1);
+  for (let j = 0; j < 3; j++) for (let i = 0; i < 4; i++) r(x-12+i*7, G-29+j*9, 4, 5, i < 2 ? P.win : '#2a2f4f');
+  r(x-3, G-7, 6, 9, INK);
+  r(x-22, G-8, 3, 3, '#f1c9a0'); r(x-23, G-5, 5, 7, '#6a72a0');
+  c.fillStyle = 'rgba(0,0,0,.45)';
+  for (let i = 0; i < 12; i++) for (let j = 0; j < 2; j++) if ((i + j) & 1) c.fillRect(Math.round(x) - 35 + i, G + 3 + j, 1, 1);
+}
+function city(x) {
+  [[-28,22,'#2f7f86'],[-14,40,'#3d99a0'],[2,30,'#2a6f76'],[16,18,'#3d99a0']].forEach(([dx, h, col], n) => {
+    r(x+dx, G+2-h, 12, h, col); r(x+dx, G+2-h, 12, 1, '#7fd0d6');
+    for (let j = 3; j < h - 4; j += 5) { r(x+dx+2, G+2-h+j, 2, 2, P.win); r(x+dx+7, G+2-h+j, 2, 2, (j + n) % 2 ? P.win : '#1c4f55'); }
+  });
+  r(x-38, G-13, 8, 15, '#e9edf2'); r(x-38, G-13, 8, 1, INK); r(x-38, G-9, 8, 1, INK); r(x-38, G-5, 8, 1, INK);
+  r(x-30, G-3, 62, 2, '#aab8c8'); r(x+30, G-12, 2, 9, '#aab8c8');
+  const k = (t * 2) % 62;
+  r(x-30+k, G-3, 2, 2, '#FFD400'); r(x-30+(k+31)%62, G-3, 2, 2, '#FFD400');
+}
+function library(x) {
+  r(x-20, G-1, 40, 3, '#d8d2c2'); r(x-18, G-3, 36, 2, '#eee8d8');
+  r(x-16, G-24, 32, 21, '#5b4a7c'); r(x-3, G-13, 6, 10, INK);
+  for (const dx of [-15, -8, 4, 11]) { r(x+dx, G-24, 4, 21, '#f6f1e4'); r(x+dx+3, G-24, 1, 21, '#cfc8b6'); }
+  for (let i = 0; i < 9; i++) r(x-20+i*2, G-25-i, 40-i*4, 1, i ? '#eee8d8' : '#cfc8b6');
+  r(x-2, G-31, 4, 3, '#b8443a');
+}
+function tavern(x) {
+  r(x-13, G-18, 26, 20, '#a8683f'); r(x-13, G-18, 26, 1, '#c98558');
+  r(x+6, G-31, 4, 9, '#6b5b53');
+  for (let i = 0; i < 8; i++) r(x-16+i*2, G-19-i, 32-i*4, 1, '#7a3b3b');
+  const k = t % 16;
+  r(x+7-(k>>2), G-34-k/2, 2, 2, 'rgba(255,255,255,.75)'); r(x+8+(k>>3), G-38-k/2, 3, 2, 'rgba(255,255,255,.4)');
+  r(x-9, G-11, 6, 6, P.win); r(x-9, G-8, 6, 1, INK); r(x-6, G-11, 1, 6, INK);
+  r(x+2, G-10, 6, 12, '#5b3a22'); r(x+6, G-4, 1, 1, '#FFD400');
+  r(x+19, G-6, 1, 8, '#5b3a22'); r(x+16, G-10, 7, 5, '#3b78c4'); r(x+22, G-13, 1, 4, '#d4483b'); r(x+22, G-13, 3, 2, '#d4483b');
+  r(x-17, G-17, 1, 3, INK); r(x-21, G-14, 8, 7, '#FFD400'); r(x-19, G-12, 4, 3, INK); r(x-18, G-11, 2, 1, '#FFD400');
+}
+const DRAW = [camp, dungeon, cave, tower, shadowHQ, city, library, tavern];
+
+function robot(x) { spr(ROB, {a:'#d4483b', g:'#aab3c5', G:'#7b8496', o:t % 30 > 2 ? '#ffb02e' : '#6b5330', m:INK}, Math.round(x) - 4, G - 6); }
+function chest(x) {
+  r(x-5, G+4, 10, 7, '#8a5a2b'); r(x-5, G+10, 10, 1, INK);
+  if (CHEST.open) { r(x-5, G-1, 10, 3, '#a8703a'); r(x-4, G+2, 8, 2, '#f7f0dc'); r(x-2, G+1, 5, 1, '#fff'); }
+  else { r(x-5, G+2, 10, 3, '#a8703a'); r(x-1, G+4, 2, 2, '#FFD400'); if (t % 20 < 2) r(x+4, G, 1, 1, '#fff'); }
+}
+function incident(x) {
+  const b = t & 1;
+  r(x-5, G+2-b, 10, 11, '#d4483b'); r(x-7, G+5-b, 14, 6, '#d4483b');
+  r(x-4, G-1-b, 2, 3, '#FFD400'); r(x+2, G-1-b, 2, 3, '#FFD400');
+  r(x-3, G+5-b, 2, 2, '#fff'); r(x+1, G+5-b, 2, 2, '#fff'); r(x-2, G+6-b, 1, 1, INK); r(x+2, G+6-b, 1, 1, INK);
+  r(x-3, G+9-b, 6, 1, INK);
+}
+function hero(x) {
+  const f = v.walking && ((performance.now() / 130 | 0) & 1);
+  r(x-3, G+13, 7, 1, 'rgba(0,0,0,.3)');
+  spr(f ? V2 : V1, god ? Object.assign({}, VP, {y:`hsl(${(t * 40) % 360} 100% 55%)`}) : VP, x - 4, G, v.dir < 0);
+}
+function orb() {
+  const x = vw - 24, col = tod === 'night' ? '#e8ecff' : tod === 'dusk' ? '#ffd98a' : '#FFD400';
+  [4,8,10,12,12,12,12,10,8,4].forEach((w, i) => r(x - w/2, 8 + i, w, 1, col));
+  if (tod === 'night') [3,5,6,6,5,3].forEach((w, i) => r(x - 1, 10 + i, w, 1, P.sky[0]));
+}
+
+/* ---------- world ---------- */
+function buildSky() {
+  sky = document.createElement('canvas'); sky.width = vw; sky.height = G + 2;
+  const s = sky.getContext('2d'), p = PAL[tod].sky;
+  [[0,26,p[0]],[26,56,p[1]],[56,G+2,p[2]]].forEach(([a, b, col]) => { s.fillStyle = col; s.fillRect(0, a, vw, b - a); });
+  [[26,p[0]],[56,p[1]]].forEach(([y, col]) => {              // ordered dither where two bands meet
+    s.fillStyle = col;
+    for (let dy = 0; dy < 9; dy++) for (let x = 0; x < vw; x++) {
+      const yy = y + dy, a = x & 1, b = yy & 1;
+      if (dy < 3 ? !(a && b) : dy < 6 ? a === b : !a && !b) s.fillRect(x, yy, 1, 1);
+    }
+  });
+}
+const cam = () => vw >= W ? -Math.floor((vw - W) / 2) : Math.max(0, Math.min(W - vw, Math.round(v.x - vw / 2)));
+
+function draw() {
+  P = PAL[tod];
+  const cm = cam();
+  c.drawImage(sky, 0, 0);
+  if (P.star) for (let i = 0; i < 46; i++) if ((t + i) % 11) r(hsh(i) * vw, hsh(i + 50) * 52, 1, 1, '#fff');
+  orb();
+  if (!P.star) for (let i = 0; i < 3; i++) {
+    const span = vw + 60, x = (((i * 190 - cm * .2 - t * .15) % span) + span) % span - 40, y = 12 + i * 9;
+    r(x, y, 20, 4, 'rgba(255,255,255,.85)'); r(x + 4, y - 3, 11, 3, 'rgba(255,255,255,.85)');
+  }
+  for (let x = 0; x < vw; x += 2) { const wx = x + Math.round(cm * .3), h = 17 + 9 * Math.sin(wx * .05) + 5 * Math.sin(wx * .13 + 2); r(x, G - h, 2, h + 1, P.mt2); }
+  for (let x = 0; x < vw; x += 2) { const wx = x + Math.round(cm * .55), h = 7 + 5 * Math.sin(wx * .07 + 1) + 3 * Math.sin(wx * .19); r(x, G - h, 2, h + 1, P.mt); }
+  r(0, G, vw, 6, P.gr); r(0, G + 6, vw, 11, P.path); r(0, G + 17, vw, H - G - 17, P.gr2);
+  for (let x = 0; x < vw; x++) {
+    const wx = x + cm, n = hsh(wx);
+    if (n > .86) r(x, G + 7 + ((hsh(wx + .5) * 9) | 0), 1, 1, P.path2);
+    if (n < .1) r(x, G - 1, 1, 1, P.gr2);
+    if (n > .45 && n < .5) r(x, G + 18 + (((n * 900) % 5) | 0), 1, 1, P.gr);
+  }
+  DRAW.forEach((fn, i) => { const x = LOCS[i].x - cm; if (x > -60 && x < vw + 60) fn(x); });
+  robot(NPC.x - cm); chest(CHEST.x - cm);
+  if (enc) incident(Math.round(v.x - cm) + 18 * v.dir);
+  hero(Math.round(v.x - cm));
+  const sw = stage.clientWidth;
+  labels.forEach((el, i) => { const x = (LOCS[i].x - cm) * scale; el.style.left = x + 'px'; el.style.display = x < -90 || x > sw + 90 ? 'none' : ''; });
+}
+
+function resize() {
+  const cw = stage.clientWidth;
+  scale = cw >= 1700 ? 4 : cw >= 700 ? 3 : 2;
+  vw = Math.ceil(cw / scale);
+  cv.width = vw; cv.height = H;
+  cv.style.width = vw * scale + 'px'; cv.style.height = H * scale + 'px';
+  labels.forEach((el, i) => { el.style.top = LOCS[i].ly * scale + 'px'; });
+  buildSky(); draw();
+}
+
+/* ---------- labels: one real button per place ---------- */
+const labels = LOCS.map((l, i) => {
+  const b = document.createElement('button');
+  b.type = 'button'; b.className = 'loc'; b.textContent = l.name; b.setAttribute('aria-label', 'Walk to ' + l.name + ' and open it');
+  b.addEventListener('click', () => { if (!busy) goTo(i); });
+  $('#labels').append(b); return b;
+});
+
+/* ---------- hud, toast, dialogue ---------- */
+const toastEl = $('#toast'); let toastT;
+function toast(msg) { toastEl.textContent = msg; toastEl.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove('on'), 4200); }
+function hud() {
+  $('#xp').style.width = Math.round(xp / XPMAX * 100) + '%';
+  $('#map').textContent = 'Map ' + found.size + '/' + LOCS.length;
+  $('#tod').textContent = tod;
+}
+function gain(n) {
+  xp += n;
+  if (xp >= XPMAX) { xp -= XPMAX; toast('Level up! …still level 42. It was always going to be 42.'); }
+  hud();
+}
+const dlg = $('#dlg');
+function say(who, text, opts) {
+  busy = true; keys.l = keys.r = false; v.target = null; v.walking = false;
+  $('#dlg-who').textContent = who; $('#dlg-txt').textContent = text;
+  const box = $('#dlg-opts'); box.textContent = '';
+  (opts || [['OK', closeDlg]]).forEach(([label, fn]) => {
+    const b = document.createElement('button'); b.type = 'button'; b.className = 'opt'; b.textContent = label; b.addEventListener('click', fn); box.append(b);
+  });
+  dlg.hidden = false; box.firstChild.focus({preventScroll:true}); draw();
+}
+function closeDlg() { dlg.hidden = true; busy = false; enc = false; draw(); }
+const go = id => document.getElementById(id).scrollIntoView({behavior: RM ? 'auto' : 'smooth', block:'start'});
+
+const TALK = {
+  root: ["Brain the size of a data centre, and they have me watching a cron job. Don't talk to me about uptime.",
+         [['Who is V?', 'who'], ['Any secrets around here?', 'hint'], ['Leave him to it', null]]],
+  who:  ["He wants to know how everything works. CPUs, protocols, databases, the lot. Then he explains it to you. On stage, if you let him. I find it exhausting.",
+         [['What is he building?', 'build'], ['Back', 'root']]],
+  build:["Agents. One lives in a phone and rewrites itself. One is made of clay, SQLite and Markdown. One follows you around Slack. I would say it will end in tears, but they do ask before deleting anything.",
+         [['Take me to the Quest Log', '#quests'], ['Back', 'root']]],
+  hint: ["There is a chest at the far east edge, past the tavern. I have not opened it. What would be the point.",
+         [['Thanks. Cheer up.', 'cheer']]],
+  cheer:["I would rather not.", [['Fair enough', null]]],
+};
+function talk(k) {
+  const [txt, opts] = TALK[k || 'root']; v.dir = NPC.x >= v.x ? 1 : -1;
+  say('Gloomy robot', txt, opts.map(([label, to]) => [label, () => { if (!to) closeDlg(); else if (to[0] === '#') { closeDlg(); go(to.slice(1)); } else talk(to); }]));
+}
+function openChest() {
+  v.dir = 1;
+  if (CHEST.open) return say('Chest', 'Empty. You already took the towel. Do keep track of it.');
+  CHEST.open = true; gain(42);
+  const slot = $('#slot'); slot.classList.remove('locked'); slot.firstElementChild.textContent = 'T';
+  slot.lastElementChild.textContent = 'A towel. +42 to not panicking.';
+  say('Treasure', 'You found a TOWEL! +42 to not panicking. It is now in your inventory, so you will always know where it is.',
+      [['Check the inventory', () => { closeDlg(); go('inventory'); }], ['Keep exploring', closeDlg]]);
+}
+function battle(text) {
+  enc = true;
+  const win = (msg, n) => () => { enc = false; gain(n); say('Victory', msg + ' +' + n + ' XP.', [['Carry on', closeDlg]]); };
+  say('Wild encounter', text, [
+    ['Read the logs', win("V reads the logs. It's super effective! It was a missing index, and it is fixed before anyone finishes typing “any update?”.", 120)],
+    ['Blame DNS', win("It's never DNS. (It was DNS.) The incident resolves itself out of embarrassment.", 90)],
+    ['Panic', () => battle("V can't panic. It's in the name.")],
+    ['Run', () => battle("You can't run from production.")],
+  ]);
+}
+
+/* ---------- movement ---------- */
+function atCheck() {
+  let n = -1;
+  LOCS.forEach((l, i) => { if (Math.abs(l.x - v.x) < 8) n = i; });
+  if (n < 0 && Math.abs(NPC.x - v.x) < 12) n = 'npc';
+  if (n < 0 && Math.abs(CHEST.x - v.x) < 12) n = 'chest';
+  if (n === near) return;
+  near = n;
+  labels.forEach((el, i) => el.classList.toggle('at', i === n));
+  if (typeof n === 'number' && n >= 0) {
+    if (!found.has(n)) { found.add(n); gain(10); }
+    hint.textContent = 'Press Enter: ' + LOCS[n].name;
+  } else hint.textContent = n === 'npc' ? 'Press Enter: talk to the gloomy robot' : n === 'chest' ? 'Press Enter: a suspicious chest' : HINT0;
+}
+function enter() {
+  if (busy) return;
+  if (near === 'npc') talk(); else if (near === 'chest') openChest(); else if (near >= 0) go(LOCS[near].to);
+}
+function walk(x, fn) { v.target = clampX(x); v.onArrive = fn || null; }
+function goTo(i) { walk(LOCS[i].x, () => setTimeout(() => go(LOCS[i].to), RM ? 0 : 300)); }
+function nudge(dir) { v.x = clampX(v.x + dir * 12); v.dir = dir; v.target = null; atCheck(); draw(); }
+
+function step(dt) {
+  if (busy) return false;
+  const sp = (god ? .17 : .075) * dt;
+  let dx = 0;
+  if (v.target != null) {
+    const d = v.target - v.x;
+    if (RM || Math.abs(d) <= sp * 2.4) {
+      if (d) v.dir = d > 0 ? 1 : -1;
+      v.x = v.target; v.target = null; v.walking = false; atCheck();
+      const f = v.onArrive; v.onArrive = null; if (f) f();
+      return true;
+    }
+    dx = Math.sign(d) * sp * 2.4;
+  } else if (keys.l !== keys.r) { dx = keys.r ? sp : -sp; walked += sp; }
+  if (!dx) { if (v.walking) { v.walking = false; return true; } return false; }
+  v.dir = dx > 0 ? 1 : -1; v.x = clampX(v.x + dx); v.walking = true; atCheck();
+  if (v.target == null && !encDone && walked > 260) { encDone = true; battle('A wild PRODUCTION INCIDENT appeared! Pagers are going off.'); }
+  return true;
+}
+let last = 0, acc = 0;
+function loop(ts) {
+  const dt = Math.min(50, ts - last); last = ts; acc += dt;
+  const moved = step(dt);
+  if (!RM && acc >= 110) { acc = 0; t++; draw(); } else if (moved) draw();
+  requestAnimationFrame(loop);
+}
+
+/* ---------- input ---------- */
+const KONAMI = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown','ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a']; let ki = 0;
+function godMode() {
+  god = !god; document.body.classList.toggle('god', god);
+  document.querySelectorAll('.val').forEach(el => { el.textContent = god ? '99' : el.dataset.v; });
+  toast(god ? "God mode on. All stats 99. Still can't exit vim." : 'God mode off. Mortal again.'); draw();
+}
+addEventListener('keydown', e => {
+  const k = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+  ki = k === KONAMI[ki] ? ki + 1 : k === KONAMI[0] ? 1 : 0;
+  if (ki === KONAMI.length) { ki = 0; godMode(); }
+  if (k === 'Escape' && busy) return closeDlg();
+  const tag = e.target.tagName || '';
+  if (busy || !heroVisible || e.metaKey || e.ctrlKey || e.altKey || /INPUT|TEXTAREA|SELECT/.test(tag)) return;
+  const dir = k === 'ArrowLeft' || k === 'a' ? -1 : k === 'ArrowRight' || k === 'd' ? 1 : 0;
+  if (dir) { e.preventDefault(); if (RM) return nudge(dir); v.target = null; keys[dir < 0 ? 'l' : 'r'] = true; }
+  else if ((k === 'Enter' || k === ' ') && near !== -1 && !/BUTTON|A|SUMMARY/.test(tag)) { e.preventDefault(); enter(); }
+});
+addEventListener('keyup', e => {
+  const k = e.key.toLowerCase();
+  if (k === 'arrowleft' || k === 'a') keys.l = false;
+  if (k === 'arrowright' || k === 'd') keys.r = false;
+});
+addEventListener('blur', () => { keys.l = keys.r = false; });
+[['#pl', 'l', -1], ['#pr', 'r', 1]].forEach(([sel, key, dir]) => {
+  const b = $(sel);
+  b.addEventListener('pointerdown', e => { e.preventDefault(); if (busy) return; if (RM) return nudge(dir); v.target = null; keys[key] = true; });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach(n => b.addEventListener(n, () => { keys[key] = false; }));
+  b.addEventListener('click', e => { if (e.detail === 0 && !busy) nudge(dir); });   // keyboard activation
+});
+$('#pa').addEventListener('click', enter);
+cv.addEventListener('click', e => {
+  if (busy) return;
+  const b = cv.getBoundingClientRect(), sx = (e.clientX - b.left) / scale, sy = (e.clientY - b.top) / scale, wx = sx + cam();
+  if (Math.abs(sx - (vw - 24)) < 10 && Math.abs(sy - 13) < 10) {
+    tod = {day:'dusk', dusk:'night', night:'day'}[tod]; buildSky(); hud(); draw();
+    return toast('Time of day: ' + tod + '. It started on your local clock.');
+  }
+  if (Math.abs(wx - NPC.x) < 10 && sy > G - 12) return walk(NPC.x - 11, () => talk());
+  if (Math.abs(wx - CHEST.x) < 10 && sy > G - 8) return walk(CHEST.x - 11, openChest);
+  let best = -1, bd = 30;
+  LOCS.forEach((l, i) => { const d = Math.abs(l.x - wx); if (d < bd) { bd = d; best = i; } });
+  if (best >= 0) goTo(best); else walk(wx);
+});
+if ('IntersectionObserver' in window) new IntersectionObserver(es => { heroVisible = es[0].isIntersecting; if (!heroVisible) keys.l = keys.r = false; }).observe(stage);
+
+/* ---------- page bits ---------- */
+const tome = $('#tome'), openBtn = $('#open-tome');
+openBtn.addEventListener('click', () => {
+  tome.hidden = false; openBtn.setAttribute('aria-expanded', 'true');
+  tome.scrollIntoView({behavior: RM ? 'auto' : 'smooth', block:'start'}); tome.focus({preventScroll:true});
+});
+$('#close-tome').addEventListener('click', () => { tome.hidden = true; openBtn.setAttribute('aria-expanded', 'false'); openBtn.focus(); });
+$('#save').addEventListener('click', e => {
+  e.target.textContent = 'Saved*'; e.target.disabled = true;
+  e.target.insertAdjacentHTML('afterend', '<p style="margin:14px 0 0">* It’s a static site. Nothing was saved. Don’t panic.</p>');
+});
+
+function icon(id, fn) {                              // reuse the overworld art as quest emblems
+  const el = document.getElementById(id), oc = c, ot = t;
+  c = el.getContext('2d'); P = PAL.day; t = 4;
+  r(0, 0, 80, 76, P.sky[1]); r(0, 66, 80, 10, P.gr); r(0, 72, 80, 4, P.path);
+  c.save(); c.translate(40, 64 - G); fn(0); c.restore();
+  c = oc; t = ot; P = PAL[tod];
+}
+icon('ic-tower', tower); icon('ic-cave', x => cave(x - 6)); icon('ic-shadow', x => shadowHQ(x + 6)); icon('ic-city', x => city(x + 3));
+(() => { const oc = c; c = $('#portrait').getContext('2d'); r(0, 0, 16, 18, '#8fd0ff'); r(0, 15, 16, 3, '#5cb85c'); spr(V1, VP, 4, 3); c = oc; })();
+
+addEventListener('resize', resize);
+resize(); atCheck(); hud();
+requestAnimationFrame(ts => { last = ts; loop(ts); });
+})();
+</script>
+
+<div id="vnav" style="position:fixed;right:12px;bottom:12px;z-index:99999;font:12px/1 ui-monospace,Menlo,monospace;background:#111;color:#fff;border-radius:999px;padding:8px 12px;display:flex;gap:10px;align-items:center;box-shadow:0 2px 10px rgba(0,0,0,.3)"><a href="08-decision-tree.html" style="color:#FFD400;text-decoration:none" aria-label="Previous variation">‹</a><a href="index.html" style="color:#fff;text-decoration:none">09/20 · pixel-quest</a><a href="10-greenbar.html" style="color:#FFD400;text-decoration:none" aria-label="Next variation">›</a></div>
+</body>
+</html>

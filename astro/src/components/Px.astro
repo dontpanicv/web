@@ -1,0 +1,14 @@
+---
+// A tiny 1-bit bitmap drawn as SVG rects, in the current text colour: the project marks.
+// The site's own mark is public/brand/mark.svg, made by scripts/pixel-mark.mjs.
+const BITMAPS: Record<string, string[]> = {
+  mycroft: ['.######.', '.#....#.', '.#.##.#.', '.#.##.#.', '.#....#.', '.#....#.', '.#.##.#.', '.######.'],
+  golem: ['.######.', '########', '#..##..#', '#..##..#', '########', '##.##.##', '##....##', '.######.'],
+  shadow: ['.##.....', '####....', '.##..##.', '####.###', '####..##', '####.###', '.....###', '.....###'],
+  meiro: ['##......', '##......', '######..', '######..', '....##..', '....####', '....####', '........'],
+};
+const { bm, s = 3 } = Astro.props;
+const rows = BITMAPS[bm];
+const w = rows[0].length;
+---
+<i class="px"><svg width={w * s} height={rows.length * s} viewBox={`0 0 ${w} ${rows.length}`} fill="currentColor" shape-rendering="crispEdges" aria-hidden="true">{rows.flatMap((row, y) => [...row].map((c, x) => c === '#' ? <rect x={x} y={y} width="1" height="1" /> : null))}</svg></i>

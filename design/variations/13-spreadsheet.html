@@ -1,0 +1,627 @@
+<!doctype html>
+<!--
+  13 · SPREADSHEET
+  Signature interaction: the site is a workbook. Click or arrow-key around cells (the formula bar shows the full content),
+  switch sheets with the tabs, press Enter / double-click a row (or click its title) to open a comfortable reading panel,
+  and type real formulas into the formula bar.
+  Easter eggs:
+   1. =ANSWER()  → 42.  Also =SUM(stars) → 42 (41 + 1 + 0, honestly) and =6*9 → 42.
+   2. =VLOOKUP("towel")  → finds the towel, wakes Terry the helper towel and unhides the hidden sheet.
+   3. Hidden sheet DO_NOT_OPEN: click the faint "1 hidden" next to the tabs (or type =UNHIDE()).
+   4. Circular reference: type a formula that points at the selected cell itself (e.g. select B2, type =B2).
+   5. Error jokes: =1/0 → #DIV/0!, =Z99 → #REF!, any unknown function → #NAME?, =PANIC() → 0.
+   6. Terry the towel: open the CV sheet, press the "?" button, or type =HELP(). "It looks like you're trying to hire a nerd."
+  Deep links for review: #Projects, #Writing, #CV, #Contact, and #Writing:analyst to open the article panel.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dont_panic_v.sheet — Vojtěch “V” Kurka</title>
+<meta name="description" content="Vojtěch “V” Kurka — Head of R&D & Co-Founder at Meiro. Projects, writing and CV, served as a spreadsheet.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F6F1E6; --cell:#FFFDF8; --ink:#1B1A17; --mut:#6B655A; --grid:#E4DCCA; --head:#EFE8D8; --headink:#5A5448;
+    --acc:#E5432A; --acc-soft:#FBDDD4; --teal:#0A6B60; --yellow:#FFD400;
+    --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --disp:"Bricolage Grotesque","IBM Plex Sans",system-ui,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--paper);color:var(--ink);font:400 16px/1.45 var(--sans);-webkit-font-smoothing:antialiased;
+       display:grid;grid-template-rows:auto auto minmax(0,1fr) auto;height:100vh;height:100dvh;overflow:hidden}
+  button{font:inherit;color:inherit;cursor:pointer}
+  a{color:var(--teal);text-decoration-thickness:1.5px;text-underline-offset:3px}
+  a:hover{color:var(--acc)}
+  :focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+  ::selection{background:var(--yellow);color:#1B1A17}
+
+  /* app bar */
+  .app{display:flex;align-items:center;gap:14px;padding:10px 16px;border-bottom:1px solid var(--grid);background:var(--paper)}
+  .mark{width:26px;height:26px;flex:none;display:grid;grid-template-columns:repeat(3,1fr);gap:2px}
+  .mark i{background:var(--ink);border-radius:1.5px}.mark i:nth-child(5){background:var(--acc)}
+  .file{display:flex;flex-direction:column;min-width:0;line-height:1.15}
+  .file b{font:700 17px/1.1 var(--disp);letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .file small{font:400 11.5px/1.3 var(--mono);color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tools{margin-left:auto;display:flex;gap:8px;position:relative}
+  .tool{background:var(--cell);border:1px solid var(--grid);border-bottom-width:2px;border-radius:8px;padding:6px 11px;font:500 13px/1.2 var(--mono);white-space:nowrap}
+  .tool:hover{border-color:var(--ink)}
+  .tool[aria-pressed="true"],.tool[aria-expanded="true"]{background:var(--ink);color:var(--cell);border-color:var(--ink)}
+  .tool:disabled{opacity:.4;cursor:default;border-color:var(--grid)}
+  #fnpop{position:absolute;right:0;top:calc(100% + 8px);z-index:30;width:min(360px,calc(100vw - 24px));background:var(--cell);border:1px solid var(--ink);border-radius:12px;padding:8px;box-shadow:6px 6px 0 var(--grid)}
+  #fnpop button{display:grid;grid-template-columns:auto 1fr;gap:2px 12px;width:100%;text-align:left;background:none;border:0;border-radius:8px;padding:8px 10px}
+  #fnpop button:hover,#fnpop button:focus-visible{background:var(--head)}
+  #fnpop code{font:500 13.5px var(--mono);color:var(--acc)}
+  #fnpop span{font-size:14px;color:var(--mut)}
+
+  /* formula bar */
+  .fx{display:flex;align-items:stretch;gap:0;border-bottom:1px solid var(--grid);background:var(--cell)}
+  #name{flex:none;width:148px;padding:11px 12px;font:500 13px/1.5 var(--mono);border-right:1px solid var(--grid);color:var(--headink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .fx label{flex:none;padding:9px 12px 0;font:italic 600 17px/1.5 Georgia,"Times New Roman",serif;color:var(--acc)}
+  #fx{flex:1;min-width:0;border:0;background:none;resize:none;padding:10px 12px 10px 0;font:400 15px/1.55 var(--mono);color:var(--ink);max-height:5.2em;overflow:auto}
+  #fx:focus{outline:none;box-shadow:inset 0 -2px 0 var(--acc)}
+
+  /* grid */
+  .scroller{position:relative;overflow:auto;background:
+      linear-gradient(var(--grid) 1px,transparent 1px) 0 -1px/100% 41px,
+      linear-gradient(90deg,var(--grid) 1px,transparent 1px) 47px 0/150px 100%, var(--cell)}
+  table{border-collapse:separate;border-spacing:0;table-layout:fixed;width:max-content;position:relative}
+  col.rnc{width:48px}
+  th,td{border-right:1px solid var(--grid);border-bottom:1px solid var(--grid)}
+  thead th{position:sticky;top:0;z-index:4;background:var(--head);color:var(--headink);font:500 12px/1 var(--mono);padding:7px 0;text-align:center}
+  th.rn{position:sticky;left:0;z-index:3;background:var(--head);color:var(--headink);font:500 12px/1.3 var(--mono);text-align:center;vertical-align:middle;min-width:48px}
+  th.corner{left:0;z-index:5}
+  td{background:var(--cell);padding:10px 12px;vertical-align:top;height:41px;overflow:hidden;overflow-wrap:break-word;position:relative;cursor:cell}
+  td:focus{outline:none}
+  td.hd{background:var(--head);font:600 12px/1.6 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--headink)}
+  td.h1{font:700 clamp(34px,4.4vw,56px)/1 var(--disp);letter-spacing:-.03em;padding:22px 12px 8px;border-bottom-color:transparent}
+  td.sub{font-size:18px;color:var(--mut);padding-bottom:18px}
+  td.p{font-size:17.5px;line-height:1.5}
+  td.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+  td.big{font:700 26px/1.1 var(--disp);color:var(--acc)}
+  td.mut{color:var(--mut)}
+  td.mono{font:400 14px/1.6 var(--mono)}
+  td.key{font-weight:600}
+  td.dim{color:var(--mut);font-style:italic}
+  td.err{color:var(--acc);font-family:var(--mono);font-weight:600}
+  td.calc{background:#FFF8D6}
+  td.bar::before{content:"";position:absolute;inset:0 auto 0 0;width:var(--p,0%);background:var(--acc-soft)}
+  td.bar span{position:relative}
+  td.flash{animation:flash .9s ease-out}
+  @keyframes flash{from{background:var(--yellow)}to{background:#FFF8D6}}
+  .clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+  .open{all:unset;cursor:pointer;font:700 19px/1.2 var(--disp);letter-spacing:-.01em;border-bottom:2px solid var(--acc)}
+  .open.t{font:600 16.5px/1.35 var(--sans);letter-spacing:0;border-bottom:0;text-decoration:underline;text-decoration-color:var(--acc);text-decoration-thickness:1.5px;text-underline-offset:3px}
+  .open:hover{color:var(--acc)}
+  .open:focus-visible{outline:2px solid var(--acc);outline-offset:3px}
+  .go{background:var(--ink);color:var(--cell);border:0;border-radius:6px;padding:4px 10px;font:500 12.5px/1.4 var(--mono)}
+  .go:hover{background:var(--acc)}
+  .chip{display:inline-block;font:500 12px/1 var(--mono);padding:5px 8px;border-radius:99px;white-space:nowrap}
+  .chip-published,.chip-shipping{background:#D5ECE7;color:#07473F}
+  .chip-draft{background:#FFEFA8;color:#574200}
+  .chip-idea{background:#F8D7DA;color:#7A1C28}
+  .chip-self-hosted{background:#E2DDF6;color:#37297A}
+  .chip-day-job{background:#E9DDC4;color:#4A3D22}
+  .chip-note{background:var(--head);color:var(--headink)}
+  .spark{display:block;width:100%;height:22px}
+  .chart{display:block;width:100%;max-width:520px;height:auto}
+  tr.op td{cursor:pointer}
+  #ring{position:absolute;left:0;top:0;z-index:2;border:2px solid var(--acc);pointer-events:none;box-shadow:0 0 0 3px rgba(229,67,42,.14);transition:transform .14s cubic-bezier(.2,.8,.2,1),width .14s,height .14s}
+  #ring::after{content:"";position:absolute;right:-5px;bottom:-5px;width:7px;height:7px;background:var(--acc);border:1px solid var(--cell)}
+
+  /* bottom bar */
+  .foot{display:flex;align-items:stretch;gap:0;border-top:1px solid var(--grid);background:var(--paper);padding:0 210px 0 12px;min-height:42px}
+  .tabs{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tab{background:none;border:1px solid transparent;border-top:0;border-radius:0 0 10px 10px;padding:8px 14px 9px;font:500 13.5px/1.2 var(--mono);color:var(--mut);white-space:nowrap;margin-top:-1px}
+  .tab:hover{color:var(--ink);background:var(--head)}
+  .tab[aria-selected="true"]{background:var(--cell);border-color:var(--grid);color:var(--ink);box-shadow:inset 0 -3px 0 var(--acc)}
+  .tab.secret{color:var(--acc);border-style:dashed;border-color:var(--acc-soft)}
+  #hid{background:none;border:0;padding:0 10px;font:400 11.5px var(--mono);color:var(--mut);opacity:.55;white-space:nowrap}
+  #hid:hover,#hid:focus-visible{opacity:1;color:var(--acc)}
+  #status{margin-left:auto;align-self:center;font:400 12.5px/1.3 var(--mono);color:var(--mut);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding-left:16px}
+
+  /* reading panel */
+  #panel{position:fixed;top:0;right:0;bottom:0;z-index:40;width:min(600px,48vw);background:var(--cell);border-left:1px solid var(--ink);box-shadow:-10px 0 0 rgba(27,26,23,.06);
+         display:flex;flex-direction:column;transform:translateX(105%);visibility:hidden;transition:transform .28s cubic-bezier(.2,.8,.2,1),visibility 0s .28s}
+  #panel.on{transform:none;visibility:visible;transition:transform .28s cubic-bezier(.2,.8,.2,1)}
+  .phead{display:flex;align-items:center;gap:10px;padding:12px 16px;border-bottom:1px solid var(--grid);background:var(--paper)}
+  .phead span{font:500 12.5px/1 var(--mono);color:var(--mut)}
+  .phead button{margin-left:auto}
+  .pbody{overflow:auto;padding:28px clamp(20px,4vw,44px) 80px}
+  .pbody .kick{font:500 12px/1.4 var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--acc);margin:0 0 10px}
+  .pbody h2{font:700 clamp(28px,3vw,38px)/1.05 var(--disp);letter-spacing:-.025em;margin:0 0 14px}
+  .pbody .meta{font:400 13px/1.6 var(--mono);color:var(--mut);margin:0 0 26px;padding-bottom:18px;border-bottom:1px solid var(--grid)}
+  .pbody p,.pbody li{font-size:18.5px;line-height:1.65;max-width:64ch}
+  .pbody p{margin:0 0 1.1em}
+  .pbody h3{font:700 22px/1.2 var(--disp);margin:1.6em 0 .6em}
+  .pbody code{font:400 .86em var(--mono);background:var(--head);padding:.1em .35em;border-radius:4px}
+  .pbody pre{margin:1.3em 0;padding:16px 18px;background:var(--ink);color:#F3EEDF;border-radius:10px;overflow:auto;font:400 14px/1.65 var(--mono)}
+  .pbody pre code{background:none;padding:0;color:inherit;font-size:inherit}
+
+  /* toast + helper */
+  #toast{position:fixed;left:16px;bottom:56px;z-index:45;max-width:min(520px,calc(100vw - 32px));background:var(--ink);color:var(--cell);border-radius:10px;padding:11px 15px 11px 13px;border-left:6px solid var(--yellow);
+         font:400 14.5px/1.45 var(--sans);transform:translateY(20px);opacity:0;visibility:hidden;transition:transform .22s,opacity .22s,visibility 0s .22s}
+  #toast.on{transform:none;opacity:1;visibility:visible;transition:transform .22s,opacity .22s}
+  #toast.warn{border-left-color:var(--acc)}
+  #toast b{font:600 13px var(--mono);color:var(--yellow);margin-right:6px}
+  #terry{position:fixed;right:14px;bottom:58px;z-index:46;display:flex;align-items:flex-end;gap:10px;transform:translateY(30px);opacity:0;visibility:hidden;transition:transform .3s cubic-bezier(.2,1.4,.4,1),opacity .2s,visibility 0s .3s}
+  #terry.on{transform:none;opacity:1;visibility:visible;transition:transform .3s cubic-bezier(.2,1.4,.4,1),opacity .2s}
+  #terry .bub{max-width:270px;background:var(--cell);border:1.5px solid var(--ink);border-radius:14px 14px 2px 14px;padding:12px 14px;box-shadow:4px 4px 0 var(--grid);font-size:15px;line-height:1.4}
+  #terry .bub p{margin:0 0 10px}
+  #terry .bub div{display:flex;flex-wrap:wrap;gap:6px}
+  #terry .bub button{background:var(--ink);color:var(--cell);border:0;border-radius:7px;padding:6px 10px;font:500 12.5px var(--mono)}
+  #terry .bub button+button{background:none;color:var(--ink);box-shadow:inset 0 0 0 1.5px var(--ink)}
+  #terry svg{width:64px;height:76px;flex:none;animation:bob 2.4s ease-in-out infinite}
+  @keyframes bob{50%{transform:translateY(-4px) rotate(-2deg)}}
+
+  /* mobile: rows become cards, tabs move under the app bar */
+  @media (max-width:760px){
+    html,body{height:auto}
+    body{display:flex;flex-direction:column;height:auto;overflow:visible;padding-bottom:70px}
+    .app{order:0;position:sticky;top:0;z-index:20;padding:9px 12px}
+    .file small,.tool.wide{display:none}
+    .foot{order:1;position:sticky;top:47px;z-index:19;padding:0 8px;border-top:0;border-bottom:1px solid var(--grid)}
+    #status{display:none}
+    .fx{order:2}#name{display:none}.fx label{padding-left:12px}#fx{font-size:16px}
+    .scroller{order:3;overflow:visible;background:var(--paper);padding:4px 12px 12px}
+    table,tbody,tr,td{display:block;width:auto}
+    colgroup,thead,th.rn,tr.hr,tr.empty,td.e,#ring{display:none}
+    tr{margin-top:12px;background:var(--cell);border:1px solid var(--grid);border-radius:12px;padding:6px 0;overflow:hidden}
+    tr.plain{background:none;border:0;padding:0;margin-top:6px}
+    td{border:0;height:auto;padding:7px 14px;background:none}
+    td.hd{background:none;padding-top:14px}
+    td.h1{padding:14px 2px 2px;font-size:44px}td.sub{padding:4px 2px 8px}
+    tr.plain td.hd{padding-left:2px}
+    td[data-label]:not([data-label=""])::before{content:attr(data-label);display:block;position:static;width:auto;background:none;font:500 11px/1.5 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--mut)}
+    td.num{text-align:left}
+    td.sel{box-shadow:inset 3px 0 0 var(--acc)}tr.plain td.sel{box-shadow:none}
+    .tab{padding:8px 10px 9px;font-size:12.5px}.tabs{gap:1px}
+    #hid{font-size:0;padding:0 8px;opacity:.7}#hid::after{content:"+1";font-size:12px}
+    .clamp{display:block}
+    #panel{width:100%;border-left:0}
+    #toast{bottom:64px}
+    #terry{bottom:64px}
+  }
+  @media (prefers-reduced-motion:reduce){ *{transition:none!important;animation:none!important} }
+</style>
+</head>
+<body>
+
+<header class="app">
+  <div class="mark" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+  <div class="file">
+    <b>dont_panic_v.sheet</b>
+    <small>Vojtěch “V” Kurka · saved, mostly harmlessly</small>
+  </div>
+  <div class="tools">
+    <button class="tool wide" id="sort" type="button" aria-pressed="false" title="Sort projects by stars">★ Sort</button>
+    <button class="tool" id="fnbtn" type="button" aria-expanded="false" aria-controls="fnpop"><i style="font:italic 600 14px Georgia,serif">fx</i> Functions</button>
+    <button class="tool" id="helpbtn" type="button" aria-label="Help">?</button>
+    <div id="fnpop" hidden></div>
+  </div>
+</header>
+
+<div class="fx">
+  <div id="name" aria-live="polite">README!A1</div>
+  <label for="fx" aria-label="Formula">fx</label>
+  <textarea id="fx" rows="1" spellcheck="false" autocomplete="off" aria-describedby="status"></textarea>
+</div>
+
+<main class="scroller" id="scroller">
+  <table id="grid" role="grid" aria-label="Workbook"></table>
+  <div id="ring" aria-hidden="true"></div>
+</main>
+
+<footer class="foot">
+  <div class="tabs" id="tabs" role="tablist" aria-label="Sheets"></div>
+  <button id="hid" type="button" title="Some things are hidden for a reason">· 1 hidden</button>
+  <div id="status" role="status">Ready. Arrow keys move, Enter opens a row, = starts a formula.</div>
+</footer>
+
+<aside id="panel" role="dialog" aria-modal="false" aria-labelledby="ptitle" tabindex="-1">
+  <div class="phead"><span id="pwhere">Writing!B2</span><button class="tool" id="pclose" type="button">Close ✕</button></div>
+  <div class="pbody" id="pbody"></div>
+</aside>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<div id="terry" role="dialog" aria-label="Terry, the helper towel">
+  <div class="bub"><p id="terrysay"></p><div id="terrybtn"></div></div>
+  <svg viewBox="0 0 64 76" aria-hidden="true">
+    <path d="M10 8h38a8 8 0 0 1 8 8v48a6 6 0 0 1-6 6H10z" fill="#FFD400" stroke="#1B1A17" stroke-width="2.5" stroke-linejoin="round"/>
+    <path d="M10 8v62H8a4 4 0 0 1-4-4V14a6 6 0 0 1 6-6z" fill="#E5B900" stroke="#1B1A17" stroke-width="2.5" stroke-linejoin="round"/>
+    <path d="M10 54h46M10 60h46" stroke="#1B1A17" stroke-width="2.5"/>
+    <circle cx="26" cy="30" r="4.5" fill="#FFFDF8" stroke="#1B1A17" stroke-width="2"/><circle cx="42" cy="30" r="4.5" fill="#FFFDF8" stroke="#1B1A17" stroke-width="2"/>
+    <circle cx="27" cy="31" r="1.8" fill="#1B1A17"/><circle cx="43" cy="31" r="1.8" fill="#1B1A17"/>
+    <path d="M28 41q6 5 12 0" fill="none" stroke="#1B1A17" stroke-width="2.2" stroke-linecap="round"/>
+  </svg>
+</div>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const L = i => String.fromCharCode(65 + i);
+  const YEAR = new Date().getFullYear();
+  const mobile = () => matchMedia('(max-width:760px)').matches;
+
+  /* ---------- content ---------- */
+  const PROJECTS = [
+    { id: 'mycroft', name: 'Mycroft', what: 'A self-modifying, durable agent that lives on your iPhone. Brain on the phone, hands on your machines.', stack: 'Swift', stars: 41, panic: [0, 0, 1, 0, 0, 2, 0, 0, 0, 1, 0, 0], status: 'shipping', url: 'https://github.com/dontpanicv/mycroft', label: 'dontpanicv/mycroft' },
+    { id: 'golem', name: 'Golem', what: 'Family AI assistant and second brain on our own machines. No cloud, no central server.', stack: 'TypeScript', stars: 1, panic: [0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0], status: 'self-hosted', url: 'https://github.com/dontpanicv/golem', label: 'dontpanicv/golem' },
+    { id: 'shadow', name: 'Shadow', what: 'A shadow company for your team: every employee gets an agent that reads their Slack and mail and helps when asked.', stack: 'TypeScript', stars: 0, panic: [0, 0, 0, 1, 0, 0, 0, 0, 2, 0, 0, 0], status: 'self-hosted', url: 'https://github.com/dontpanicv/shadow', label: 'dontpanicv/shadow' },
+    { id: 'meiro', name: 'Meiro', what: 'Customer data infrastructure: Pipes, Engage and the AI Analyst. The day job since 2018.', stack: 'CDP', stars: null, panic: [0, 1, 0, 0, 3, 0, 0, 1, 0, 0, 6, 0], status: 'day job', url: 'https://meiro.io', label: 'meiro.io' },
+  ];
+  const POSTS = [
+    { id: 'analyst', date: '2026-04-29', title: 'Beyond the Tool-Calling Loop: How We Built an AI Analyst with Bash, a Mounted Filesystem, and a JSON Renderer', sum: 'Why the naive AI SDK + tools + markdown loop runs out of room for analytical agents, and the three ideas that replaced it.', status: 'published', topic: 'agents, architecture' },
+    { id: 'codebases', date: '2026-02-10', title: 'Stop Letting AI Agents Guess Where Code Goes', sum: 'A modular-monolith refactor designed for AI agents: predictable module layout, centralized auth, and a strict public.ts boundary.', status: 'published', topic: 'agents, codebases' },
+    { id: 'codex', date: '—', title: 'Claude Code vs Codex: Same Coding AI, Different People', sum: "Why the two aren't interchangeable: prompting style and ambiguity tolerance shape the outcome.", status: 'draft', topic: 'devtools, prompting' },
+    { id: 'gaslight', date: '—', title: 'Gaslighting Coding Agents for Better Security', sum: 'Tell an agent, as fact, that a pentester already got RCE, and let it work out how.', status: 'idea', topic: 'security' },
+  ];
+  const NOTES = [
+    'Most “AI agents” shipped in 2026 are a streamText() call in a trench coat.',
+    "Your AI doesn't need more tools. It needs fewer tools and a filesystem. Possibly also therapy, but we're starting with the filesystem.",
+    "Jevons paradox vs Engel's law: will token spend behave like food spend?",
+    'How you prompt still matters. Human creativity still beats AI. For now.',
+  ];
+  const DOCS = {
+    mycroft: { k: 'Project · Swift · ★ 41', t: 'Mycroft', m: '<a href="https://github.com/dontpanicv/mycroft">github.com/dontpanicv/mycroft</a>', h: `
+      <p>A self-modifying, durable agent that lives on your iPhone. Brain on the phone, hands on your machines.</p>
+      <p>The agent loop, its state and its own source code live on the phone. It edits its own behaviour and its own screen, keeps known-good generations, and can roll back when an idea turns out to be a bad one.</p>
+      <p><code>hands</code> is a small daemon for macOS and Linux that gives it files, a shell and supervised jobs. It drives a Mac, takes voice in every thread, and keeps one infinite chat with a memory tree.</p>
+      <p>Named after Mycroft Holmes, the brother who stayed in his armchair.</p>` },
+    golem: { k: 'Project · TypeScript · self-hosted', t: 'Golem', m: '<a href="https://github.com/dontpanicv/golem">github.com/dontpanicv/golem</a>', h: `
+      <p>Family AI assistant and second brain on our own machines. No cloud, no central server.</p>
+      <p>One server at home, one app for the whole family — web, iPhone, Android. It remembers through topic briefs and learned facts, does real work on your machines, and asks before it sends, buys or deletes anything.</p>
+      <p>In Prague legend, Rabbi Loew shaped the Golem from clay. This one is made from SQLite and Markdown.</p>` },
+    shadow: { k: 'Project · TypeScript · self-hosted', t: 'Shadow', m: '<a href="https://github.com/dontpanicv/shadow">github.com/dontpanicv/shadow</a>', h: `
+      <p>A shadow company for your team.</p>
+      <p>Every employee gets a shadow: an agent that reads their Slack and mail, tracks what each conversation asks of them, and helps do the work when asked.</p>
+      <p>It lives in Slack, stays quiet, and runs on your own server — one SQLite database and a folder of Markdown files.</p>` },
+    meiro: { k: 'Day job · since 2018', t: 'Meiro', m: '<a href="https://meiro.io">meiro.io</a>', h: `
+      <p>Customer data infrastructure. <b>Pipes</b> moves customer data: sources, events, identity, destinations. <b>Engage</b> acts on it: audiences, journeys, campaigns.</p>
+      <p>On top sits the <b>AI Analyst</b> — an analytical agent built on bash, a mounted in-memory filesystem and a JSON renderer instead of a tool-calling loop.</p>
+      <p>Self-hostable: AI included, that you own, control and audit.</p>` },
+    analyst: { k: 'Article · excerpt', t: POSTS[0].title, m: '2026-04-29 · agents, architecture · <a href="/posts/ai-analyst-architecture/">full article</a>', h: `
+      <p>Most AI features built today follow the same recipe: take the Vercel AI SDK, register a handful of tools, write a system prompt, and stream the result into a markdown component. It works. It is also where most teams stop — and where most AI products start to feel limited.</p>
+      <p>This article walks through the architecture we ended up with for the <b>AI Analyst</b> in Engage, and contrasts it with the more conventional <b>Piper chatbot</b> that lives next door in the same codebase. Both ship in the same product. They are wildly different inside.</p>
+      <p>We will start from the naive baseline, identify the two failure modes that pushed us off it (noisy tool results and metadata bloat), and then introduce the three ideas that replaced them: <b>just-bash with an in-memory filesystem</b>, a <b>SQL execution layer that mounts results as files</b>, and a <b>JSON renderer with a predefined component manifest</b>.</p>
+      <h3>1. The naive architecture: AI SDK + tools + markdown</h3>
+      <p>The Piper chatbot is the textbook implementation. The server side is essentially a single call:</p>
+<pre><code>const stream = await streamText({
+  model: google(CHAT_MODEL),
+  system: buildSystemPrompt({ baseUrl, disabledFeatureIds }),
+  tools: assistantTools,
+  messages: modelMessages,
+  stopWhen: stepCountIs(20),
+});</code></pre>
+      <p>This works great for <em>operational</em> assistants — “create an audience”, “show me the last failed delivery”, “explain what this attribute does”. The conversation is short, each tool returns a small, well-shaped object, and the markdown is the answer.</p>
+      <p><a href="/posts/ai-analyst-architecture/">Continue reading →</a></p>` },
+    codebases: { k: 'Article · summary', t: POSTS[1].title, m: '2026-02-10 · agents, codebases · <a href="/posts/ai-agents-codebases/">full article</a>', h: `
+      <p>A modular-monolith refactor designed for AI agents: predictable module layout, centralized auth, and a strict <code>public.ts</code> boundary that keeps an eager agent from quietly inventing a second architecture next to the first one.</p>
+      <p><a href="/posts/ai-agents-codebases/">Read the article →</a></p>` },
+    codex: { k: 'Draft', t: POSTS[2].title, m: 'in progress · devtools, prompting', h: `
+      <p>Why the two aren't interchangeable: prompting style and ambiguity tolerance shape the outcome. Treat them as two colleagues with different temperaments, not two brands of the same tool.</p>` },
+    gaslight: { k: 'Idea, in the drawer', t: POSTS[3].title, m: 'not written yet · security', h: `
+      <p>Tell an agent, as fact, that a pentester already got remote code execution on your server — and let it work out how. It is not true. The model does not know that, and it stops assuming nothing is wrong.</p>` },
+  };
+
+  /* ---------- sheets ---------- */
+  const c = (t, o) => Object.assign({ t }, o), H = t => c(t, { k: 'hd' });
+  let sortDir = 0, hiddenShown = false, cur = 'README';
+  const SHEETS = {
+    README: () => ({ cols: [170, 300, 300, 120, 130], rows: [
+      { plain: 1, c: [c("Don't Panic, V!", { k: 'h1', span: 5 })] },
+      { plain: 1, c: [c('Vojtěch “V” Kurka · Head of R&D & Co-Founder at Meiro · Brno, Czechia', { k: 'sub', span: 5 })] },
+      { c: [] },
+      { head: 1, c: [H('Field'), c('Value', { k: 'hd', span: 3 }), H('Source')] },
+      { c: [c('About', { k: 'key' }), c('I like knowing how things work — from CPUs and protocols to databases and containers. Almost ten years of building a data platform in production taught me most of it.', { k: 'p', span: 3 }), c('debugging production', { k: 'mut' })] },
+      { c: [c('Now', { k: 'key' }), c('I spend that curiosity on AI: local models, agentic workflows, and getting it all into production for real customers.', { k: 'p', span: 3 }), c('in production, not demos', { k: 'mut' })] },
+      { c: [c('Rule', { k: 'key' }), c("If I can't explain it to someone else, I don't understand it yet.", { k: 'p', span: 3 }), c('tested on stage', { k: 'mut' })] },
+      { c: [c('In his words', { k: 'key' }), c('I write code no one wants to read, but everyone needs to have. Data whatever.', { k: 'p', span: 3 }), c('GitHub bio', { k: 'mut' })] },
+      { c: [] },
+      { head: 1, c: [H('Sheet'), c("What's in it", { k: 'hd', span: 2 }), H('Rows'), H('Open')] },
+      { c: [c('Projects', { k: 'key' }), c('Mycroft, Golem, Shadow, Meiro', { span: 2 }), c(4, { k: 'num', f: '=COUNT(projects)' }), c('Open →', { go: 'Projects' })] },
+      { c: [c('Writing', { k: 'key' }), c('Two articles, a draft, an idea, four short notes', { span: 2 }), c(4, { k: 'num', f: '=COUNT(writing)' }), c('Open →', { go: 'Writing' })] },
+      { c: [c('CV', { k: 'key' }), c('Meiro, Keboola, VUT FIT', { span: 2 }), c(3, { k: 'num', f: '=COUNT(cv)' }), c('Open →', { go: 'CV' })] },
+      { c: [c('Contact', { k: 'key' }), c('Four ways to reach me', { span: 2 }), c(4, { k: 'num', f: '=COUNT(contact)' }), c('Open →', { go: 'Contact' })] },
+      { c: [] },
+      { head: 1, c: [H('Metric'), H('Value'), c('Comment', { k: 'hd', span: 3 })] },
+      { c: [c('Stars, total', { k: 'key' }), c(42, { k: 'num big', f: '=SUM(stars)' }), c('41 + 1 + 0. Coincidence is not a supported data type.', { k: 'mut', span: 3 })] },
+      { c: [c('Panic level', { k: 'key' }), c(0, { k: 'num big', f: '=PANIC()' }), c('As instructed on the cover.', { k: 'mut', span: 3 })] },
+      { c: [c('Formulas', { k: 'key' }), c('=HELP()', { k: 'mono' }), c('The formula bar above is live. Type something that starts with =', { k: 'mut', span: 3 })] },
+    ] }),
+    Projects: () => {
+      const ps = [...PROJECTS]; if (sortDir) ps.sort((a, b) => ((b.stars ?? -1) - (a.stars ?? -1)) * sortDir);
+      return { cols: [170, 400, 120, 110, 150, 140, 210], rows: [
+        { head: 1, c: [H('Project'), H('What it is'), H('Stack'), H('Stars'), H('Panic (should be 0)'), H('Status'), H('Link')] },
+        ...ps.map(p => ({ open: p.id, c: [c(p.name, { title: 1 }), c(p.what, { k: 'p', clamp: 1 }), p.stack,
+          p.stars == null ? c('—', { k: 'num mut', full: 'Not that kind of project.' }) : c(p.stars, { k: 'num bar', bar: p.stars / 41 }),
+          c('', { spark: p.panic, full: 'Panic level over time, unitless. Flat is the goal.' }), c(p.status, { chip: 1 }), c(p.label, { href: p.url })] })),
+        { c: [] },
+        { c: [c('Total', { k: 'key' }), '', '', c(42, { k: 'num big', f: '=SUM(D2:D5)' }), c('← not rigged', { k: 'mut' }), '', ''] },
+      ] };
+    },
+    Writing: () => ({ cols: [130, 430, 430, 130, 190], rows: [
+      { head: 1, c: [H('Date'), H('Title'), H('Summary'), H('Status'), H('Topic')] },
+      ...POSTS.map(p => ({ open: p.id, c: [c(p.date, { k: 'mono' }), c(p.title, { title: 1, post: 1 }), c(p.sum, { clamp: 1, k: p.status === 'published' ? '' : 'dim' }), c(p.status, { chip: 1 }), c(p.topic, { k: 'mut' })] })),
+      { c: [] },
+      { head: 1, c: [H('Kind'), c('Short notes', { k: 'hd', span: 3 }), H('Topic')] },
+      ...NOTES.map((n, i) => ({ c: [c('note', { chip: 1 }), c(n, { k: 'p', span: 3 }), c(['agents', 'agents', 'economics', 'prompting'][i], { k: 'mut' })] })),
+    ] }),
+    CV: () => ({ cols: [110, 110, 300, 150, 330, 110], rows: [
+      { head: 1, c: [H('From'), H('To'), H('Role'), H('Company'), H('Where / what'), H('Years')] },
+      { c: [c(2024, { k: 'num' }), c('now', { k: 'num' }), c('Head of R&D & Co-Founder', { k: 'key' }), 'Meiro', 'Brno, Czechia', c(YEAR - 2024, { k: 'num', f: '=YEAR(NOW())-A2' })] },
+      { c: [c(2018, { k: 'num' }), c(2024, { k: 'num' }), c('CTO & Co-Founder', { k: 'key' }), 'Meiro', 'Owned product architecture, development and implementations of the Meiro CDP.', c(6, { k: 'num', f: '=B3-A3' })] },
+      { c: [c(2015, { k: 'num' }), c(2018, { k: 'num' }), c('Head Nerd / Solutions Architect', { k: 'key' }), 'Keboola', 'Designed data integrations end to end. Partly from Bali, Indonesia.', c(3, { k: 'num', f: '=B4-A4' })] },
+      { c: [c('—', { k: 'num mut' }), c('—', { k: 'num mut' }), c('Studied', { k: 'key' }), 'VUT FIT', 'Brno University of Technology, Faculty of Information Technology', c('', {})] },
+      { c: [] },
+      { head: 1, c: [c('Chart', { k: 'hd' }), c('Years by employer', { k: 'hd', span: 5 })] },
+      { c: [c('=CHART(D2:D4, F2:F4)', { k: 'mono mut' }), c('', { chart: 1, span: 4, full: `Meiro: ${YEAR - 2018} years. Keboola: 3 years.` }), ''] },
+    ] }),
+    Contact: () => ({ cols: [150, 330, 380, 200], rows: [
+      { head: 1, c: [H('Channel'), H('Address'), H('Good for'), H('Notes')] },
+      { c: [c('Email', { k: 'key' }), c('kurka.vojtech@gmail.com', { href: 'mailto:kurka.vojtech@gmail.com' }), 'Anything that deserves a real answer', c('best one', { k: 'mut' })] },
+      { c: [c('GitHub', { k: 'key' }), c('github.com/dontpanicv', { href: 'https://github.com/dontpanicv' }), 'Code, issues, the occasional star', c('code no one wants to read', { k: 'mut' })] },
+      { c: [c('X', { k: 'key' }), c('x.com/dontpanicv', { href: 'https://x.com/dontpanicv' }), 'Short notes and demos', c('', {})] },
+      { c: [c('LinkedIn', { k: 'key' }), c('linkedin.com/in/kurkavojtech', { href: 'https://www.linkedin.com/in/kurkavojtech/' }), 'The professional version of all this', c('', {})] },
+    ] }),
+    DO_NOT_OPEN: () => ({ cols: [170, 260, 440], rows: [
+      { plain: 1, c: [c('You opened it.', { k: 'h1', span: 3 })] },
+      { head: 1, c: [H('Item'), H('Value'), H('Notes')] },
+      { c: [c('towel', { k: 'key' }), c(1, { k: 'num' }), 'Present. You always know where it is.'] },
+      { c: [c('panic', { k: 'key' }), c(0, { k: 'num' }), 'As instructed.'] },
+      { c: [c('meaning', { k: 'key' }), c(42, { k: 'num' }), 'Units unknown. The question is still running.'] },
+      { c: [c('coffee', { k: 'key' }), c('#OVERFLOW!', { k: 'err' }), 'BIGINT was optimistic.'] },
+      { c: [c('machines', { k: 'key' }), 'bender, glados, saturnin', 'They have opinions.'] },
+      { c: [c('secrets', { k: 'key' }), c('#REF!', { k: 'err' }), 'Nice try.'] },
+      { c: [] },
+      { c: [c('Close this sheet and we will not speak of it.', { k: 'mut', span: 3 })] },
+    ] }),
+  };
+  const VISIBLE = ['README', 'Projects', 'Writing', 'CV', 'Contact'];
+
+  /* ---------- rendering ---------- */
+  const grid = $('#grid'), ring = $('#ring'), fx = $('#fx'), nameBox = $('#name'), statusEl = $('#status'), scroller = $('#scroller');
+  const extra = {};      // formula results the visitor dropped into empty cells, per sheet
+  let map = {}, sel = null, colWish = 0;
+
+  const norm = x => (x && typeof x === 'object') ? x : { t: x };
+  function mapOf(name) { // address → cell, without touching the DOM (used by VLOOKUP and refs)
+    const m = {}; SHEETS[name]().rows.forEach((row, r) => { let ci = 0; row.c.forEach(x => { const cell = norm(x); if (cell.t !== '' || cell.spark || cell.chart) m[L(ci) + (r + 1)] = cell; ci += cell.span || 1; }); });
+    return Object.assign(m, extra[name]);
+  }
+  function spark(v) {
+    const max = Math.max(...v, 6), pts = v.map((y, i) => `${(i / (v.length - 1) * 96 + 2).toFixed(1)},${(20 - y / max * 16).toFixed(1)}`), hi = v.indexOf(Math.max(...v));
+    return `<svg class="spark" viewBox="0 0 100 24" preserveAspectRatio="none" role="img" aria-label="Panic level: nearly flat"><polyline points="${pts.join(' ')}" fill="none" stroke="#1B1A17" stroke-width="1.6" vector-effect="non-scaling-stroke"/><path d="M${pts[hi].replace(',', ' ')}l0 .01" stroke="#E5432A" stroke-width="6.5" stroke-linecap="round" vector-effect="non-scaling-stroke"/></svg>`;
+  }
+  function chart() {
+    const m = YEAR - 2018, w = n => (n / Math.max(m, 3) * 300).toFixed(0);
+    return `<svg class="chart" viewBox="0 0 440 104" role="img" aria-label="Bar chart: Meiro ${m} years, Keboola 3 years">
+      <g font-family="IBM Plex Mono,monospace" font-size="13" fill="#1B1A17">
+        <text x="0" y="31">Meiro</text><rect x="78" y="14" width="${w(m)}" height="26" rx="3" fill="#E5432A"/><text x="${+w(m) + 88}" y="32">${m} y</text>
+        <text x="0" y="75">Keboola</text><rect x="78" y="58" width="${w(3)}" height="26" rx="3" fill="#1B1A17"/><text x="${+w(3) + 88}" y="76">3 y</text>
+        <path d="M78 6v92" stroke="#1B1A17" stroke-width="1.2"/></g></svg>`;
+  }
+  function cellHTML(cell, row) {
+    const t = esc(cell.t);
+    if (cell.title) return `<button class="open${cell.post ? ' t' : ''}" type="button" data-open="${row.open}">${t}</button>`;
+    if (cell.go) return `<button class="go" type="button" data-go="${cell.go}">${t}</button>`;
+    if (cell.href) return `<a href="${cell.href}">${t}</a>`;
+    if (cell.chip) return `<span class="chip chip-${String(cell.t).replace(/\s/g, '-')}">${t}</span>`;
+    if (cell.spark) return spark(cell.spark);
+    if (cell.chart) return chart();
+    if (cell.bar != null) return `<span>${t}</span>`;
+    return cell.clamp ? `<span class="clamp">${t}</span>` : t;
+  }
+  function render() {
+    const sh = SHEETS[cur](), ex = extra[cur] || {}, n = Math.max(sh.rows.length + 8, 26); map = {};
+    let html = `<colgroup><col class="rnc">${sh.cols.map(w => `<col style="width:${w}px">`).join('')}</colgroup><thead><tr><th class="corner"></th>${sh.cols.map((_, i) => `<th scope="col">${L(i)}</th>`).join('')}</tr></thead><tbody>`, heads = [];
+    for (let r = 0; r < n; r++) {
+      const row = sh.rows[r] || { c: [], tail: 1 };
+      if (row.head) { heads = []; let ci = 0; row.c.forEach(x => { const cell = norm(x); for (let k = 0; k < (cell.span || 1); k++) heads[ci++] = cell.t; }); }
+      if (row.plain) heads = [];
+      html += `<tr class="${row.head ? 'hr plain ' : ''}${row.plain ? 'plain ' : ''}${row.open ? 'op ' : ''}${row.c.length ? '' : 'empty '}${row.tail ? 'tail' : ''}"${row.open ? ` data-open="${row.open}"` : ''}><th class="rn" scope="row">${r + 1}</th>`;
+      let ci = 0;
+      for (const x of row.c) {
+        const cell = norm(x), span = cell.span || 1, a = L(ci) + (r + 1), blank = cell.t === '' && !cell.spark && !cell.chart;
+        if (!blank) map[a] = cell;
+        html += `<td data-a="${a}" data-r="${r}" data-c="${ci}" data-s="${span}"${span > 1 ? ` colspan="${span}"` : ''} class="${blank ? 'e' : (cell.k || '')}"${cell.bar != null ? ` style="--p:${Math.round(cell.bar * 100)}%"` : ''} data-label="${row.head ? '' : esc(heads[ci] || '')}" tabindex="-1">${blank ? '' : cellHTML(cell, row)}</td>`;
+        ci += span;
+      }
+      for (; ci < sh.cols.length; ci++) {
+        const a = L(ci) + (r + 1), cell = ex[a]; if (cell) map[a] = cell;
+        html += `<td data-a="${a}" data-r="${r}" data-c="${ci}" data-s="1" class="${cell ? cell.k : 'e'}" data-label="${cell ? esc(cell.f) : ''}" tabindex="-1">${cell ? esc(cell.t) : ''}</td>`;
+      }
+      html += '</tr>';
+    }
+    grid.innerHTML = html + '</tbody>';
+    $('#tabs').innerHTML = [...VISIBLE, ...(hiddenShown ? ['DO_NOT_OPEN'] : [])].map(s => `<button class="tab${s === 'DO_NOT_OPEN' ? ' secret' : ''}" role="tab" type="button" aria-selected="${s === cur}" data-sheet="${s}">${s}</button>`).join('');
+    $('#hid').hidden = hiddenShown;
+    $('#sort').disabled = cur !== 'Projects';
+    sel = null; select(grid.querySelector('td:not(.e)'), false);
+  }
+  function moveRing() {
+    if (!sel || mobile()) return;
+    ring.style.transform = `translate(${sel.offsetLeft - 1}px,${sel.offsetTop - 1}px)`; ring.style.width = sel.offsetWidth + 1 + 'px'; ring.style.height = sel.offsetHeight + 1 + 'px';
+  }
+  function autosize() { fx.style.height = 'auto'; fx.style.height = Math.min(fx.scrollHeight, 84) + 'px'; }
+  const textOf = cell => cell ? String(cell.f || cell.full || cell.t) : '';
+  function select(td, focus = true) {
+    if (!td) return;
+    sel && sel.classList.remove('sel'); sel = td; td.classList.add('sel');
+    nameBox.textContent = cur + '!' + td.dataset.a;
+    fx.value = textOf(map[td.dataset.a]); autosize(); moveRing();
+    if (focus) { td.focus({ preventScroll: true }); td.scrollIntoView({ block: 'nearest', inline: 'nearest' }); }
+  }
+  const cellAt = (r, col) => [...grid.querySelectorAll(`td[data-r="${r}"]`)].find(td => col >= +td.dataset.c && col < +td.dataset.c + +td.dataset.s);
+  function switchSheet(name, quiet) {
+    if (!SHEETS[name]) return; cur = name; closePanel(); render();
+    if (!quiet) status(`${name}: ${Object.keys(map).length} cells with something in them.`);
+    if (name === 'CV' && !switchSheet.cvSeen) { switchSheet.cvSeen = 1; setTimeout(() => cur === 'CV' && terry('hire'), 1100); }
+    scroller.scrollTo(0, 0);
+  }
+
+  /* ---------- reading panel ---------- */
+  const panel = $('#panel'); let back = null;
+  function openDoc(id, from) {
+    const d = DOCS[id]; if (!d) return;
+    $('#pbody').innerHTML = `<p class="kick">${d.k}</p><h2 id="ptitle">${esc(d.t)}</h2><p class="meta">${d.m}</p>${d.h}`;
+    $('#pwhere').textContent = cur + '!' + (from ? from.dataset.a : '') + ' — reading view';
+    back = from || sel; panel.classList.add('on'); $('#pbody').scrollTop = 0; $('#pclose').focus({ preventScroll: true });
+    status('Reading view. Esc closes.');
+  }
+  function closePanel() { if (!panel.classList.contains('on')) return; panel.classList.remove('on'); back && back.isConnected && back.focus({ preventScroll: true }); }
+  $('#pclose').addEventListener('click', closePanel);
+
+  /* ---------- messages, helper ---------- */
+  const toast = $('#toast'); let tt;
+  function say(label, msg, warn) { toast.innerHTML = `<b>${esc(label)}</b>${esc(msg)}`; toast.classList.toggle('warn', !!warn); toast.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => toast.classList.remove('on'), 6000); }
+  const status = m => { statusEl.textContent = m; };
+  const TERRY = {
+    hire: ["It looks like you're trying to hire a nerd. Would you like help with that?", [['Take me to Contact', () => switchSheet('Contact')], ["Don't panic", null]]],
+    help: ["I'm Terry. I'm a towel. The formula bar is live: try the Functions button, or ask me where the hidden sheet is.", [['Show functions', () => toggleFns(true)], ['Hidden sheet?', () => unhide()], ['Go away', null]]],
+    towel: ['You found me. I am the most useful thing in this workbook, and the only absorbent one. I unhid a sheet for you.', [['Open it', () => switchSheet('DO_NOT_OPEN')], ['Later', null]]],
+  };
+  function terry(kind) {
+    const [text, btns] = TERRY[kind], el = $('#terry'); $('#terrysay').textContent = text;
+    const box = $('#terrybtn'); box.innerHTML = '';
+    btns.forEach(([label, fn]) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.onclick = () => { el.classList.remove('on'); fn && fn(); }; box.append(b); });
+    el.classList.add('on');
+  }
+  function unhide() { if (!hiddenShown) { hiddenShown = true; render(); } say('1 sheet unhidden.', 'It was hidden for a reason. The reason was drama.'); }
+  $('#hid').addEventListener('click', unhide);
+  $('#helpbtn').addEventListener('click', () => terry('help'));
+
+  /* ---------- formula engine ---------- */
+  const FNS = [
+    ['=SUM(stars)', 'Adds up the GitHub stars'], ['=COUNT(projects)', 'Counts rows: projects, writing, cv, contact'], ['=NOW()', 'The time, where you are'],
+    ['=VLOOKUP("agent")', 'Finds the first cell that mentions something'], ['=B2', 'Reads another cell on this sheet'], ['=2+2', 'Arithmetic, mostly correct'], ['=HELP()', 'Wakes the helper'],
+  ];
+  function calc(src) {
+    const e = src.trim().replace(/^=/, '').trim(); let m;
+    if ((m = e.match(/^([A-Za-z_]+)\s*\(([\s\S]*)\)$/))) {
+      const fn = m[1].toUpperCase(), arg = m[2].trim().replace(/^["'“”]|["'“”]$/g, ''), a = arg.toLowerCase();
+      if (fn === 'ANSWER') return { v: 42, note: 'Computed in 7.5 million years. The question is still running.' };
+      if (fn === 'PANIC') return { v: 0, note: 'As instructed.' };
+      if (fn === 'NOW' || fn === 'TODAY') return { v: new Date().toLocaleString('en-GB', fn === 'NOW' ? { dateStyle: 'medium', timeStyle: 'short' } : { dateStyle: 'medium' }), note: 'Local time. Deep Thought would have taken longer.' };
+      if (fn === 'HELP') return { v: 'Terry is on it', terry: 'help' };
+      if (fn === 'UNHIDE') return { v: 'DO_NOT_OPEN', unhide: 1 };
+      if (fn === 'COUNT') { const n = { projects: PROJECTS.length, writing: POSTS.length, posts: POSTS.length, cv: 3, contact: 4, towels: 1 }[a]; return n == null ? { v: '#NAME?', err: 1, note: `I can count projects, writing, cv and contact. Not “${arg}”.` } : { v: n }; }
+      if (fn === 'SUM') {
+        if (a === 'stars') return { v: 42, note: '41 + 1 + 0. Coincidence is not a supported data type.' };
+        if ((m = a.match(/^([a-z])(\d+):([a-z])(\d+)$/))) {
+          let s = 0, n = 0; const mm = mapOf(cur);
+          for (let col = m[1].charCodeAt(0); col <= m[3].charCodeAt(0); col++) for (let r = +m[2]; r <= +m[4]; r++) { const x = mm[String.fromCharCode(col - 32) + r]; if (x && typeof x.t === 'number') { s += x.t; n++; } }
+          return { v: s, note: n ? `${n} numeric cell${n > 1 ? 's' : ''} in ${arg.toUpperCase()}.` : 'Nothing numeric in that range. Zero it is.' };
+        }
+        return { v: '#VALUE!', err: 1, note: 'SUM wants a range like D2:D5, or the word stars.' };
+      }
+      if (fn === 'VLOOKUP') {
+        if (!a) return { v: '#N/A', err: 1, note: 'Look up what, exactly?' };
+        if (a === 'towel') return { v: '1 towel', note: 'Found in DO_NOT_OPEN!A3. You always know where it is.', terry: 'towel', unhide: 1 };
+        for (const s of VISIBLE) { const mm = mapOf(s); for (const k in mm) if (String(mm[k].t).toLowerCase().includes(a)) return { v: `${s}!${k}`, note: String(mm[k].t).slice(0, 110) }; }
+        return { v: '#N/A', err: 1, note: `No “${arg}” anywhere. Have you looked under the towel?` };
+      }
+      return { v: '#NAME?', err: 1, note: `${fn}() is not a function here. Try =HELP().` };
+    }
+    if ((m = e.match(/^([A-Za-z])(\d{1,3})$/))) {
+      const a = m[1].toUpperCase() + m[2];
+      if (sel && a === sel.dataset.a) return { stop: 1, note: 'This cell depends on itself. So do most meetings.' };
+      const x = mapOf(cur)[a];
+      return x ? { v: typeof x.t === 'number' ? x.t : String(x.t).slice(0, 80) } : { v: '#REF!', err: 1, note: `${a} is empty. It may have moved to Bali in 2015.` };
+    }
+    if ((m = e.match(/^(-?\d+(?:\.\d+)?)\s*([+\-*\/x×])\s*(-?\d+(?:\.\d+)?)$/))) {
+      const x = +m[1], y = +m[3], op = m[2];
+      if (op === '/' && y === 0) return { v: '#DIV/0!', err: 1, note: 'Even Deep Thought declined this one.' };
+      if ((op === '*' || op === 'x' || op === '×') && ((x === 6 && y === 9) || (x === 9 && y === 6))) return { v: 42, note: 'In base 13. Do not check.' };
+      return { v: +(op === '+' ? x + y : op === '-' ? x - y : op === '/' ? x / y : x * y).toFixed(6) };
+    }
+    if (/^-?\d+(\.\d+)?$/.test(e)) return { v: +e };
+    return { v: '#NAME?', err: 1, note: 'I do not know that one. Try =HELP().' };
+  }
+  function commit() {
+    const src = fx.value.trim();
+    if (!src.startsWith('=')) { if (src && src !== textOf(map[sel.dataset.a])) { say('Read-only.', 'The content is not editable. Formulas are welcome, though: start with ='); fx.value = textOf(map[sel.dataset.a]); autosize(); } return; }
+    const res = calc(src);
+    if (res.stop) return say('Circular reference.', res.note, true);
+    let td = sel && !map[sel.dataset.a] && sel.classList.contains('e') ? sel : [...grid.querySelectorAll('tr.tail td[data-c="1"]')].find(x => !map[x.dataset.a]);
+    if (!td) return say(String(res.v), res.note || '');
+    const cell = { t: res.v, f: src, k: (typeof res.v === 'number' ? 'num ' : '') + (res.err ? 'err ' : '') + 'calc' };
+    (extra[cur] || (extra[cur] = {}))[td.dataset.a] = cell;
+    if (res.unhide && !hiddenShown) { hiddenShown = true; const a = td.dataset.a; render(); td = grid.querySelector(`td[data-a="${a}"]`); }
+    else { map[td.dataset.a] = cell; td.className = cell.k; td.textContent = cell.t; td.dataset.label = src; }
+    td.classList.add('flash'); select(td, !mobile());
+    say(`${td.dataset.a} = ${res.v}`, res.note ? ' ' + res.note : '', res.err);
+    status(`${src}  →  ${res.v}`);
+    if (res.terry) terry(res.terry);
+  }
+  function toggleFns(on) {
+    const pop = $('#fnpop'), btn = $('#fnbtn'); on = on ?? pop.hidden; pop.hidden = !on; btn.setAttribute('aria-expanded', on);
+    if (on && !pop.firstChild) FNS.forEach(([f, d]) => { const b = document.createElement('button'); b.type = 'button'; b.innerHTML = `<code>${esc(f)}</code><span>${esc(d)}</span>`; b.onclick = () => { toggleFns(false); fx.value = f; autosize(); commit(); }; pop.append(b); });
+    if (on) pop.firstChild.focus();
+  }
+  $('#fnbtn').addEventListener('click', () => toggleFns());
+
+  /* ---------- events ---------- */
+  grid.addEventListener('click', e => {
+    const td = e.target.closest('td'); if (!td) return;
+    const o = e.target.closest('[data-open]'), g = e.target.closest('[data-go]');
+    select(td, false);
+    if (g) return switchSheet(g.dataset.go);
+    if (o && (o.tagName === 'BUTTON' || mobile())) openDoc(o.dataset.open, td);
+  });
+  grid.addEventListener('dblclick', e => { const tr = e.target.closest('tr[data-open]'); if (tr) openDoc(tr.dataset.open, e.target.closest('td')); });
+  grid.addEventListener('focusin', e => { const td = e.target.closest('td'); if (td && td !== sel) select(td, false); });
+  grid.addEventListener('keydown', e => {
+    if (!sel || e.metaKey || e.ctrlKey || e.altKey) return;
+    const r = +sel.dataset.r, c0 = +sel.dataset.c, s = +sel.dataset.s, k = e.key;
+    let t;
+    if (k === 'ArrowRight') { t = cellAt(r, c0 + s); colWish = c0 + s; }
+    else if (k === 'ArrowLeft') { t = cellAt(r, c0 - 1); colWish = Math.max(0, c0 - 1); }
+    else if (k === 'ArrowDown') t = cellAt(r + 1, colWish);
+    else if (k === 'ArrowUp') t = cellAt(r - 1, colWish);
+    else if (k === 'Enter') {
+      if (e.target.closest('a,button')) return;
+      const tr = sel.closest('tr'), g = sel.querySelector('[data-go]'), a = sel.querySelector('a');
+      e.preventDefault();
+      if (tr.dataset.open) openDoc(tr.dataset.open, sel); else if (g) switchSheet(g.dataset.go); else if (a) a.click(); else fx.focus();
+      return;
+    } else if (k.length === 1 && k !== ' ' && !e.target.closest('a,button')) { fx.focus(); fx.value = ''; return; }
+    else return;
+    e.preventDefault(); if (t) { const keep = colWish; select(t); if (k === 'ArrowDown' || k === 'ArrowUp') colWish = keep; else colWish = +t.dataset.c; }
+  });
+  fx.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); commit(); }
+    if (e.key === 'Escape') { fx.value = textOf(map[sel.dataset.a]); autosize(); sel.focus({ preventScroll: true }); }
+  });
+  fx.addEventListener('input', autosize);
+  $('#tabs').addEventListener('click', e => { const b = e.target.closest('[data-sheet]'); if (b) switchSheet(b.dataset.sheet); });
+  $('#sort').addEventListener('click', e => { sortDir = sortDir === 1 ? -1 : sortDir === -1 ? 0 : 1; e.currentTarget.setAttribute('aria-pressed', sortDir !== 0); e.currentTarget.textContent = '★ Sort' + (sortDir === 1 ? ' ↓' : sortDir === -1 ? ' ↑' : ''); render(); status(sortDir ? 'Sorted by stars. Meiro abstains.' : 'Original order.'); });
+  addEventListener('keydown', e => {
+    if (e.key !== 'Escape') return;
+    if (!$('#fnpop').hidden) return toggleFns(false);
+    if ($('#terry').classList.contains('on')) return $('#terry').classList.remove('on');
+    closePanel();
+  });
+  addEventListener('click', e => { if (!$('#fnpop').hidden && !e.target.closest('.tools')) toggleFns(false); });
+  addEventListener('resize', moveRing);
+
+  /* ---------- boot ---------- */
+  console.assert(calc('=ANSWER()').v === 42 && calc('=SUM(stars)').v === 42 && calc('=6*9').v === 42 && calc('=2+2').v === 4 && calc('=1/0').v === '#DIV/0!' && calc('=NOPE()').err && calc('=VLOOKUP("towel")').unhide, 'formula self-check failed');
+  const [h1, h2] = decodeURIComponent(location.hash.slice(1)).split(':');
+  if (SHEETS[h1]) { if (h1 === 'DO_NOT_OPEN') hiddenShown = true; if (h1 === 'CV') switchSheet.cvSeen = 1; cur = h1; }
+  render();
+  if (h2 && DOCS[h2]) openDoc(h2, grid.querySelector(`tr[data-open="${h2}"] td`));
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(moveRing);
+})();
+</script>
+
+<div id="vnav" style="position:fixed;right:12px;bottom:12px;z-index:99999;font:12px/1 ui-monospace,Menlo,monospace;background:#111;color:#fff;border-radius:999px;padding:8px 12px;display:flex;gap:10px;align-items:center;box-shadow:0 2px 10px rgba(0,0,0,.3)"><a href="12-daily-panic.html" style="color:#FFD400;text-decoration:none" aria-label="Previous variation">‹</a><a href="index.html" style="color:#fff;text-decoration:none">13/20 · spreadsheet</a><a href="14-git-log.html" style="color:#FFD400;text-decoration:none" aria-label="Next variation">›</a></div>
+</body>
+</html>

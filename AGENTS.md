@@ -2,16 +2,17 @@
 
 ## Project Structure & Module Organization
 
-- `astro/`: Astro + Tailwind site source (ESM).
+- `astro/`: Astro site source (ESM). Plain CSS, no Tailwind.
 - `astro/src/pages/`: route pages (`cv.astro` -> `/cv`).
-- `astro/src/pages/cs/`: Czech routes under `/cs/` (mirror of key pages in `astro/src/pages/`).
 - `astro/src/components/`, `astro/src/layouts/`, `astro/src/styles/`: UI building blocks and design tokens.
-- `astro/src/content/posts/`: English blog posts (Astro content collection: `posts`).
-- `astro/src/content/postsCs/`: Czech blog posts (Astro content collection: `postsCs`).
-- `astro/public/`: static assets (favicons, `brand/`).
+- `astro/src/data/profile.ts`: who V is (bio, projects, CV, contact). The homepage and the agent's files both read it.
+- `astro/src/agent/`: the on-device agent on the homepage (see `astro/README.md`). `astro/src/lib/agent-files.ts` builds the files it reads, served as `/agent/files.json`.
+- `astro/evals/`: browser checks that need Chrome and a running site (model comparison, homepage end to end).
+- `astro/src/content/posts/`: blog posts (Astro content collection: `posts`).
+- `astro/public/`: static assets (favicons, `brand/`), plus Cloudflare `_headers` and `_redirects`.
 - `brief/`: project briefs/specs in Markdown (update these when changing content/IA/design).
 - `library/`: long-form drafts and idea backlog (Markdown).
-- Generated output (git-ignored): `main/` (see `astro/astro.config.mjs`).
+- Generated output (git-ignored): `astro/dist/`.
 
 ## Build, Test, and Development Commands
 
@@ -19,32 +20,34 @@ Run commands from `astro/`:
 
 - `npm install`: install dependencies.
 - `npm run dev`: start the local dev server.
-- `npm run build`: build to `../main/`.
-- `npm run build:main`: build to `../main/` (alias / explicit outDir).
+- `npm run build`: build to `dist/`.
 - `npm run preview`: serve the last build locally.
+- `npm test`: self-check of the agent's prompt and search logic (`src/agent/route.test.ts`).
+- `npm run eval:page` / `npm run eval:models`: the homepage agent end to end, and the downloadable model on real questions. Both need `npm run dev` running and Chrome; the first run downloads the model (about 240 MB).
+- `npm run deploy`: build and deploy to Cloudflare with the `cf` CLI (needs `cf auth login` once).
 
 ## Coding Style & Naming Conventions
 
 - Indentation: 2 spaces in `.astro` and CSS; keep existing formatting and keep diffs small.
-- Styling: prefer Tailwind utilities and tokenized colors (`bg-bg`, `text-muted`) from `astro/src/styles/global.css` over hard-coded hex values.
+- Styling: plain CSS in `astro/src/styles/trace.css`; use its tokens (`--paper`, `--ink`, `--muted`, `--accent`, `--serif`, `--mono`) over hard-coded values.
 - Components: `PascalCase.astro` under `astro/src/components/`.
 - Routes: lowercase filenames under `astro/src/pages/` (filename becomes the route).
-- Localization: the site is bilingual (English + Czech). Any new user-facing content should be added/updated in both languages (including new posts and any new pages under `astro/src/pages/` + `astro/src/pages/cs/`).
-- Posts: publish in both languages at the same time.
-- Posts: for every EN post in `astro/src/content/posts/`, add a matching CZ post in `astro/src/content/postsCs/`.
-- Posts: keep `date`, `status`, and `translationKey` aligned between EN/CZ. Slugs should differ (Astro warns on duplicate ids); language switching matches on `translationKey` (fallback: slug).
-- When adding a new page, update navigation in `astro/src/components/Header.astro`.
+- Language: the site is English only.
+- When adding a new page, use `astro/src/layouts/TraceLayout.astro` and link it from that layout's header nav.
+- When a fact about V changes, change `astro/src/data/profile.ts`; when the agent should know something new, add it to `astro/src/lib/agent-files.ts` (the `about` line is what its file search matches on).
 
 ## Testing Guidelines
 
-- No automated test suite currently. Use `npm run build` as a smoke test before opening a PR.
+- `npm test` and `npm run build` before opening a PR. After touching `src/agent/` or the agent's files, also run `npm run eval:page`.
 
 ## Commit & Pull Request Guidelines
 
 - Commit messages are short and imperative (e.g., `Add ...`, `Split ...`), sometimes scoped (`Brief: ...`, `draft(blog): ...`).
 - PRs should include: what changed, why, and screenshots for visual changes.
-- Don't commit generated `main/` output.
+- Don't commit generated `astro/dist/` output.
 
 ## Deployment & Configuration Notes
 
-- `nginx.conf` serves `main/` for `dontpanicv.com`.
+- Hosted on Cloudflare as a static, assets-only Worker named `dontpanicv` ("Pages on Workers") on the custom domain `dontpanicv.com`; config in `astro/cloudflare.config.ts`.
+- Deploy with `npm run deploy` (`astro build && cf deploy ./dist`). It uses the `cf` dev dependency; the `cf` CLI does not support classic Pages projects.
+- Response headers live in `astro/public/_headers`, redirects (old `/cs/` URLs) in `astro/public/_redirects`.

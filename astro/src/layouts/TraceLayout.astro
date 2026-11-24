@@ -1,0 +1,46 @@
+---
+import '../styles/trace.css';
+
+const {
+  title = "Don't Panic, V!",
+  description = 'Vojtěch “V” Kurka — Head of R&D & Co-Founder at Meiro. Agents, data infrastructure, and how things work.',
+  // The class of the page grid: 'layout' is content plus a rail, 'layout single' one reading column.
+  layout = 'layout single',
+  // On the homepage the nav jumps within the page.
+  home = false,
+} = Astro.props;
+const at = home ? '' : '/';
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    <meta name="generator" content={Astro.generator} />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&display=swap"
+      rel="stylesheet"
+    />
+    <slot name="meta" />
+    <title>{title}</title>
+  </head>
+  <body>
+    <a class="skip" href="#content">Skip to content</a>
+    <div id="ctxbar" aria-hidden="true"><i></i></div>
+    <div class={layout}>
+      <header class="runhead">
+        <a class="brand" href="/"><img src="/brand/mark.svg" width="32" height="32" alt="" />DON'T PANIC, V!</a>
+        <a href={`${at}#projects`}>projects</a>
+        <a href={`${at}#writing`}>writing</a>
+        <a href="/cv/">cv</a>
+        {!home && <a href="/#ask">ask the agent</a>}
+      </header>
+      <slot />
+    </div>
+  </body>
+</html>

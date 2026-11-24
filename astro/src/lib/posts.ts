@@ -2,16 +2,17 @@ import { getCollection } from 'astro:content';
 import * as fs from 'fs';
 import * as path from 'path';
 
-import type { Lang } from './i18n';
+const collection = 'posts';
 
-type PostCollection = 'posts' | 'postsCs';
-
-function collectionForLang(lang: Lang): PostCollection {
-  return lang === 'cs' ? 'postsCs' : 'posts';
+export function formatDate(date: Date): string {
+  return new Intl.DateTimeFormat('en-US', {
+    year: 'numeric',
+    month: 'short',
+    day: '2-digit',
+  }).format(date);
 }
 
-export async function getPublishedPosts(lang: Lang) {
-  const collection = collectionForLang(lang);
+export async function getPublishedPosts() {
   const entries = await getCollection(collection);
   // Read raw markdown for each post
   return (
@@ -33,8 +34,7 @@ export async function getPublishedPosts(lang: Lang) {
   );
 }
 
-export async function getAllPosts(lang: Lang) {
-  const collection = collectionForLang(lang);
+export async function getAllPosts() {
   const entries = await getCollection(collection);
   // Read raw markdown for each post
   return (

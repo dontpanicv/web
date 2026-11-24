@@ -2,8 +2,6 @@
 
 ## Decisions needed
 - URL structure for CV ("/cv" vs "/resume")
-- i18n strategy (EN default, Czech under `/cs/`)
-- Geo-language source (Cloudflare `CF-IPCountry` vs nginx GeoIP2 vs other)
 - Posts: tags and RSS (optional)
 
 ## Assets needed

@@ -1,0 +1,27 @@
+---
+// The prompt box of the on-device agent, set as the page's headline. Until something is asked it shows the question
+// the page answers anyway; after that it sits under the last answer (see .top:has(...) in trace.css).
+// src/agent/main.ts drives it by id. A textarea, so the headline wraps on a phone; Enter still sends.
+const question = 'Who is V and what is he building?';
+const chips = ['What is Mycroft?', 'Where did V work before Meiro?', 'What does he write about?', 'How does this page work?'];
+---
+
+<form class="ask" id="ask" autocomplete="off">
+  <label for="q">
+    <span class="first">This headline is a prompt box: type your own question and a model on your device answers it.</span>
+    <span class="next">Ask another question</span>
+  </label>
+  <div class="row">
+    <textarea id="q" name="q" rows="1" placeholder={question} data-default={question} data-next="Ask about V…" maxlength="200" disabled></textarea>
+    <button type="submit" id="send" disabled>Ask ↵</button>
+  </div>
+  <div class="chips">
+    {chips.map((q) => <button type="button" data-q={q}>{q}</button>)}
+  </div>
+  <p class="asknote" id="asknote">Looking for a language model on this device…</p>
+</form>
+
+<script>
+  // The live agent is a large bundle (pi-durable); load it after the page is up.
+  import('../../agent/main.ts');
+</script>

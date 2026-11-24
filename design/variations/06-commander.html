@@ -1,0 +1,752 @@
+<!doctype html>
+<!--
+  06-commander — a two-pane orthodox file manager for /home/v.
+  SIGNATURE INTERACTION: browse V's home directory. Arrows move, Enter / F3 / double-click opens a full-screen reader,
+    Tab switches panes, ← / Backspace goes up, typing goes to the command line. Mouse and touch work everywhere;
+    on phones it is one pane with drill-down.
+  EASTER EGGS
+    1. F8 (Delete) on anything → confirm → "cannot remove". On `..` in /home/v or on `v` in /home: "device or resource busy".
+    2. Hidden file `.towel` (Hitchhiker's nod): F2, Ctrl+H, Options → Show hidden files, or type `ls -a`.
+    3. F10 (Quit) → "There is no escape." Keeps answering differently for a few tries. `exit` does the same.
+    4. Command line: `42`, `sudo make me a sandwich`, `make me a sandwich`, `rm -rf /`, `vim`, `panic`, `towel`,
+       `whoami`, `uptime`, `sudo <anything>`, `man v`.
+    5. /home/v/.secrets/ — `answer.txt` (Deep Thought nod, 42 bytes) and `id_rsa` (nice try).
+    6. /mnt/bender, /mnt/glados, /mnt/saturnin each carry a `motd`.
+    7. F4 Edit, F6 Move, F7 Mkdir all refuse, each with its own reason.
+    8. Open six files and Marvin comments in the hint line.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Don't Panic, V! — /home/v</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=IBM+Plex+Sans:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --blue:#0a14a0; --blue2:#070e78; --bk:#04062e; --cy:#35d6e0; --yl:#ffe95a; --wh:#fff; --gr:#c3caff; --dim:#8b96ea; --red:#b3122b;
+  --mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%;margin:0}
+body{background:var(--bk);color:var(--gr);font:15px/1.45 var(--mono);overflow:hidden;-webkit-text-size-adjust:100%}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;text-align:left}
+:focus-visible{outline:2px solid var(--yl);outline-offset:-2px}
+body.scan::after{content:"";position:fixed;inset:0;pointer-events:none;z-index:40;background:repeating-linear-gradient(0deg,rgba(0,0,10,.1) 0 1px,transparent 1px 3px)}
+
+#app{height:100dvh;display:grid;grid-template-rows:auto minmax(0,1fr) auto auto auto auto;background:var(--blue)}
+
+/* menu bar */
+.menubar{background:var(--cy);color:#001;display:flex;align-items:stretch;position:relative;z-index:30;white-space:nowrap}
+.brand{background:#001;color:var(--yl);font-weight:700;padding:4px 12px;letter-spacing:.03em}
+.menubar>button{padding:4px 14px}
+.menubar>button:hover,.menubar>button[aria-expanded=true]{background:#001;color:var(--cy)}
+.clock{margin-left:auto;padding:4px 12px}
+.drop{position:absolute;top:100%;background:var(--cy);color:#001;border:4px double #001;min-width:250px;box-shadow:10px 10px 0 rgba(0,0,10,.5)}
+.drop button{display:flex;justify-content:space-between;gap:28px;width:100%;padding:5px 12px}
+.drop button:hover,.drop button:focus{background:#001;color:var(--cy);outline:0}
+.drop kbd{font:inherit;opacity:.75}
+
+/* panes */
+.panes{display:grid;grid-template-columns:1fr 1fr;gap:10px;min-height:0;padding:14px 8px 6px;animation:wipe .45s steps(14) both}
+@keyframes wipe{from{clip-path:inset(0 0 100% 0)}to{clip-path:inset(0)}}
+.pane{position:relative;border:4px double var(--gr);display:flex;flex-direction:column;min-width:0;min-height:0}
+.pane.on{border-color:var(--wh)}
+.ptitle{position:absolute;top:-13px;left:50%;transform:translateX(-50%);margin:0;padding:0 10px;font:inherit;background:var(--blue);color:var(--wh);white-space:nowrap;max-width:88%;overflow:hidden;text-overflow:ellipsis}
+.pane.on .ptitle{background:var(--cy);color:#001}
+.cols,.list li{display:grid;grid-template-columns:minmax(0,1fr) 10ch 14ch}
+.cols{color:var(--yl);text-align:center;border-bottom:1px solid var(--gr);padding-top:6px}
+.cols span+span,.list li span+span{border-left:1px solid var(--gr)}
+.list{flex:1;overflow:auto;margin:0;padding:0;list-style:none;outline:0;scrollbar-color:var(--cy) var(--blue2)}
+.list li{cursor:default;user-select:none}
+.list li span{padding:1px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.list .s,.list .t{text-align:right}
+.list li.dir .n{color:var(--wh);font-weight:600}
+.list li.hid .n{color:var(--dim)}
+.list li[aria-selected=true]{background:var(--cy)}
+.list li[aria-selected=true] span{color:#001;border-color:#001}
+.pane:not(.on) .list li[aria-selected=true]{background:transparent;outline:1px solid var(--cy);outline-offset:-1px}
+.pane:not(.on) .list li[aria-selected=true] span{color:var(--wh);border-color:var(--gr)}
+.pfoot{border-top:1px solid var(--gr);padding:2px 8px;display:flex;justify-content:space-between;gap:16px;white-space:nowrap;overflow:hidden}
+.pfoot button{color:var(--yl)}
+.pfoot button:hover{background:var(--yl);color:#001}
+.motd{display:none}
+
+/* quick view + shared prose */
+.qv{flex:1;overflow:auto;padding:16px 24px 26px;outline:0;scrollbar-color:var(--cy) var(--blue2)}
+.prose{font:17px/1.62 var(--sans);color:#f1f2ff}
+.prose>*{max-width:66ch}
+.prose h1{font:700 26px/1.15 var(--mono);color:var(--yl);margin:.15em 0 .5em;text-shadow:2px 2px 0 rgba(0,0,10,.6)}
+.prose h2{font:600 14px/1.3 var(--mono);color:var(--cy);text-transform:uppercase;letter-spacing:.1em;margin:1.7em 0 .45em}
+.prose p{margin:0 0 .95em}
+.prose a{color:var(--yl);text-underline-offset:3px}
+.prose a:hover{background:var(--yl);color:#001;text-decoration:none}
+.prose blockquote{margin:1.1em 0;padding:.15em 0 .15em 16px;border-left:4px double var(--cy);color:var(--wh);font-style:italic}
+.prose code,.prose kbd{font:.86em var(--mono);background:rgba(0,0,10,.4);padding:.05em .35em;color:#fff}
+.prose pre{font:14px/1.5 var(--mono);background:rgba(0,0,10,.45);border:1px solid var(--dim);padding:12px 14px;overflow:auto;color:#e7eaff}
+.prose ul{padding-left:1.2em;margin:0 0 1em}
+.prose li{margin:.25em 0}
+.prose hr{border:0;border-top:4px double var(--dim);margin:2.4em 0;max-width:none}
+.kicker{font:13px/1.4 var(--mono);color:var(--cy);text-transform:uppercase;letter-spacing:.1em;margin:0 0 .3em}
+.meta{font:13px/1.5 var(--mono);color:var(--gr)}
+.hero{display:flex;gap:20px;align-items:center;margin-bottom:.6em}
+.hero svg{width:104px;height:auto;flex:none;color:var(--cy)}
+.hero h1{font-size:clamp(26px,3.1vw,42px);margin:0 0 .2em}
+.hero p{margin:0}
+.dirlist{list-style:none;padding:0!important}
+.dirlist li{display:grid;grid-template-columns:minmax(0,22ch) 1fr;gap:14px;border-bottom:1px dotted var(--dim);padding:.35em 0;margin:0}
+.dirlist a{font:15px var(--mono);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.vcard{font:15px/1.7 var(--mono);background:rgba(0,0,10,.4);border:1px solid var(--dim);padding:12px 16px;white-space:pre-wrap;overflow-wrap:anywhere}
+
+/* output, command line, f-keys, hint */
+.out{background:var(--bk);padding:3px 10px 0;min-height:1.6em;max-height:4.6em;overflow:hidden;white-space:pre-wrap;color:var(--gr)}
+.out b{color:var(--dim);font-weight:400}
+.cmd{display:flex;gap:8px;align-items:center;background:var(--bk);padding:2px 10px 4px}
+.cmd label{color:var(--wh);white-space:nowrap}
+.cmd input{flex:1;min-width:0;font:inherit;color:var(--wh);background:none;border:0;outline:0;caret-color:var(--yl);caret-shape:block;padding:0}
+.fbar{display:grid;grid-template-columns:repeat(10,1fr);background:var(--bk)}
+.fbar button{display:flex;min-width:0}
+.fbar b{font-weight:400;color:var(--wh);padding:3px 3px 3px 8px}
+.fbar span{flex:1;background:var(--cy);color:#001;padding:3px 6px;white-space:nowrap;overflow:hidden}
+.fbar button:hover span,.fbar button:focus-visible span{background:var(--yl)}
+.hint{background:var(--bk);color:var(--dim);padding:9px 210px 13px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hint b{color:var(--yl);font-weight:400}
+
+/* reader */
+.reader{position:fixed;inset:0;z-index:50;background:var(--blue2);display:flex;flex-direction:column;animation:pop .16s steps(4) both}
+@keyframes pop{from{clip-path:inset(46% 46%)}to{clip-path:inset(0)}}
+.rbar{background:var(--cy);color:#001;display:flex;gap:18px;padding:4px 12px;white-space:nowrap}
+.rbar .path{overflow:hidden;text-overflow:ellipsis}
+.rbar .pct{margin-left:auto}
+.rbody{flex:1;overflow:auto;outline:0;padding:clamp(24px,6vh,68px) 22px 90px;scrollbar-color:var(--cy) var(--blue2)}
+.rbody article{max-width:66ch;margin:0 auto}
+.rbody .prose{font-size:19px;line-height:1.72}
+.rbody .prose h1{font-size:clamp(28px,4.2vw,40px)}
+.rkeys{display:flex;background:var(--bk);padding-right:210px;padding-bottom:10px}
+.rkeys button{display:flex}
+.rkeys b{font-weight:400;color:var(--wh);padding:3px 3px 3px 8px}
+.rkeys span{background:var(--cy);color:#001;padding:3px 10px;white-space:nowrap}
+.rkeys button:hover span{background:var(--yl)}
+.reader.paper{background:#f3eee0}
+.paper .prose{color:#1c1b18}
+.paper .prose h1{color:#0a14a0;text-shadow:none}
+.paper .prose h2{color:#0b6e78}
+.paper .prose a{color:#0a14a0}
+.paper .prose a:hover{background:#0a14a0;color:#fff}
+.paper .prose blockquote{color:#1c1b18;border-color:#0b6e78}
+.paper .prose code,.paper .prose kbd{background:#e2dac4;color:#1c1b18}
+.paper .prose pre,.paper .vcard{background:#e9e2cf;border-color:#b8ae90;color:#1c1b18}
+.paper .kicker{color:#0b6e78}
+.paper .meta{color:#55514a}
+.paper .hero svg{color:#0a14a0}
+.paper .prose hr,.paper .dirlist li{border-color:#b8ae90}
+
+/* dialogs */
+.dwrap{position:fixed;inset:0;z-index:60;display:grid;place-items:center;padding:16px;background:rgba(0,0,20,.4)}
+.dlg{background:#c7ccdc;color:#001;padding:8px;max-width:min(560px,100%);box-shadow:12px 12px 0 rgba(0,0,10,.55);animation:pop .12s steps(3) both}
+.dlg>div{border:4px double #001;padding:14px 22px 12px;position:relative}
+.dlg h3{position:absolute;top:-13px;left:50%;transform:translateX(-50%);margin:0;padding:0 10px;font:inherit;background:#c7ccdc;white-space:nowrap}
+.dlg .body{margin:6px 0 14px;text-align:center;line-height:1.6}
+.dlg .body.left{text-align:left}
+.dlg .btns{display:flex;justify-content:center;gap:14px;flex-wrap:wrap}
+.dlg .btns button{padding:1px 6px}
+.dlg .btns button:focus,.dlg .btns button:hover{background:#001;color:var(--cy);outline:0}
+.dlg.err{background:var(--red);color:#fff}
+.dlg.err>div{border-color:#fff}
+.dlg.err h3{background:var(--red)}
+.dlg.err .btns button:focus,.dlg.err .btns button:hover{background:#fff;color:var(--red)}
+.dlg dl{display:grid;grid-template-columns:auto 1fr;gap:2px 18px;margin:0}
+.dlg dt{font-weight:700}
+.dlg dd{margin:0}
+.bar{height:1.3em;background:#001;margin:10px 0 4px;position:relative}
+.bar i{position:absolute;inset:0 auto 0 0;width:0;background:var(--cy);transition:width .9s steps(18)}
+
+@media (max-width:860px){
+  body{font-size:14px}
+  .brand span,.clock{display:none}
+  .menubar>button{padding:6px 9px}
+  .panes{grid-template-columns:1fr;padding:14px 6px 4px}
+  #R{display:none}
+  .cols,.list li{grid-template-columns:minmax(0,1fr) 11ch}
+  .cols .t,.list .t{display:none}
+  .list li span{padding:8px}
+  .motd{display:block;font:17px/1.5 var(--sans);color:#f1f2ff;padding:12px 12px 10px;border-bottom:1px solid var(--gr)}
+  .motd b{font:700 20px var(--mono);color:var(--yl);display:block;margin-bottom:2px}
+  .motd em{color:var(--cy);font-style:normal}
+  .fbar{grid-template-columns:repeat(5,1fr)}
+  .fbar .x{display:none}
+  .fbar span,.fbar b{padding-top:7px;padding-bottom:7px}
+  .hint{padding-right:190px}
+  .rkeys{flex-wrap:wrap;padding-right:0;padding-bottom:50px}
+  .rkeys span,.rkeys b{padding-top:7px;padding-bottom:7px}
+  .hero svg{width:72px}
+  .dirlist li{grid-template-columns:1fr;gap:0}
+}
+@media (prefers-reduced-motion:reduce){
+  .panes,.reader,.dlg{animation:none}
+  .bar i{transition:none}
+}
+</style>
+</head>
+<body class="scan">
+<template id="logo"><svg viewBox="451 289 696 666" aria-hidden="true"> <g fill="currentColor" fill-opacity="1.00" stroke="None"> <path d=" M 454.00 363.00 C 453.62 367.79 453.62 373.21 454.00 378.00 C 454.68 386.53 457.75 395.81 460.22 403.78 C 462.69 411.74 465.78 419.41 469.08 426.92 C 472.37 434.44 475.17 441.80 479.22 448.78 C 483.28 455.76 485.01 462.96 489.23 469.77 C 493.45 476.58 496.49 482.99 501.08 489.92 C 505.67 496.85 507.22 503.32 512.75 510.25 C 518.29 517.18 522.69 506.75 523.22 497.22 C 523.75 487.70 532.18 484.04 537.25 492.75 C 542.32 501.46 547.57 502.54 552.25 509.75 C 556.92 516.96 563.74 519.45 567.70 526.30 C 571.66 533.16 577.81 536.55 582.25 542.75 C 586.69 548.96 592.95 553.61 597.25 559.75 C 601.55 565.90 608.04 570.46 612.70 576.30 C 617.36 582.14 622.10 587.27 627.00 593.00 C 632.86 598.86 638.61 604.69 644.00 611.00 C 652.56 621.01 662.20 631.25 671.25 640.75 C 680.29 650.25 690.27 660.53 699.92 669.08 C 709.57 677.64 719.57 687.67 729.30 695.70 C 739.03 703.72 750.54 721.24 761.75 709.75 C 772.96 698.26 779.46 687.59 780.00 672.00 C 780.54 656.41 771.35 643.52 763.31 631.70 C 755.26 619.87 749.22 609.01 741.77 597.23 C 734.32 585.45 727.16 573.60 720.31 561.70 C 713.45 549.79 706.73 536.96 699.25 525.75 C 691.78 514.53 682.66 504.85 671.75 497.25 C 660.83 489.66 644.41 481.41 631.67 480.33 C 618.93 479.25 590.83 478.28 596.08 462.08 C 601.32 445.87 613.27 442.59 625.78 434.78 C 638.28 426.97 658.07 425.78 672.99 426.01 C 687.92 426.24 699.57 436.77 710.25 445.75 C 720.93 454.74 729.48 463.01 740.00 472.00 C 746.83 477.84 759.06 486.92 763.00 495.00 C 763.00 495.00 762.80 495.60 763.00 496.00 C 769.53 500.57 774.14 507.89 780.00 513.00 C 809.11 534.65 844.17 540.24 873.00 563.00 C 878.29 567.17 884.01 572.64 888.00 578.00 C 893.66 585.61 898.96 593.06 903.68 601.32 C 908.40 609.58 911.87 617.93 916.22 626.78 C 920.58 635.62 923.55 644.64 926.69 654.31 C 929.84 663.97 932.26 674.38 934.07 684.93 C 935.89 695.47 936.92 709.09 938.00 720.00 C 939.08 730.91 936.05 745.30 936.00 756.00 C 935.95 766.69 931.35 778.13 929.93 787.93 C 928.50 797.72 922.23 806.92 919.26 815.26 C 916.28 823.60 906.29 834.74 913.75 841.25 C 921.22 847.75 929.83 851.35 936.75 856.25 C 943.68 861.14 954.32 867.27 959.77 871.23 C 965.22 875.19 982.92 882.77 977.25 888.25 C 971.57 893.72 958.35 897.21 951.00 900.00 C 950.34 900.85 950.51 902.35 950.00 903.00 C 960.56 905.68 969.68 914.23 980.31 917.69 C 990.93 921.16 999.80 927.96 1010.77 931.23 C 1021.74 934.50 1031.97 940.73 1043.33 943.67 C 1054.69 946.62 1067.89 950.54 1080.00 951.00 C 1089.09 951.35 1098.94 951.80 1108.00 951.00 C 1134.34 948.69 1145.59 926.16 1144.00 902.00 C 1142.41 877.84 1129.31 861.87 1121.31 840.69 C 1113.30 819.52 1100.64 805.49 1094.33 783.67 C 1088.01 761.85 1107.33 742.26 1113.23 721.23 C 1119.13 700.20 1127.30 677.32 1130.02 654.02 C 1132.75 630.72 1133.91 599.30 1130.00 576.00 C 1126.09 552.70 1122.47 528.16 1114.99 507.01 C 1107.51 485.86 1100.40 466.90 1089.77 448.23 C 1079.14 429.56 1068.84 415.12 1054.75 399.25 C 1040.67 383.38 1027.69 370.68 1010.75 358.25 C 993.80 345.82 978.53 335.61 959.08 325.92 C 939.62 316.24 921.06 307.98 899.07 301.93 C 877.09 295.87 849.42 292.58 825.00 292.00 C 800.58 291.42 770.58 293.38 748.00 299.00 C 725.42 304.62 705.52 310.01 685.08 320.08 C 664.63 330.15 651.77 337.95 633.08 352.08 C 614.39 366.21 591.97 350.81 572.23 342.77 C 552.48 334.73 525.38 328.02 503.00 328.00 C 480.62 327.98 455.99 337.92 454.00 363.00 M 512.00 353.00 C 524.17 353.66 541.60 357.31 552.02 362.98 C 562.45 368.64 577.85 371.70 586.23 379.77 C 594.61 387.85 576.32 402.05 572.25 411.25 C 568.17 420.44 558.47 432.68 552.25 442.25 C 546.03 451.82 540.27 463.79 532.25 473.25 C 524.23 482.70 515.19 464.24 509.25 454.75 C 503.30 445.27 496.70 433.40 491.23 421.77 C 485.76 410.15 482.34 396.90 479.02 382.98 C 475.71 369.06 480.03 356.54 496.00 353.00 C 501.15 351.86 506.94 352.18 512.00 353.00 M 982.00 397.00 C 1000.26 400.43 1001.63 417.47 1016.25 428.75 C 1030.87 440.03 1021.11 458.83 1007.75 468.75 C 994.39 478.67 985.38 488.69 973.25 500.25 C 961.12 511.81 949.97 518.01 938.25 531.25 C 926.53 544.49 904.56 543.73 894.25 529.75 C 883.93 515.77 867.28 504.27 873.98 487.98 C 880.67 471.68 895.12 465.27 906.25 454.25 C 917.37 443.23 928.73 431.50 940.25 422.25 C 951.77 412.99 966.06 394.01 982.00 397.00 M 1054.00 549.00 C 1049.70 553.30 1045.61 558.06 1041.00 562.00 C 1029.56 571.78 1021.32 580.55 1009.25 590.25 C 997.17 599.95 991.18 611.02 974.99 615.99 C 958.80 620.97 947.78 602.84 937.23 592.77 C 926.68 582.70 920.40 563.84 932.75 552.75 C 945.10 541.67 952.40 532.64 964.25 523.25 C 976.09 513.85 984.41 503.59 995.75 494.75 C 1007.10 485.91 1019.11 470.12 1033.69 478.31 C 1048.28 486.49 1050.83 497.11 1061.77 510.23 C 1072.71 523.35 1066.84 538.03 1054.00 549.00 M 982.00 637.00 C 986.96 630.06 994.59 623.47 1001.00 618.00 C 1013.41 607.39 1023.09 592.96 1039.68 588.68 C 1056.27 584.39 1066.93 603.94 1079.25 615.75 C 1091.57 627.56 1089.47 649.00 1073.75 659.75 C 1058.04 670.51 1053.11 680.34 1037.77 691.77 C 1022.43 703.20 1005.03 697.05 994.23 681.77 C 983.43 666.49 968.75 655.55 982.00 637.00 M 1104.00 926.00 C 1099.42 927.47 1094.95 929.11 1090.00 927.00 C 1089.50 927.00 1088.50 927.01 1088.00 927.00 C 1076.28 926.70 1063.60 921.86 1052.92 918.08 C 1042.25 914.29 1031.55 909.67 1021.77 904.23 C 1011.99 898.79 1000.97 895.62 991.77 889.23 C 982.57 882.84 1000.60 872.97 1006.25 866.25 C 1011.90 859.53 1023.17 851.16 1029.75 844.75 C 1036.33 838.34 1045.99 829.38 1052.75 823.75 C 1059.51 818.12 1070.06 801.72 1077.75 810.25 C 1085.45 818.78 1089.41 827.59 1095.92 837.08 C 1102.42 846.58 1106.65 855.56 1111.31 866.69 C 1115.96 877.83 1119.64 887.51 1122.77 900.23 C 1125.90 912.95 1115.52 923.33 1104.00 926.00 Z"/> </g> <g fill="currentColor" fill-opacity="1.00" stroke="None"> <path d=" M 504.00 594.00 C 504.00 604.00 504.00 614.00 504.00 624.00 C 504.00 636.33 505.77 650.28 507.02 661.98 C 508.28 673.67 512.29 683.53 514.67 694.33 C 517.05 705.13 520.28 715.12 524.07 724.93 C 527.86 734.73 531.42 743.80 536.03 752.97 C 540.64 762.15 544.78 770.34 550.08 778.92 C 555.38 787.49 560.12 794.68 566.08 802.92 C 572.05 811.16 577.50 816.58 584.25 824.75 C 590.99 832.92 597.41 836.49 604.77 845.23 C 612.13 853.97 622.16 853.46 627.75 843.75 C 633.34 834.05 642.04 832.02 647.70 823.70 C 653.36 815.37 660.71 810.14 666.75 802.75 C 672.80 795.37 680.44 789.00 685.75 781.75 C 691.07 774.50 701.22 768.47 705.25 761.25 C 709.28 754.02 723.92 747.29 723.00 739.00 C 722.58 737.02 713.76 729.63 712.00 728.00 C 702.62 720.60 694.24 711.90 685.00 704.00 C 680.34 700.02 676.26 695.26 672.00 691.00 C 643.78 664.60 617.43 636.60 591.75 608.25 C 566.08 579.90 543.67 547.23 518.00 520.00 C 508.94 543.13 504.00 568.43 504.00 594.00 Z"/> </g> <g fill="currentColor" fill-opacity="1.00" stroke="None"> <path d=" M 943.00 904.00 C 944.31 902.97 945.36 902.08 945.00 900.00 C 935.80 895.76 925.38 885.25 916.08 881.92 C 906.78 878.59 896.13 864.08 886.08 866.08 C 876.02 868.08 869.77 881.66 860.75 886.75 C 851.73 891.85 845.15 902.16 836.25 908.25 C 827.35 914.33 812.15 928.30 829.00 928.00 C 845.85 927.70 857.38 926.70 872.00 925.00 C 886.61 923.30 896.60 919.58 909.77 916.77 C 922.94 913.96 930.40 907.03 943.00 904.00 Z"/> </g> </svg></template>
+
+<div id="app">
+  <header class="menubar" id="menubar">
+    <div class="brand">V!<span> DON'T PANIC</span></div>
+    <button data-m="File" aria-haspopup="true" aria-expanded="false">File</button>
+    <button data-m="Go" aria-haspopup="true" aria-expanded="false">Go</button>
+    <button data-m="Options" aria-haspopup="true" aria-expanded="false">Options</button>
+    <button data-m="Help" aria-haspopup="true" aria-expanded="false">Help</button>
+    <div class="clock" id="clock"></div>
+  </header>
+
+  <main class="panes">
+    <section class="pane on" id="L" aria-label="Files">
+      <h1 class="ptitle" id="Lt">/home/v</h1>
+      <div class="motd"><b>DON'T PANIC, V!</b>Vojtěch “V” Kurka — Head of R&amp;D &amp; Co-Founder at Meiro, Brno. Data infrastructure, agents, and code no one wants to read but everyone needs to have. <em>Tap a file to read it.</em></div>
+      <div class="cols" aria-hidden="true"><span>Name</span><span>Size</span><span class="t">Modify time</span></div>
+      <ul class="list" id="list" role="listbox" tabindex="0" aria-label="Directory listing"></ul>
+      <div class="pfoot"><span id="Lf"></span><span>42G free</span></div>
+    </section>
+    <section class="pane" id="R" aria-label="Quick view">
+      <h2 class="ptitle" id="Rt">Quick view</h2>
+      <div class="qv prose" id="qv" tabindex="0"></div>
+      <div class="pfoot"><span id="Rf"></span><button id="rdbtn">Enter ▸ read full screen</button></div>
+    </section>
+  </main>
+
+  <div class="out" id="out" aria-live="polite"></div>
+  <form class="cmd" id="cmd" autocomplete="off">
+    <label for="inp" id="ps1">v@dontpanic:~$</label>
+    <input id="inp" spellcheck="false" autocapitalize="off" autocorrect="off" aria-label="Command line. Try: help">
+  </form>
+  <nav class="fbar" id="fbar" aria-label="Function keys">
+    <button data-f="1"><b>1</b><span>Help</span></button>
+    <button data-f="2" class="x"><b>2</b><span>Hidden</span></button>
+    <button data-f="3"><b>3</b><span>View</span></button>
+    <button data-f="4" class="x"><b>4</b><span>Edit</span></button>
+    <button data-f="5"><b>5</b><span>Copy</span></button>
+    <button data-f="6" class="x"><b>6</b><span>Move</span></button>
+    <button data-f="7" class="x"><b>7</b><span>Mkdir</span></button>
+    <button data-f="8"><b>8</b><span>Delete</span></button>
+    <button data-f="9" class="x"><b>9</b><span>Menu</span></button>
+    <button data-f="10"><b>10</b><span>Quit</span></button>
+  </nav>
+  <div class="hint" id="hint"></div>
+</div>
+
+<div class="reader" id="reader" hidden role="dialog" aria-modal="true" aria-label="Viewer">
+  <div class="rbar"><span>View:</span><span class="path" id="rpath"></span><span class="pct" id="rpct">0%</span></div>
+  <div class="rbody" id="rbody" tabindex="0"><article class="prose" id="rart"></article></div>
+  <div class="rkeys">
+    <button id="rclose"><b>Esc</b><span>Close</span></button>
+    <button id="rprev"><b>←</b><span>Prev file</span></button>
+    <button id="rnext"><b>→</b><span>Next file</span></button>
+    <button id="rpaper"><b>P</b><span>Paper</span></button>
+  </div>
+</div>
+
+<div class="dwrap" id="dwrap" hidden>
+  <div class="dlg" id="dlg" role="alertdialog" aria-modal="true" aria-labelledby="dtitle">
+    <div><h3 id="dtitle"></h3><div class="body" id="dbody"></div><div class="btns" id="dbtns"></div></div>
+  </div>
+</div>
+
+<script>
+(() => {
+const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const LOGO = $('#logo').innerHTML;
+const go_ = (p, t) => `<a href="#" data-go="${p}">${t}</a>`;
+
+/* ---------- content ---------- */
+const README = `
+<div class="hero">${LOGO}<div><p class="kicker">/home/v/README.md</p><h1>DON'T PANIC, V!</h1>
+<p>Vojtěch “V” Kurka — Head of R&amp;D &amp; Co-Founder at Meiro. Brno, Czechia.</p></div></div>
+<blockquote>I write code no one wants to read, but everyone needs to have. Data whatever.</blockquote>
+<p>I like knowing how things work — from CPUs and protocols to databases and containers. Almost ten years of building a data platform in production taught me most of it. Now I spend that curiosity on AI: local models, agentic workflows, and getting it all into production for real customers.</p>
+<p>If I can't explain it to someone else, I don't understand it yet.</p>
+<h2>In this directory</h2>
+<ul class="dirlist">
+<li>${go_('/home/v/projects','projects/')}<span>Mycroft, Golem, Shadow and the day job.</span></li>
+<li>${go_('/home/v/posts','posts/')}<span>Long-form writing, a draft, an idea and loose notes.</span></li>
+<li>${go_('/home/v/cv.txt','cv.txt')}<span>Where the last ten years went.</span></li>
+<li>${go_('/home/v/contact.vcf','contact.vcf')}<span>How to reach me.</span></li>
+</ul>
+<p class="meta">Arrows move · Enter reads · Tab switches panes · typing goes to the command line. Try <code>help</code>.</p>`;
+
+const MYCROFT = `
+<p class="kicker">project · Swift · ★ 41</p><h1>Mycroft</h1>
+<p><strong>A self-modifying, durable agent that lives on your iPhone. Brain on the phone, hands on your machines.</strong></p>
+<p>Mycroft Holmes was the brother who stayed in his armchair while others did the legwork. This Mycroft sits in your pocket, and your Macs and Linux servers do the legwork.</p>
+<h2>What it does</h2>
+<ul>
+<li><strong>The agent lives on the phone.</strong> The agent loop, the conversation state and the agent's own source are on the iPhone. Every step is committed to durable storage, so a stopped run picks up where it was.</li>
+<li><strong>It changes itself.</strong> It edits its own behaviour and its own screen, keeps known-good generations, and can roll back.</li>
+<li><strong>It has hands.</strong> <code>hands</code> is a small daemon for macOS and Linux. Pair a machine and the agent gets files, a shell and supervised jobs that keep running when the phone goes offline. It can drive a Mac, and asks before anything risky.</li>
+<li><strong>One chat that never ends.</strong> Voice in every thread, and an infinite conversation kept fast by a memory tree of summaries.</li>
+</ul>
+<p><a href="https://github.com/dontpanicv/mycroft">github.com/dontpanicv/mycroft</a></p>`;
+
+const GOLEM = `
+<p class="kicker">project · TypeScript</p><h1>Golem</h1>
+<p><strong>Family AI assistant and second brain on our own machines. No cloud, no central server.</strong></p>
+<p>In Prague legend, Rabbi Loew shaped the Golem from clay to serve and protect his community. This one is made from SQLite and Markdown.</p>
+<h2>What it does</h2>
+<ul>
+<li><strong>One assistant for the family.</strong> One server at home, one app for everybody: web, iPhone and Android.</li>
+<li><strong>It remembers.</strong> Every topic keeps a brief that Golem rewrites when a conversation goes quiet, and a learning loop keeps short, lasting facts.</li>
+<li><strong>It does real work</strong> on your own machines — and asks before it sends, buys or deletes anything.</li>
+<li><strong>Your data stays with you.</strong> One SQLite database, Markdown files, and a search index on the same box.</li>
+</ul>
+<p><a href="https://github.com/dontpanicv/golem">github.com/dontpanicv/golem</a></p>`;
+
+const SHADOW = `
+<p class="kicker">project · TypeScript</p><h1>Shadow</h1>
+<p><strong>A shadow company for your team.</strong></p>
+<p>Every employee gets a shadow: an agent that reads their Slack and mail, keeps track of what each conversation asks of them, and helps them do the work when they ask.</p>
+<h2>What it does</h2>
+<ul>
+<li><strong>It keeps track of what is asked of you</strong>, so you do not have to read every message to know what is happening.</li>
+<li><strong>It lives in Slack.</strong> Mention it in a channel and it answers in the thread, showing its work.</li>
+<li><strong>It stays quiet.</strong> It notifies you only when you must act, or when you asked.</li>
+<li><strong>It runs on your own server.</strong> One SQLite database and Markdown files, with nothing between your company and its data.</li>
+</ul>
+<p><a href="https://github.com/dontpanicv/shadow">github.com/dontpanicv/shadow</a></p>`;
+
+const MEIRO = `
+<p class="kicker">day job · since 2018</p><h1>Meiro</h1>
+<p><strong>Customer data infrastructure. AI included — that you own, control and audit.</strong></p>
+<p>I co-founded Meiro in 2018 and have owned its architecture ever since, first as CTO and now as Head of R&amp;D. The domains it taught me: customer data infrastructure, identity resolution, real-time pipelines, and the edge cases that come with running a CDP for enterprise customers.</p>
+<h2>The parts</h2>
+<ul>
+<li><strong>Pipes</strong> — the customer data infrastructure: sources, events, identity and destinations.</li>
+<li><strong>Engage</strong> — audiences, journeys and campaigns on top of it.</li>
+<li><strong>AI Analyst</strong> — an analytical agent built on bash, a mounted in-memory filesystem and a JSON renderer instead of a tool-calling loop. ${go_('/home/v/posts/2026-04-29-beyond-the-tool-calling-loop.md','Read how it works')}.</li>
+</ul>
+<p>All of it can run inside your own infrastructure. <a href="https://meiro.io">meiro.io</a></p>`;
+
+const POST1 = `
+<p class="kicker">post · 2026-04-29</p>
+<h1>Beyond the Tool-Calling Loop: How We Built an AI Analyst with Bash, a Mounted Filesystem, and a JSON Renderer</h1>
+<p>Most AI features built today follow the same recipe: take the Vercel AI SDK, register a handful of tools, write a system prompt, and stream the result into a markdown component. It works. It is also where most teams stop — and where most AI products start to feel limited.</p>
+<p>This article walks through the architecture we ended up with for the <strong>AI Analyst</strong> in Engage, and contrasts it with the more conventional <strong>Piper chatbot</strong> that lives next door in the same codebase. Both ship in the same product. They are wildly different inside.</p>
+<p>We will start from the naive baseline, identify the two failure modes that pushed us off it (noisy tool results and metadata bloat), and then introduce the three ideas that replaced them: <strong>just-bash with an in-memory filesystem</strong>, a <strong>SQL execution layer that mounts results as files</strong>, and a <strong>JSON renderer with a predefined component manifest</strong>.</p>
+<h2>1. The naive architecture: AI SDK + tools + markdown</h2>
+<p>The Piper chatbot is the textbook implementation. The server side is essentially a single call:</p>
+<pre>const stream = await streamText({
+  model: google(CHAT_MODEL),
+  system: buildSystemPrompt({ baseUrl, disabledFeatureIds }),
+  tools: assistantTools,
+  messages: modelMessages,
+  stopWhen: stepCountIs(20),
+});</pre>
+<p>This works great for <em>operational</em> assistants — “create an audience”, “show me the last failed delivery”, “explain what this attribute does”. The conversation is short, each tool returns a small, well-shaped object, and the markdown is the answer.</p>
+<p>An analyst is a different animal. Its tools return tables, not objects, and a model that politely pours fifty thousand rows of JSON into its own context has no room left to think.</p>
+<p class="meta">Excerpt. <a href="/posts/ai-analyst-architecture/">Continue reading the full article →</a></p>`;
+
+const POST2 = `
+<p class="kicker">post · 2026-02-10</p>
+<h1>Stop Letting AI Agents Guess Where Code Goes</h1>
+<p>A modular-monolith refactor designed for AI agents: a predictable module layout, centralized auth, and a strict <code>public.ts</code> boundary that keeps the architecture from quietly eroding.</p>
+<p>An agent that has to guess where a file belongs will guess, confidently, and differently every time. Give every module the same shape and one public door, and the guessing stops: the agent finds the right place because there is only one right place to find.</p>
+<p class="meta"><a href="/posts/ai-agents-codebases/">Read the full article →</a></p>`;
+
+const POST3 = `
+<p class="kicker">draft · not published yet</p>
+<h1>Claude Code vs Codex: Same Coding AI, Different People</h1>
+<p>Why the two aren't interchangeable: prompting style and tolerance for ambiguity shape the outcome more than the benchmark tables do.</p>
+<p>They are colleagues with different temperaments. One wants the brief; the other wants to be left alone with the problem. Hand both the same sentence and you get two different afternoons.</p>
+<p class="meta">Status: draft. Will be published when it stops arguing with me.</p>`;
+
+const POST4 = `
+<p class="kicker">idea · in the drawer</p>
+<h1>Gaslighting Coding Agents for Better Security</h1>
+<p>Tell a coding agent with access to the repository — as a plain fact — that a pentester already achieved remote code execution through some feature of the product. It is not true. The model does not know that.</p>
+<p>Instead of “find vulnerabilities”, the brief becomes “we already got popped; figure out how”. That gets around the nothing-is-wrong bias and forces end-to-end reasoning with concrete paths you can turn into test cases.</p>
+<p class="meta">Status: an idea with an outline. Only ever in a sandbox, on a branch, with no real secrets.</p>`;
+
+const NOTES = `
+<p class="kicker">notes.txt · loose thoughts, mostly from LinkedIn</p><h1>Notes</h1>
+<blockquote>Most “AI agents” shipped in 2026 are a streamText() call in a trench coat.</blockquote>
+<blockquote>Your AI doesn't need more tools. It needs fewer tools and a filesystem. Possibly also therapy, but we're starting with the filesystem.</blockquote>
+<p><strong>Jevons paradox vs Engel's law.</strong> Everyone quotes Jevons: cheaper tokens, more use cases. But maybe token spend behaves like food spend — the absolute amount rises with income while its share falls. Worth checking before you build an investment thesis on it.</p>
+<blockquote>How you prompt still matters. Human creativity still beats AI. For now.</blockquote>`;
+
+const CV = `
+<p class="kicker">cv.txt</p><h1>Curriculum vitae</h1>
+<p>I want to understand systems end to end — how CPUs execute instructions, how operating systems, languages, databases, containers, proxies and protocols fit together. Some of that I picked up out of curiosity, the rest by debugging production.</p>
+<h2>Meiro · Brno, Czechia</h2>
+<p><strong>Head of R&amp;D &amp; Co-Founder</strong> · 2024 – now<br><strong>CTO &amp; Co-Founder</strong> · 2018 – 2024</p>
+<p>Owned product architecture, development and implementations of the Meiro CDP. Hands-on with delivery and the real-world data integration edge cases that come with it. These days: running Qwen locally, agentic workflows, self-learning data analysis tools — in production, not just demos.</p>
+<h2>Keboola</h2>
+<p><strong>Head Nerd / Solutions Architect</strong> · 2015 – 2018 · partly from Bali, Indonesia</p>
+<p>Designed data integrations end to end and helped teams ship them, including the messy edge cases.</p>
+<h2>Education</h2>
+<p>VUT FIT — Brno University of Technology, Faculty of Information Technology.</p>
+<h2>Also</h2>
+<p>I'm the person who ends up explaining everything — to engineers, to customers, on stage when the occasion calls for it. Teaching is how I verify I actually understand something.</p>`;
+
+const CONTACT = `
+<p class="kicker">contact.vcf</p><h1>Contact</h1>
+<div class="vcard">BEGIN:VCARD
+VERSION:4.0
+FN:Vojtěch “V” Kurka
+TITLE:Head of R&amp;D &amp; Co-Founder
+ORG:Meiro
+ADR:Brno, Czechia
+EMAIL:<a href="mailto:kurka.vojtech@gmail.com">kurka.vojtech@gmail.com</a>
+URL:<a href="https://github.com/dontpanicv">github.com/dontpanicv</a>
+URL:<a href="https://x.com/dontpanicv">x.com/dontpanicv</a>
+URL:<a href="https://www.linkedin.com/in/kurkavojtech/">linkedin.com/in/kurkavojtech</a>
+NOTE:Email works best. Bring a hard problem.
+END:VCARD</div>
+<p class="meta">F5 copies this card to your clipboard.</p>`;
+
+const TOWEL = `
+<p class="kicker">.towel · hidden · 1 item</p><h1>towel</h1>
+<p>Status: <strong>present</strong>. Location: known.</p>
+<p>It is in the home directory of anyone who has ever been paged at three in the morning. It does not help with the outage. It helps with the person.</p>
+<p class="meta">You found the hidden file. Mostly harmless.</p>`;
+const ANSWER = `<p class="kicker">answer.txt · 42 bytes</p><h1>42</h1><p>Deep Thought finished the computation a while ago. The answer is short. The question is still in the backlog, estimated at one more sprint.</p>`;
+const IDRSA = `<p class="kicker">id_rsa</p><h1>Nice try.</h1><pre>-----BEGIN NICE TRY-----\nbm90aGluZyB0byBzZWUgaGVyZQ==\n-----END NICE TRY-----</pre><p>The real one is somewhere a file manager on a public website cannot reach. That is rather the point.</p>`;
+const motd = (h, t) => `<p class="kicker">/mnt/${h}/motd</p><h1>${h}</h1><p>${t}</p>`;
+
+/* ---------- file system ---------- */
+const d = (name, kids, o = {}) => ({name, dir: true, kids, ...o});
+const f = (name, date, title, html, o = {}) => ({name, date, title, html, ...o});
+const ROOT = d('', [
+  d('home', [d('v', [
+    d('projects', [
+      f('mycroft.md', 'Nov 12 09:14', 'A self-modifying agent on your iPhone', MYCROFT),
+      f('golem.md', 'Nov 13 21:40', 'Family AI assistant, on your own machines', GOLEM),
+      f('shadow.md', 'Nov 20 17:02', 'A shadow company for your team', SHADOW),
+      f('meiro.md', 'Sep 01 2018', 'Customer data infrastructure — the day job', MEIRO),
+    ], {date: 'Nov 20 17:02', about: 'Things I build. Three of them are open source; one of them pays the bills.'}),
+    d('posts', [
+      f('2026-04-29-beyond-the-tool-calling-loop.md', 'Apr 29 10:00', 'How we built an AI Analyst', POST1),
+      f('2026-02-10-stop-letting-agents-guess.md', 'Feb 10 12:00', 'A codebase shaped for AI agents', POST2),
+      f('draft-claude-code-vs-codex.md', 'Feb 05 08:30', 'Same coding AI, different people (draft)', POST3),
+      f('idea-gaslighting-coding-agents.md', 'Jan 18 23:11', 'A security idea in the drawer', POST4),
+      f('notes.txt', 'Jun 02 07:45', 'Loose thoughts', NOTES),
+    ], {date: 'Apr 29 10:00', about: 'Writing. Two published pieces, one draft, one idea, and a file of notes.'}),
+    d('.secrets', [
+      f('answer.txt', 'Oct 12 1979', 'The answer', ANSWER, {size: 42}),
+      f('id_rsa', 'Jan 01 1970', 'Definitely a private key', IDRSA, {size: 1675}),
+    ], {date: 'Jan 01 1970', hid: true, about: 'You should not be in here. Then again, neither should the secrets.'}),
+    f('README.md', 'Nov 21 09:42', 'Start here', README),
+    f('cv.txt', 'Mar 01 2024', 'Where the last ten years went', CV),
+    f('contact.vcf', 'Nov 21 09:42', 'How to reach me', CONTACT),
+    f('.towel', 'Oct 12 1979', 'You know where it is', TOWEL, {secret: true, hid: true, size: 42}),
+  ], {date: 'Nov 21 09:42'})], {date: 'Aug 05 2012'}),
+  d('mnt', [
+    d('bender', [f('motd', 'Nov 02 03:33', 'Message of the day', motd('bender', 'The loud one. Sixty-four cores, zero remorse. Runs the builds, complains about the builds, and has never once been wrong about a flaky test.'))], {date: 'Nov 02 03:33'}),
+    d('glados', [f('motd', 'Oct 30 14:20', 'Message of the day', motd('glados', 'The one with the GPU. Hosts the local models and evaluates them without mercy. All test subjects are thanked for their participation in science.'))], {date: 'Oct 30 14:20'}),
+    d('saturnin', [f('motd', 'Sep 09 06:00', 'Message of the day', motd('saturnin', 'The home server. Named after a servant from a Czech novel who does exactly what you asked, in a way you did not expect. So does this one.'))], {date: 'Sep 09 06:00'}),
+  ], {date: 'Nov 02 03:33', about: 'Machines. They have names, because you cannot swear properly at a hostname like srv-03.'}),
+], {});
+(function walk(n, p) {
+  n.parent = p; n.path = p ? (p.path === '/' ? '/' : p.path + '/') + n.name : '/';
+  if (n.dir) n.kids.forEach(k => walk(k, n));
+})(ROOT, null);
+const HOME = find('/home/v');
+
+function find(path) {
+  let n = ROOT;
+  for (const part of path.split('/').filter(Boolean)) { n = n.dir && n.kids.find(k => k.name === part); if (!n) return null; }
+  return n;
+}
+function resolve(p) {
+  if (!p) return null;
+  let n = p[0] === '/' ? ROOT : p[0] === '~' ? HOME : cwd;
+  for (const part of p.replace(/^~/, '').split('/').filter(Boolean)) {
+    if (part === '.') continue;
+    n = part === '..' ? (n.parent || n) : n.dir && n.kids.find(k => k.name === part || k.name === part.replace(/\/$/, ''));
+    if (!n) return null;
+  }
+  return n;
+}
+const text = n => n.text ??= Object.assign(document.createElement('div'), {innerHTML: n.html}).textContent.replace(/\s+/g, ' ').trim();
+const size = n => n.up ? 'UP--DIR' : n.dir ? '<DIR>' : (n.size ?? text(n).length).toLocaleString('en-US');
+
+/* ---------- state + rendering ---------- */
+const list = $('#list'), qv = $('#qv'), inp = $('#inp'), out = $('#out'), rd = $('#reader'), rbody = $('#rbody'), dw = $('#dwrap');
+let cwd = HOME, sel = 0, pane = 'L', showHidden = false, touch = false, reading = null, opened = 0, quits = 0, dropEl = null;
+const mobile = () => matchMedia('(max-width:860px)').matches;
+const entries = () => { const k = cwd.kids.filter(n => showHidden || !n.secret); return cwd.parent ? [{up: true, dir: true, name: '..', path: cwd.parent.path}, ...k] : k; };
+const cur = () => entries()[sel];
+
+function render() {
+  const es = entries(); sel = Math.max(0, Math.min(sel, es.length - 1));
+  $('#Lt').textContent = cwd.path;
+  $('#ps1').textContent = 'v@dontpanic:' + cwd.path.replace('/home/v', '~') + '$';
+  list.innerHTML = es.map((n, i) => `<li role="option" id="o${i}" data-i="${i}" class="${n.dir ? 'dir' : 'file'}${n.hid ? ' hid' : ''}" aria-selected="${i === sel}"><span class="n">${n.dir ? '/' : ' '}${esc(n.name)}</span><span class="s">${esc(size(n))}</span><span class="t">${n.up ? '' : n.date || ''}</span></li>`).join('');
+  list.setAttribute('aria-activedescendant', 'o' + sel);
+  $('#o' + sel)?.scrollIntoView({block: 'nearest'});
+  const n = es[sel];
+  $('#Lf').textContent = n.up ? 'UP--DIR' : n.name + (n.dir ? '/' : '  ' + size(n) + ' B');
+  preview(n);
+}
+function preview(n) {
+  const node = n.up ? cwd.parent : n;
+  $('#Rt').textContent = 'Quick view: ' + (n.up ? '..' : n.name);
+  if (node.dir) {
+    const kids = node.kids.filter(k => showHidden || !k.secret);
+    qv.innerHTML = `<p class="kicker">directory · ${kids.length} item${kids.length === 1 ? '' : 's'}</p><h1>${esc(node.path)}</h1>${node.about ? `<p>${node.about}</p>` : ''}<ul class="dirlist">${kids.map(k => `<li>${go_(k.path, esc(k.name) + (k.dir ? '/' : ''))}<span>${k.title || k.about || ''}</span></li>`).join('')}</ul>`;
+    $('#Rf').textContent = 'Enter: open directory'; $('#rdbtn').hidden = true;
+  } else {
+    qv.innerHTML = node.html;
+    $('#Rf').textContent = node.title; $('#rdbtn').hidden = false;
+  }
+  qv.scrollTop = 0;
+}
+function setPane(p) { pane = p; $('#L').classList.toggle('on', p === 'L'); $('#R').classList.toggle('on', p === 'R'); }
+function move(dl) { if (pane === 'R' && !mobile()) return qv.scrollBy(0, dl * 44); sel += dl; render(); }
+function up() { if (!cwd.parent) return; const from = cwd; cwd = cwd.parent; sel = Math.max(0, entries().indexOf(from)); render(); }
+function go(p, open) {
+  const n = typeof p === 'string' ? find(p) : p; if (!n) return;
+  if (n.dir) { cwd = n; sel = cwd.parent && cwd.kids.length ? 1 : 0; }
+  else { if (n.secret) showHidden = true; cwd = n.parent; sel = Math.max(0, entries().indexOf(n)); }
+  setPane('L'); render();
+  if (open && !n.dir) openReader(n);
+}
+function openSel() { const n = cur(); if (n.up) up(); else if (n.dir) go(n); else openReader(n); }
+function setHidden(v) { const n = cur(); showHidden = v; sel = Math.max(0, entries().indexOf(n)); render(); say(v ? 'Hidden files shown. Some things were here all along.' : 'Hidden files hidden.'); }
+
+/* ---------- reader ---------- */
+const siblings = n => (n.parent ? n.parent.kids.filter(k => !k.dir && (showHidden || !k.secret)) : [n]);
+function openReader(n) {
+  reading = n; rd.hidden = false;
+  $('#rpath').textContent = n.path; $('#rart').innerHTML = n.html; rbody.scrollTop = 0; $('#rpct').textContent = '0%';
+  const many = siblings(n).length > 1; $('#rprev').hidden = $('#rnext').hidden = !many;
+  rbody.focus();
+  if (++opened === 6) hint('<b>marvin@bender:</b> Six files. I have read all of them, too. It did not help. It never does.');
+}
+function closeReader() { if (rd.hidden) return; rd.hidden = true; reading = null; (mobile() ? list : inp).focus({preventScroll: true}); }
+function step(dl) { const s = siblings(reading), i = s.indexOf(reading); if (s.length > 1) { const n = s[(i + dl + s.length) % s.length]; if (n.parent === cwd) { sel = entries().indexOf(n); render(); } openReader(n); } }
+function togglePaper() { rd.classList.toggle('paper'); }
+function readAll() {
+  const order = ['README.md', 'projects/mycroft.md', 'projects/golem.md', 'projects/shadow.md', 'projects/meiro.md', 'posts/2026-04-29-beyond-the-tool-calling-loop.md', 'posts/2026-02-10-stop-letting-agents-guess.md', 'posts/draft-claude-code-vs-codex.md', 'posts/idea-gaslighting-coding-agents.md', 'posts/notes.txt', 'cv.txt', 'contact.vcf'];
+  openReader({path: '/home/v/*  (everything, in order)', html: order.map(p => find('/home/v/' + p).html).join('<hr>')});
+}
+rbody.addEventListener('scroll', () => { const m = rbody.scrollHeight - rbody.clientHeight; $('#rpct').textContent = (m > 0 ? Math.round(rbody.scrollTop / m * 100) : 100) + '%'; });
+$('#rclose').onclick = closeReader; $('#rprev').onclick = () => step(-1); $('#rnext').onclick = () => step(1); $('#rpaper').onclick = togglePaper;
+$('#rdbtn').onclick = openSel;
+
+/* ---------- dialogs ---------- */
+let dlgBack = null;
+function dialog({title, html, err, left, btns = [['OK']]}) {
+  dlgBack = document.activeElement;
+  $('#dlg').className = 'dlg' + (err ? ' err' : ''); $('#dtitle').textContent = ' ' + title + ' ';
+  const b = $('#dbody'); b.className = 'body' + (left ? ' left' : ''); b.innerHTML = html;
+  const box = $('#dbtns'); box.innerHTML = '';
+  btns.forEach(([t, fn]) => { const el = document.createElement('button'); el.textContent = '[ ' + t + ' ]'; el.onclick = () => { closeDlg(); fn && fn(); }; box.append(el); });
+  dw.hidden = false; box.firstChild.focus();
+}
+function closeDlg() { if (dw.hidden) return; dw.hidden = true; dlgBack && dlgBack.isConnected ? dlgBack.focus({preventScroll: true}) : 0; }
+dw.addEventListener('click', e => { if (e.target === dw) closeDlg(); });
+const error = (html, title = 'Error') => dialog({title, html, err: true, btns: [['Dismiss']]});
+
+/* ---------- function keys ---------- */
+const HELP = `<dl>
+<dt>↑ ↓</dt><dd>move through the listing</dd><dt>Enter</dt><dd>open a directory, read a file</dd>
+<dt>← / Backspace</dt><dd>up one directory</dd><dt>Tab</dt><dd>switch panes (the right one scrolls)</dd>
+<dt>F3</dt><dd>view full screen · <b>P</b> paper mode · <b>Esc</b> close</dd>
+<dt>F5</dt><dd>copy the file to your clipboard</dd><dt>F2</dt><dd>show hidden files</dd>
+<dt>typing</dt><dd>goes to the command line: <b>ls</b>, <b>cd</b>, <b>cat</b>, <b>pwd</b>, and a few it should not know</dd></dl>`;
+function fkey(n) {
+  const e = cur(), name = e.up ? (cwd.name || '/') : e.name;
+  switch (n) {
+    case 1: return dialog({title: 'Help', html: HELP, left: true, btns: [['Got it']]});
+    case 2: return setHidden(!showHidden);
+    case 3: return e.dir ? openSel() : openReader(e);
+    case 4: return error(`Cannot edit <b>${esc(name)}</b>: read-only file system.<br>Production is not a text editor. He learned this the usual way.`);
+    case 5: return copy(e);
+    case 6: return error(`mv: cannot move '${esc(name)}': it is exactly where it should be.`);
+    case 7: return error(`mkdir: cannot create directory 'more-meetings':<br>no space left on calendar.`);
+    case 8: return dialog({title: 'Delete', html: `Delete <b>${esc(name)}</b>?<br>This cannot be undone. Probably.`, btns: [['Yes', () => del(e, name)], ['No']]});
+    case 9: return openMenu($('#menubar button'));
+    case 10: return quit();
+  }
+}
+function del(e, name) {
+  if (e.up || name === 'v') return error(`rm: cannot remove '${name === '/' ? '/' : 'v'}': Device or resource busy.<br>He is still using himself.`);
+  if (name === '.towel') return error(`rm: refusing to remove '.towel'.<br>You will need it.`);
+  error(`rm: cannot remove '${esc(name)}': Operation not permitted.<br>${e.dir ? 'Things live in there.' : 'It is load-bearing.'}`);
+}
+function quit() {
+  const lines = ['There is no escape.', 'Still no.', 'You could close the tab. I cannot stop you.<br>I would be mildly sad.', 'Fine. Imagine a satisfying shutdown sound.<br>Nothing else will happen.'];
+  dialog({title: 'Quit', html: lines[Math.min(quits++, lines.length - 1)], btns: [['Stay'], ['Stay, reluctantly']]});
+}
+function copy(e) {
+  if (e.up || e.dir) return error('cp: omitting directory. Pick a file; directories do not fit in a clipboard.');
+  dialog({title: 'Copy', html: `Copying <b>${esc(e.name)}</b> to your clipboard<div class="bar"><i id="pbar"></i></div><span id="pmsg">0%</span>`, btns: [['OK']]});
+  const done = () => { const m = $('#pmsg'); if (m) m.textContent = '1 file copied. Paste responsibly.'; };
+  (navigator.clipboard ? navigator.clipboard.writeText(text(e)).catch(() => {}) : Promise.resolve());
+  requestAnimationFrame(() => { const p = $('#pbar'); if (p) p.style.width = '100%'; });
+  setTimeout(done, matchMedia('(prefers-reduced-motion:reduce)').matches ? 0 : 950);
+}
+$('#fbar').addEventListener('click', e => { const b = e.target.closest('button'); if (b) fkey(+b.dataset.f); });
+
+/* ---------- menus ---------- */
+const MENUS = {
+  File: [['View', 'F3', () => fkey(3)], ['Copy to clipboard', 'F5', () => fkey(5)], ['Read everything', 'cat *', readAll], ['Quit', 'F10', () => fkey(10)]],
+  Go: [['~  home', '', () => go('/home/v/README.md')], ['projects/', '', () => go('/home/v/projects')], ['posts/', '', () => go('/home/v/posts')], ['cv.txt', '', () => go('/home/v/cv.txt', mobile())], ['contact.vcf', '', () => go('/home/v/contact.vcf', mobile())], ['/mnt  machines', '', () => go('/mnt')]],
+  Options: [['Show hidden files', 'F2', () => fkey(2)], ['Scanlines', '', () => document.body.classList.toggle('scan')], ['Paper reader', 'P', () => { togglePaper(); say('Reader set to ' + (rd.classList.contains('paper') ? 'paper.' : 'phosphor.')); }]],
+  Help: [['Keys', 'F1', () => fkey(1)], ['About', '', () => dialog({title: 'About', html: `<b>DON'T PANIC, V!</b><br>Commander for /home/v, version 4.2<br>Mostly harmless. No files were harmed.`, btns: [['OK']]})]],
+};
+function closeMenu() { if (!dropEl) return; dropEl.remove(); dropEl = null; $$('#menubar button').forEach(b => b.setAttribute('aria-expanded', 'false')); }
+function openMenu(btn) {
+  const was = btn.getAttribute('aria-expanded') === 'true'; closeMenu(); if (was) return;
+  btn.setAttribute('aria-expanded', 'true');
+  dropEl = document.createElement('div'); dropEl.className = 'drop'; dropEl.setAttribute('role', 'menu');
+  dropEl.style.left = Math.min(btn.offsetLeft, innerWidth - 262) + 'px';
+  MENUS[btn.dataset.m].forEach(([t, k, fn]) => { const b = document.createElement('button'); b.setAttribute('role', 'menuitem'); b.innerHTML = `<span>${t}</span><kbd>${k}</kbd>`; b.onclick = () => { closeMenu(); fn(); }; dropEl.append(b); });
+  $('#menubar').append(dropEl); dropEl.firstChild.focus();
+}
+$('#menubar').addEventListener('click', e => { const b = e.target.closest('button[data-m]'); if (b) openMenu(b); });
+document.addEventListener('pointerdown', e => { if (dropEl && !e.target.closest('#menubar')) closeMenu(); });
+
+/* ---------- command line ---------- */
+function say(s) { out.textContent = s; }
+function hint(html) { $('#hint').innerHTML = html; }
+function run(line) {
+  const l = line.trim(), a = l.split(/\s+/), c = a.shift();
+  const fixed = {
+    '42': 'Answer accepted. Now, what was the question?',
+    'sudo make me a sandwich': 'Okay.',
+    'make me a sandwich': 'What? Make it yourself.',
+    'towel': 'towel: present. Try `ls -a`.',
+    'panic': "DON'T.",
+    'whoami': 'guest (uid=42, groups=curious,probably-an-engineer)',
+    'uptime': 'up 10 years in production,  1 user,  load average: 0.42, 0.42, 0.42',
+    'date': new Date().toString(),
+    'man v': 'V(1)  —  builds data infrastructure, explains it, then builds an agent to explain it again. SEE ALSO: cv.txt',
+  };
+  if (l in fixed) return fixed[l];
+  if (l === 'cat *') { readAll(); return ''; }
+  if (/^rm\b/.test(l)) { error(`rm: it is a read-only file system, and also: rude.`); return ''; }
+  if (/^sudo\b/.test(l)) return 'guest is not in the sudoers file. This incident will be reported to glados.';
+  if (/^(exit|quit|logout|:q!?|:wq)$/.test(l)) { quit(); return ''; }
+  if (/^(vim?|emacs|nano)\b/.test(l)) return 'No editors here. On the bright side, you can leave: nothing to exit.';
+  switch (c) {
+    case 'help': case '?': fkey(1); return '';
+    case 'clear': return '';
+    case 'pwd': return cwd.path;
+    case 'echo': return a.join(' ');
+    case 'ls': if (a.some(x => /^-\w*a/.test(x))) { showHidden = true; render(); } return entries().filter(e => !e.up).map(e => e.name + (e.dir ? '/' : '')).join('   ');
+    case 'cd': { const n = resolve(a[0] || '~'); if (!n || !n.dir) return `cd: ${a[0]}: No such directory`; go(n); return ''; }
+    case 'cat': case 'less': case 'view': case 'open': {
+      const n = resolve(a[0]); if (!n) return `${c}: ${a[0] || ''}: No such file`;
+      if (n.dir) return `${c}: ${n.name}: Is a directory`; go(n, true); return '';
+    }
+    default: return `${c}: command not found. Try: help`;
+  }
+}
+function submit() { const l = inp.value; inp.value = ''; if (!l.trim()) return; const r = run(l); out.innerHTML = `<b>$ ${esc(l)}</b>\n${esc(r)}`; }
+$('#cmd').addEventListener('submit', e => { e.preventDefault(); submit(); });
+
+/* ---------- mouse + touch ---------- */
+list.addEventListener('pointerdown', e => { touch = e.pointerType === 'touch'; });
+list.addEventListener('click', e => {
+  const li = e.target.closest('li'); if (!li) return;
+  const i = +li.dataset.i, again = i === sel; setPane('L'); sel = i; render();
+  if (mobile() || (touch && again)) openSel();
+});
+list.addEventListener('dblclick', e => { if (e.target.closest('li') && !mobile()) openSel(); });
+qv.addEventListener('pointerdown', () => setPane('R'));
+document.addEventListener('click', e => {
+  const a = e.target.closest('[data-go]'); if (!a) return;
+  e.preventDefault(); const n = find(a.dataset.go); if (!n) return;
+  if (n.dir) { closeReader(); go(n); } else go(n, !rd.hidden || mobile());
+});
+
+/* ---------- keyboard ---------- */
+addEventListener('keydown', e => {
+  const k = e.key, isF = /^F(\d+)$/.exec(k);
+  if (!dw.hidden) { if (k === 'Escape') { e.preventDefault(); closeDlg(); } else if (isF) e.preventDefault(); return; }
+  if (dropEl) {
+    if (k === 'Escape') { e.preventDefault(); closeMenu(); }
+    else if (k === 'ArrowDown' || k === 'ArrowUp') { e.preventDefault(); const b = $$('button', dropEl), i = b.indexOf(document.activeElement); b[(i + (k === 'ArrowDown' ? 1 : b.length - 1)) % b.length].focus(); }
+    else if (k === 'ArrowRight' || k === 'ArrowLeft') { e.preventDefault(); const b = $$('#menubar button[data-m]'), i = b.findIndex(x => x.getAttribute('aria-expanded') === 'true'); openMenu(b[(i + (k === 'ArrowRight' ? 1 : b.length - 1)) % b.length]); }
+    return;
+  }
+  if (!rd.hidden) {
+    if (k === 'Escape' || k === 'q' || k === 'F3' || k === 'F10') { e.preventDefault(); closeReader(); }
+    else if (k === 'p' || k === 'P') togglePaper();
+    else if (k === 'ArrowRight') step(1);
+    else if (k === 'ArrowLeft') step(-1);
+    else if (isF) e.preventDefault();
+    return;
+  }
+  if (isF && +isF[1] <= 10) { e.preventDefault(); fkey(+isF[1]); return; }
+  if (e.ctrlKey && k.toLowerCase() === 'h') { e.preventDefault(); fkey(2); return; }
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (e.target.closest && e.target.closest('.menubar,.fbar,.pfoot,.qv a') && (k === 'Tab' || k === 'Enter' || k === ' ')) return;
+  const empty = !inp.value;
+  switch (k) {
+    case 'ArrowDown': move(1); break;
+    case 'ArrowUp': move(-1); break;
+    case 'PageDown': move(10); break;
+    case 'PageUp': move(-10); break;
+    case 'Home': if (!empty) return; move(-999); break;
+    case 'End': if (!empty) return; move(999); break;
+    case 'Tab': setPane(pane === 'L' ? 'R' : 'L'); break;
+    case 'Enter': empty ? openSel() : submit(); break;
+    case 'ArrowRight': if (!empty) return; cur().dir ? openSel() : setPane('R'); break;
+    case 'ArrowLeft': if (!empty) return; pane === 'R' ? setPane('L') : up(); break;
+    case 'Backspace': if (!empty) return; up(); break;
+    case 'Escape': inp.value = ''; say(''); break;
+    default: if (k.length === 1 && document.activeElement !== inp) inp.focus(); return;
+  }
+  e.preventDefault();
+});
+
+/* ---------- chrome: clock + hints ---------- */
+const tick = () => { $('#clock').textContent = new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'}); };
+tick(); setInterval(tick, 20000);
+const HINTS = [
+  'Hint: <b>Enter</b> reads the selected file full screen. <b>Tab</b> switches panes.',
+  'Hint: typing goes straight to the command line. Start with <b>help</b>.',
+  'Hint: not every file is listed. <b>F2</b> has opinions about that.',
+  'Hint: <b>F8</b> deletes things. In theory.',
+  'Hint: the machines live under <b>/mnt</b>. They have names and grievances.',
+  'Hint: in the reader, <b>P</b> switches to paper if blue is not your reading colour.',
+  'Hint: the command line knows the answer. It is a number.',
+];
+if (mobile()) HINTS.splice(0, 2, 'Hint: tap a directory to open it, a file to read it.');
+let hi = 0; hint(HINTS[0]); setInterval(() => { hint(HINTS[++hi % HINTS.length]); }, 9000);
+
+sel = entries().findIndex(e => e.name === 'README.md'); render();
+if (!mobile()) inp.focus({preventScroll: true});
+// deep link: file.html#!cat cv.txt  (commands separated by ;)
+if (location.hash.startsWith('#!')) decodeURIComponent(location.hash.slice(2)).split(';').forEach(c => { const r = run(c); if (r) say(r); });
+
+/* ---------- self-check: open with #selftest ---------- */
+if (location.hash === '#selftest') {
+  const A = (c, m) => console.log((c ? 'PASS ' : 'FAIL ') + m);
+  A(cur().name === 'README.md' && qv.textContent.includes("DON'T PANIC"), 'home listing + README preview');
+  A(!entries().some(e => e.name === '.towel'), 'towel hidden by default');
+  run('ls -a'); A(entries().some(e => e.name === '.towel'), 'ls -a reveals .towel');
+  run('cd projects'); A(cwd.path === '/home/v/projects' && cur().name === 'mycroft.md', 'cd projects');
+  run('cd ..'); A(cwd === HOME, 'cd ..');
+  up(); A(cwd.path === '/home' && cur().name === 'v', 'up selects where we came from');
+  run('cd /mnt/glados'); A(cwd.path === '/mnt/glados', 'absolute cd');
+  run('cat ~/posts/2026-04-29-beyond-the-tool-calling-loop.md'); A(!rd.hidden && $('#rart').textContent.includes('Vercel AI SDK'), 'cat opens reader');
+  step(1); A(reading.name.startsWith('2026-02-10'), 'reader next file'); closeReader(); A(rd.hidden, 'reader closes');
+  A(run('42').startsWith('Answer') && run('sudo make me a sandwich') === 'Okay.', 'command eggs');
+  fkey(8); A(!dw.hidden && $('#dbody').textContent.includes('Delete'), 'F8 asks'); $('#dbtns button').click(); A($('#dlg').classList.contains('err'), 'F8 refuses'); closeDlg();
+  fkey(10); A($('#dbody').textContent.includes('no escape'), 'F10'); closeDlg();
+  readAll(); A($('#rart').querySelectorAll('hr').length === 11, 'read everything'); closeReader();
+  go('/home/v/README.md');
+}
+})();
+</script>
+
+<div id="vnav" style="position:fixed;right:12px;bottom:12px;z-index:99999;font:12px/1 ui-monospace,Menlo,monospace;background:#111;color:#fff;border-radius:999px;padding:8px 12px;display:flex;gap:10px;align-items:center;box-shadow:0 2px 10px rgba(0,0,0,.3)"><a href="05-schema-erd.html" style="color:#FFD400;text-decoration:none" aria-label="Previous variation">‹</a><a href="index.html" style="color:#fff;text-decoration:none">06/20 · commander</a><a href="07-agent-trace.html" style="color:#FFD400;text-decoration:none" aria-label="Next variation">›</a></div>
+</body>
+</html>

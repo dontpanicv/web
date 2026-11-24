@@ -1,5 +1,6 @@
-# Build outputs served by nginx
-main/
+# Build output
+astro/dist/
+astro/.cloudflare/
 
 # Node
 astro/node_modules/
@@ -10,3 +11,5 @@ astro/.astro/
 
 # Local artifacts
 output/
+design/site/
+design/.cloudflare/

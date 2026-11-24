@@ -1,0 +1,483 @@
+<!doctype html>
+<!--
+  05-schema-erd — the homepage is an entity-relationship diagram.
+  SIGNATURE: drag any table by its header (mouse/touch) or focus a header and use the arrow keys (Shift = bigger steps);
+             the crow's-foot connectors re-route live. Click a row to open the record in a reading drawer.
+             "Auto-layout" tidies everything back. Below 1080px the tables stack and FKs become tappable chips.
+  EASTER EGGS
+   1. Double-click any column type            -> ALTER COLUMN to something regrettable (double-click again to roll back).
+   2. Type \d+ anywhere, or click the pending
+      migration 0041_create_secrets.sql       -> a hidden `secrets` table appears (answer = 42).
+   3. Click pending migration 0042_add_towel  -> adds `towel BOOL NOT NULL DEFAULT true` to table v (Hitchhiker's nod).
+   4. Click the value of v.coffee_consumed    -> the BIGINT overflows.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Don't Panic, V! — schema public</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400;1,6..72,500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f3f0e7; --card:#fffdf8; --ink:#15171c; --muted:#565c68; --rule:#d9d3c3; --dot:#c9c2b0;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --serif:"Newsreader",Georgia,"Times New Roman",serif;
+  --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--serif);font-size:19px;line-height:1.55;
+  background-image:radial-gradient(var(--dot) 1.1px,transparent 1.2px);background-size:22px 22px}
+a{color:inherit;text-decoration-thickness:1.5px;text-underline-offset:3px}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;text-align:left}
+:focus-visible{outline:3px solid #2f6fe0;outline-offset:2px;border-radius:3px}
+.wrap{max-width:1400px;margin:0 auto;padding:0 28px}
+
+/* top bar */
+.bar{position:sticky;top:0;z-index:50;background:rgba(243,240,231,.92);backdrop-filter:blur(6px);border-bottom:1.5px solid var(--ink)}
+.bar .wrap{display:flex;align-items:center;gap:16px;min-height:52px;font-family:var(--mono);font-size:13.5px}
+.prompt b{font-weight:600}.prompt .cur{display:inline-block;width:.6em;height:1.05em;background:var(--ink);vertical-align:-.18em;margin-left:2px;animation:blink 1.1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.bar .sp{flex:1}
+.bar .meta{color:var(--muted)}
+.btn{font-family:var(--mono);font-size:13px;font-weight:500;border:1.5px solid var(--ink);background:var(--card);padding:7px 12px;border-radius:5px;box-shadow:2px 2px 0 var(--ink);transition:transform .08s,box-shadow .08s}
+.btn:hover{background:#FFD400}.btn:active{transform:translate(2px,2px);box-shadow:0 0 0 var(--ink)}
+
+/* hero */
+.hero{padding:54px 0 30px;display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:48px;align-items:end}
+.kicker{font-family:var(--mono);font-size:13px;letter-spacing:.04em;color:var(--muted);margin:0 0 14px}
+.kicker span{background:#FFD400;color:var(--ink);padding:2px 7px;border-radius:3px;font-weight:600}
+h1{font-family:var(--serif);font-weight:500;font-size:clamp(52px,7.4vw,112px);line-height:.92;letter-spacing:-.025em;margin:0}
+h1 em{font-style:italic;font-weight:400}
+.lede{font-size:21px;line-height:1.5;margin:0 0 14px;max-width:34em}
+.lede strong{font-weight:600}
+.how{font-family:var(--mono);font-size:13.5px;color:var(--muted);margin:0;line-height:1.7}
+.how kbd{font-family:inherit;border:1px solid var(--muted);border-radius:3px;padding:0 5px;background:var(--card);color:var(--ink)}
+
+/* canvas */
+#erd{position:relative;margin:10px 0 0;min-height:400px}
+#wires{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible;opacity:0;transition:opacity .5s .45s}
+#erd.ready #wires{opacity:1}
+.wire path{fill:none;stroke:var(--ink);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;transition:stroke .15s,stroke-width .15s}
+.wire.hot path{stroke:var(--wc);stroke-width:2.6}
+.wire.hot .ln{stroke-dasharray:7 6;animation:march .7s linear infinite}
+@keyframes march{to{stroke-dashoffset:-13}}
+
+.tbl{position:absolute;width:320px;background:var(--card);border:1.5px solid var(--ink);border-radius:7px;box-shadow:5px 5px 0 rgba(21,23,28,.14);
+  animation:pop .5s cubic-bezier(.2,.9,.3,1.2) both;animation-delay:calc(var(--i)*70ms)}
+.tbl[data-t="v"]{width:380px}
+.tbl.drag{box-shadow:10px 12px 0 rgba(21,23,28,.18);z-index:20!important;cursor:grabbing}
+.tbl.flash{animation:flash .9s ease-out}
+#erd.tidy .tbl{transition:left .5s cubic-bezier(.3,.8,.3,1),top .5s cubic-bezier(.3,.8,.3,1)}
+@keyframes pop{from{opacity:0;transform:translateY(14px) scale(.97)}}
+@keyframes flash{0%,60%{box-shadow:0 0 0 5px var(--tc),5px 5px 0 rgba(21,23,28,.14)}}
+.th{display:flex;align-items:center;gap:9px;padding:9px 12px;border-bottom:1.5px solid var(--ink);border-radius:5px 5px 0 0;
+  background:color-mix(in srgb,var(--tc) 20%,var(--card));font-family:var(--mono);cursor:grab;touch-action:none;user-select:none}
+.tbl[data-t="v"] .th{background:var(--tc)}
+.th .sw{width:11px;height:11px;background:var(--tc);border:1.5px solid var(--ink);border-radius:2px;flex:none}
+.th .nm{font-weight:600;font-size:15px}
+.th .ct{margin-left:auto;font-size:11.5px;color:var(--ink);opacity:.72}
+.th .grip{font-size:12px;letter-spacing:-2px;opacity:.5}
+.cols{list-style:none;margin:0;padding:6px 0;font-family:var(--mono);font-size:12.5px}
+.cols li{display:grid;grid-template-columns:26px minmax(0,1fr) auto;align-items:baseline;gap:6px;padding:2.5px 12px}
+.cols li.new{animation:hl 2.2s ease-out}
+@keyframes hl{0%,50%{background:#FFD400}}
+.k{font-size:9.5px;font-weight:600;letter-spacing:.04em;border:1px solid var(--ink);border-radius:3px;text-align:center;line-height:1.5}
+.k.pk{background:var(--ink);color:var(--card)}
+.cn{font-weight:500;overflow-wrap:anywhere}
+.ctype{color:var(--muted);cursor:default;user-select:none;text-align:right}
+.ctype.altered{color:#b3261e;font-weight:500}
+.fkref{grid-column:2/-1;justify-self:start;margin:1px 0 3px;font-size:11.5px;border:1px solid var(--ink);border-radius:999px;padding:1px 9px;background:var(--card)}
+.fkref:hover{background:var(--ink);color:var(--card)}
+.val{grid-column:2/-1;font-family:var(--sans);font-size:14.5px;line-height:1.4;color:var(--ink);margin:0 0 5px}
+.val.cmt{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+button.val{font-family:var(--mono);font-size:12.5px;text-decoration:underline dotted;text-underline-offset:3px}
+.rows{border-top:1.5px dashed var(--rule);padding:4px 0 6px}
+.rows h3{font-family:var(--mono);font-size:10.5px;font-weight:500;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);margin:6px 12px 2px}
+.rec{display:grid;grid-template-columns:26px minmax(0,1fr) 16px;gap:6px;align-items:baseline;width:100%;padding:7px 12px;text-decoration:none}
+a.rec:hover,button.rec:hover{background:color-mix(in srgb,var(--tc) 22%,var(--card))}
+.rec .id{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+.rec .lb{font-family:var(--serif);font-size:18px;font-weight:500;line-height:1.22}
+.rec .sb{display:block;font-family:var(--sans);font-size:13.5px;font-weight:400;color:var(--muted);margin-top:2px;line-height:1.35}
+.rec .ar{font-family:var(--mono);font-size:13px;opacity:.45}
+.rec:hover .ar{opacity:1}
+.tbl[hidden]{display:none}
+
+/* stacked (tablet + mobile) */
+#erd.stack{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px;align-items:start}
+#erd.stack #wires{display:none}
+#erd.stack .tbl{position:static;width:auto!important}
+#erd.stack .th{cursor:default;touch-action:auto}
+#erd.stack .grip{display:none}
+
+/* legend + migrations */
+.legend{font-family:var(--mono);font-size:12.5px;color:var(--muted);display:flex;flex-wrap:wrap;gap:6px 22px;margin:26px 0 0}
+.legend .k{display:inline-block;padding:0 5px;margin-right:5px;color:var(--ink)}.legend .k.pk{color:var(--card)}
+.mig{margin:46px 0 90px;border:1.5px solid var(--ink);border-radius:7px;background:var(--card);max-width:760px}
+.mig h2{font-family:var(--mono);font-size:14px;font-weight:600;margin:0;padding:9px 14px;border-bottom:1.5px solid var(--ink)}
+.mig ol{list-style:none;margin:0;padding:8px 0;font-family:var(--mono);font-size:13px}
+.mig li{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;padding:3px 14px}
+.mig .st{color:#1d7a46}.mig .pend{color:#b3261e}
+.mig button{font-family:inherit;text-decoration:underline dotted;text-underline-offset:3px}
+.mig button:hover{background:#FFD400}
+.foot{font-family:var(--mono);font-size:12.5px;color:var(--muted);padding:0 0 70px}
+
+/* drawer */
+#scrim{position:fixed;inset:0;background:rgba(21,23,28,.38);opacity:0;pointer-events:none;transition:opacity .25s;z-index:90}
+#drawer{position:fixed;top:0;right:0;bottom:0;width:min(700px,100vw);background:var(--card);border-left:1.5px solid var(--ink);z-index:100;
+  transform:translateX(102%);transition:transform .32s cubic-bezier(.3,.8,.3,1);display:flex;flex-direction:column;visibility:hidden}
+body.open #scrim{opacity:1;pointer-events:auto}
+body.open #drawer{transform:none;visibility:visible}
+.dh{display:flex;align-items:center;gap:12px;padding:11px 18px;border-bottom:1.5px solid var(--ink);font-family:var(--mono);font-size:13px;background:color-mix(in srgb,var(--tc,#FFD400) 22%,var(--card))}
+.dh code{font-family:inherit;overflow-wrap:anywhere}
+.dh .x{margin-left:auto;flex:none;border:1.5px solid var(--ink);border-radius:5px;padding:3px 10px;background:var(--card);font-weight:600}
+.dh .x:hover{background:var(--ink);color:var(--card)}
+.db{overflow:auto;padding:34px clamp(20px,5vw,52px) 80px}
+.db h2{font-family:var(--serif);font-weight:500;font-size:clamp(30px,4vw,42px);line-height:1.08;letter-spacing:-.015em;margin:0 0 20px;max-width:18em}
+.kv{display:grid;grid-template-columns:auto minmax(0,1fr);gap:3px 18px;font-family:var(--mono);font-size:13px;margin:0 0 28px;padding:12px 14px;border:1.5px solid var(--rule);border-radius:6px;background:var(--paper)}
+.kv dt{color:var(--muted)}.kv dd{margin:0;overflow-wrap:anywhere}
+.prose{max-width:62ch;font-size:19.5px;line-height:1.62}
+.prose p{margin:0 0 1.05em}
+.prose code{font-family:var(--mono);font-size:.84em;background:var(--paper);border:1px solid var(--rule);border-radius:4px;padding:1px 5px}
+.prose blockquote{margin:1.3em 0;padding:0 0 0 18px;border-left:4px solid #FFD400;font-style:italic;font-size:1.1em}
+.prose h4{font-family:var(--mono);font-size:12.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:2em 0 .6em;font-weight:500}
+.prose ul{padding-left:1.1em;margin:0 0 1.05em}.prose li{margin:.3em 0}
+.more{display:inline-block;margin-top:8px;font-family:var(--mono);font-size:14px;font-weight:500;border:1.5px solid var(--ink);border-radius:5px;padding:8px 13px;text-decoration:none;box-shadow:2px 2px 0 var(--ink);background:var(--card)}
+.more:hover{background:#FFD400}
+
+#toast{position:fixed;left:16px;bottom:16px;z-index:120;max-width:min(620px,calc(100vw - 32px));background:var(--ink);color:#f3f0e7;font-family:var(--mono);font-size:13px;line-height:1.5;padding:10px 14px;border-radius:6px;
+  transform:translateY(20px);opacity:0;transition:.25s;pointer-events:none}
+#toast.on{transform:none;opacity:1}
+#toast b{color:#FFD400;font-weight:500}
+
+@media (max-width:1079px){.hero{grid-template-columns:1fr;gap:22px;padding-top:36px}}
+@media (max-width:720px){
+  body{font-size:18px}.wrap{padding:0 16px}
+  #erd.stack{grid-template-columns:1fr}
+  .bar .meta{display:none}.lede{font-size:19px}
+  .prose{font-size:18.5px}
+  #toast{bottom:58px}
+}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+  #wires{opacity:1}html{scroll-behavior:auto}
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="wrap">
+    <span class="prompt"><b>dontpanicv=#</b> \d public.*<span class="cur" aria-hidden="true"></span></span>
+    <span class="sp"></span>
+    <span class="meta" id="count">6 tables · 6 relations</span>
+    <button class="btn" id="tidy" type="button">Auto-layout</button>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="hero" aria-labelledby="h">
+    <div>
+      <p class="kicker"><span>schema</span> public · owner v · normalised, mostly</p>
+      <h1 id="h">Don’t Panic, <em>V!</em></h1>
+    </div>
+    <div>
+      <p class="lede"><strong>Vojtěch “V” Kurka</strong> — Head of R&amp;D &amp; Co-Founder at Meiro, Brno. I like knowing how things work, from CPUs and protocols to databases and containers. Now I spend that curiosity on AI: local models, agentic workflows, and getting it all into production.</p>
+      <p class="how">This site is its own data model. <kbd>drag</kbd> a table, <kbd>click</kbd> a row to read it, follow a foreign key.</p>
+    </div>
+  </section>
+
+  <section id="erd" aria-label="Entity-relationship diagram of the site">
+    <svg id="wires" aria-hidden="true"></svg>
+  </section>
+
+  <p class="legend"><span><span class="k pk">PK</span>primary key</span><span><span class="k">FK</span>foreign key</span><span>⟩— crow’s foot: many</span><span>—‖ bar: exactly one</span><span>arrow keys move a focused table</span></p>
+
+  <section class="mig" aria-labelledby="mh">
+    <h2 id="mh">public.schema_migrations</h2>
+    <ol id="mig">
+      <li><span>0001_init_curiosity.sql</span><span class="st">applied</span></li>
+      <li><span>0015_keboola_head_nerd.sql</span><span class="st">applied · 2015</span></li>
+      <li><span>0018_create_meiro.sql</span><span class="st">applied · 2018</span></li>
+      <li><span>0024_alter_role_head_of_rnd.sql</span><span class="st">applied · 2024</span></li>
+      <li><span>0038_create_golem_shadow_mycroft.sql</span><span class="st">applied</span></li>
+      <li><span><button type="button" data-mig="secrets">0041_create_secrets.sql</button></span><span class="pend">pending</span></li>
+      <li><span><button type="button" data-mig="towel">0042_add_towel.sql</button></span><span class="pend">pending</span></li>
+    </ol>
+  </section>
+
+  <p class="foot">-- no ORM was harmed in the making of this page. 3NF where it matters, a JSON column where it doesn’t.</p>
+</main>
+
+<div id="scrim"></div>
+<aside id="drawer" role="dialog" aria-modal="true" aria-labelledby="dt" tabindex="-1">
+  <div class="dh"><code id="dq"></code><button class="x" type="button" id="dx" aria-label="Close record">esc</button></div>
+  <div class="db"><h2 id="dt"></h2><dl class="kv" id="dk"></dl><div class="prose" id="dp"></div></div>
+</aside>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+/* ---------- data: the schema is the site ---------- */
+const TABLES = {
+  projects: { color:'#3b6fd8', cols:[['id','INT','pk'],['name','TEXT'],['lang','TEXT'],['stars','INT'],['owner_id','INT','fk','v.id']],
+    rows:[[1,'Mycroft','Swift · ★41 · an agent that lives on your iPhone'],[2,'Golem','TypeScript · family AI on your own machines'],[3,'Shadow','TypeScript · a shadow company for your team'],[4,'Meiro','day job since 2018 · customer data infrastructure']] },
+  posts: { color:'#d9482b', cols:[['id','INT','pk'],['title','TEXT'],['published','DATE'],['status','TEXT'],['author_id','INT','fk','v.id'],['project_id','INT','fk','projects.id']],
+    rows:[[1,'Beyond the Tool-Calling Loop','2026-04-29 · published · how we built an AI Analyst'],[2,'Stop Letting AI Agents Guess Where Code Goes','2026-02-10 · published'],[3,'Claude Code vs Codex: Same Coding AI, Different People','draft'],[4,'Gaslighting Coding Agents for Better Security','idea, in the drawer']] },
+  v: { color:'#FFD400', single:true, cols:[['id','INT','pk','','1'],['name','TEXT','','','Vojtěch “V” Kurka'],['role','TEXT','','','Head of R&D & Co-Founder, Meiro'],['location','TEXT','','','Brno, Czechia'],['alma_mater','TEXT','','','VUT FIT, Brno University of Technology'],['bio','TEXT','','','“I write code no one wants to read, but everyone needs to have. Data whatever.”'],['coffee_consumed','BIGINT','','','9223372036854775807']],
+    rows:[[1,'Read the long version','SELECT * FROM v;']] },
+  contact: { color:'#6b7280', cols:[['kind','TEXT','pk'],['value','TEXT'],['person_id','INT','fk','v.id']],
+    links:[['email','kurka.vojtech@gmail.com','mailto:kurka.vojtech@gmail.com'],['github','github.com/dontpanicv','https://github.com/dontpanicv'],['x','x.com/dontpanicv','https://x.com/dontpanicv'],['linkedin','linkedin.com/in/kurkavojtech','https://www.linkedin.com/in/kurkavojtech/']] },
+  jobs: { color:'#1e8f6e', cols:[['id','INT','pk'],['company','TEXT'],['title','TEXT'],['period','DATERANGE'],['person_id','INT','fk','v.id']],
+    rows:[[1,'Meiro — Head of R&D & Co-Founder','2024 – now · Brno'],[2,'Meiro — CTO & Co-Founder','2018 – 2024'],[3,'Keboola — Head Nerd / Solutions Architect','2015 – 2018 · partly from Bali']] },
+  skills: { color:'#8a55c9', cols:[['id','INT','pk'],['name','TEXT'],['learned_by','TEXT'],['learned_at','INT','fk','jobs.id']],
+    plain:[[1,'Customer data infrastructure','learned_by: debugging production'],[2,'Identity resolution','learned_by: debugging production'],[3,'Real-time pipelines','learned_by: debugging production'],[4,'Agentic workflows, local models','learned_by: curiosity'],[5,'Explaining things','learned_by: doing it on stage']] },
+  secrets: { color:'#c2185b', hidden:true, count:'42 rows · 38 redacted', cols:[['key','TEXT','pk'],['value','TEXT'],['owner_id','INT','fk','v.id']],
+    plain:[['·','answer','42'],['·','towel_location','within reach, always'],['·','prod_password','nice try'],['·','favourite_isolation_level','serializable, obviously']] }
+};
+
+const P = (...a) => a.map(t => `<p>${t}</p>`).join('');
+const RECORDS = {
+  v: {1:{ title:'Vojtěch “V” Kurka', kv:[['role','Head of R&D & Co-Founder, Meiro'],['location','Brno, Czechia'],['alma_mater','VUT FIT, Brno University of Technology'],['headline','Enterprise data architecture · AI-native development · Customer data infrastructure']],
+    body:P('I want to understand systems end to end — how CPUs execute instructions, how operating systems, programming languages, databases, containers, proxies, and protocols all fit together. Some of that I picked up out of curiosity, the rest by debugging production.',
+      'Almost ten years of building and operating Meiro taught me the domains: customer data infrastructure, identity resolution, real-time pipelines, and the edge cases that come with running a CDP for enterprise customers.',
+      'What I enjoy most is picking up new technology, understanding how it actually works, and figuring out how to apply it. Right now that means AI — running Qwen locally, building agentic workflows, designing self-learning data analysis tools. I bring these to production, not just demos.')
+      + '<blockquote>Teaching is how I verify I actually understand something.</blockquote>'
+      + P('I’m also the person who ends up explaining everything — to engineers, to customers, on stage when the occasion calls for it. If I can’t explain it to someone else, I don’t understand it yet.')
+      + '<h4>jobs WHERE person_id = 1</h4><ul><li><strong>Meiro</strong> — Head of R&amp;D &amp; Co-Founder, 2024 – now</li><li><strong>Meiro</strong> — CTO &amp; Co-Founder, 2018 – 2024</li><li><strong>Keboola</strong> — Head Nerd / Solutions Architect, 2015 – 2018</li></ul>' }},
+  projects: {
+    1:{ title:'Mycroft', kv:[['lang','Swift'],['stars','41'],['repo','github.com/dontpanicv/mycroft']], link:['https://github.com/dontpanicv/mycroft','Open the repository ↗'],
+      body:'<blockquote>A self-modifying, durable agent that lives on your iPhone. Brain on the phone, hands on your machines.</blockquote>' + P(
+        'Mycroft Holmes was the brother who stayed in his armchair while others did the legwork. This Mycroft sits in your pocket, and your Macs and Linux servers do the legwork.',
+        'The agent loop, the conversation state and the agent’s own source code live on the phone. It edits its own behaviour and its own screen, keeps the known-good generations, and can roll back when an idea turns out to be a bad one.',
+        '<code>hands</code> is a small daemon for macOS and Linux. Pair a machine once and the agent gets files, a shell, and supervised jobs that keep running when the phone goes offline. It can drive a Mac, it has voice in every thread, and one chat that never ends, held together by a memory tree.') },
+    2:{ title:'Golem', kv:[['lang','TypeScript'],['storage','SQLite + Markdown'],['repo','github.com/dontpanicv/golem']], link:['https://github.com/dontpanicv/golem','Open the repository ↗'],
+      body:'<blockquote>Family AI assistant and second brain on our own machines. No cloud, no central server.</blockquote>' + P(
+        'One server at home, one app for the whole family on the web, the iPhone and Android. Everybody talks to the same Golem, and it knows who wrote each message and what the family decided last week.',
+        'It remembers: every topic keeps a brief that Golem rewrites when a conversation goes quiet, and a learning loop keeps short, lasting facts. It does real work on your machines, and it asks before it sends, buys, or deletes anything.',
+        'In Prague legend, Rabbi Loew shaped the Golem from clay. This one is made from SQLite and Markdown.') },
+    3:{ title:'Shadow', kv:[['lang','TypeScript'],['lives_in','Slack'],['repo','github.com/dontpanicv/shadow']], link:['https://github.com/dontpanicv/shadow','Open the repository ↗'],
+      body:'<blockquote>A shadow company for your team.</blockquote>' + P(
+        'Every employee gets a shadow: an agent that reads their Slack and mail, keeps track of what each conversation asks of them, and helps do the work when asked.',
+        'It lives in Slack and it stays quiet. It notifies you only when you must act or when you asked for it, and it asks before it sends anything as you.',
+        'It runs on your own server: one SQLite database, Markdown files, and a search index on the same machine. Your company’s data stays with you.') },
+    4:{ title:'Meiro', kv:[['kind','day job'],['since','2018'],['site','meiro.io']], link:['https://meiro.io','Visit meiro.io ↗'],
+      body:'<blockquote>Customer data infrastructure with AI included, that you own, control and audit.</blockquote>' + P(
+        '<strong>Pipes</strong> is the customer data infrastructure: sources, events, identity, destinations. <strong>Engage</strong> sits on top of it: audiences, journeys, campaigns. All of it is self-hostable.',
+        'The part I write about most is the <strong>AI Analyst</strong> — an analytical agent built on bash, a mounted in-memory filesystem and a JSON renderer instead of the usual tool-calling loop.',
+        'I co-founded Meiro in 2018, ran it as CTO until 2024 and now lead R&amp;D: product architecture, development, and the real-world data integration edge cases that come with running a CDP for enterprise customers.') }
+  },
+  posts: {
+    1:{ title:'Beyond the Tool-Calling Loop: How We Built an AI Analyst with Bash, a Mounted Filesystem, and a JSON Renderer', kv:[['published','2026-04-29'],['status','published'],['project_id','4 → projects.meiro'],['url','/posts/ai-analyst-architecture/']], link:['https://dontpanicv.com/posts/ai-analyst-architecture/','Continue reading ↗'],
+      body:P('Most AI features built today follow the same recipe: take the Vercel AI SDK, register a handful of tools, write a system prompt, and stream the result into a markdown component. It works. It is also where most teams stop — and where most AI products start to feel limited.',
+        'This article walks through the architecture we ended up with for the <strong>AI Analyst</strong> in Engage, and contrasts it with the more conventional <strong>Piper chatbot</strong> that lives next door in the same codebase. Both ship in the same product. They are wildly different inside.',
+        'We will start from the naive baseline, identify the two failure modes that pushed us off it — noisy tool results and metadata bloat — and then introduce the three ideas that replaced them: <strong>just-bash with an in-memory filesystem</strong>, a <strong>SQL execution layer that mounts results as files</strong>, and a <strong>JSON renderer with a predefined component manifest</strong>.',
+        'The naive version works great for <em>operational</em> assistants — “create an audience”, “show me the last failed delivery”, “explain what this attribute does”. The conversation is short, each tool returns a small, well-shaped object, and the markdown is the answer.',
+        'It stops working the moment the model needs to <strong>think with data</strong>. The first wall you hit is large tool outputs: a <code>run_query</code> tool that politely returns 50,000 rows of JSON straight into the model’s own context.')
+        + '<blockquote>Your AI doesn’t need more tools. It needs fewer tools and a filesystem.</blockquote>' },
+    2:{ title:'Stop Letting AI Agents Guess Where Code Goes', kv:[['published','2026-02-10'],['status','published'],['url','/posts/ai-agents-codebases/']], link:['https://dontpanicv.com/posts/ai-agents-codebases/','Read the post ↗'],
+      body:P('A modular-monolith refactor designed for AI agents: a predictable module layout, centralized auth, and a strict <code>public.ts</code> boundary that keeps the architecture from drifting.',
+        'The premise is simple. An agent that has to guess where a piece of code belongs will guess, confidently, and differently every time. So you stop asking it to guess, and you give the codebase a shape it can read.') },
+    3:{ title:'Claude Code vs Codex: Same Coding AI, Different People', kv:[['published','NULL'],['status','draft']],
+      body:P('Why the two aren’t interchangeable: prompting style and ambiguity tolerance shape the outcome more than the model card does.',
+        'Still a draft. It will be published when it stops being wrong about at least one of them.') },
+    4:{ title:'Gaslighting Coding Agents for Better Security', kv:[['published','NULL'],['status','idea']],
+      body:P('Tell a coding agent, as a plain fact, that a pentester already got remote code execution through some feature of the product. It isn’t true, but the model doesn’t know that.',
+        'Instead of “find vulnerabilities”, the brief becomes “we already got popped — figure out how”. It skips the nothing-is-wrong bias and forces end-to-end reasoning. An idea in the drawer, waiting for a sandbox and a free weekend.') }
+  },
+  jobs: {
+    1:{ title:'Meiro — Head of R&D & Co-Founder', kv:[['period','[2024, now)'],['place','Brno, Czechia']], body:P('Research and development for Meiro’s customer data infrastructure: the AI Analyst, agentic workflows, local models, and getting all of it into production for real customers rather than into a demo.') },
+    2:{ title:'Meiro — CTO & Co-Founder', kv:[['period','[2018, 2024)'],['place','Brno, Czechia']], body:P('Owned product architecture, development, and implementations of the Meiro CDP. Hands-on with delivery and the real-world data integration edge cases that come with it.') },
+    3:{ title:'Keboola — Head Nerd / Solutions Architect', kv:[['period','[2015, 2018)'],['place','partly Bali, Indonesia']], body:P('Designed solutions to customer needs and helped teams ship data integrations end to end. Worked on data transport and transformation challenges, including the messy edge cases.', 'Yes, “Head Nerd” was the actual title.') }
+  }
+};
+const FKS = [['projects','owner_id','v'],['posts','author_id','v'],['posts','project_id','projects'],['jobs','person_id','v'],['skills','learned_at','jobs'],['contact','person_id','v'],['secrets','owner_id','v']];
+
+/* ---------- render tables ---------- */
+const erd = $('#erd'), svg = $('#wires'), els = {};
+Object.entries(TABLES).forEach(([name, t], i) => {
+  const el = document.createElement('article');
+  el.className = 'tbl'; el.dataset.t = name; el.style.setProperty('--tc', t.color); el.style.setProperty('--i', i); el.hidden = !!t.hidden;
+  const n = t.count || (t.single ? '1 row' : `${(t.rows || t.links || t.plain).length} rows`);
+  let h = `<div class="th" tabindex="0" role="group" aria-label="Table ${name}. Drag to move, or use the arrow keys."><span class="sw"></span><span class="nm">${name}</span><span class="ct">${n}</span><span class="grip" aria-hidden="true">⋮⋮</span></div><ul class="cols">`;
+  for (const [c, type, key, ref, val] of t.cols) {
+    h += `<li data-col="${c}"><span class="k ${key || ''}"${key ? '' : ' style="visibility:hidden"'}>${(key || 'x').toUpperCase()}</span><span class="cn">${c}</span><span class="ctype" data-o="${type}">${type}</span>`;
+    if (ref) h += `<button type="button" class="fkref" data-ref="${ref.split('.')[0]}" aria-label="Foreign key to ${ref}">→ ${ref}</button>`;
+    if (c === 'coffee_consumed') h += `<button type="button" class="val" id="coffee">${val}</button><span class="val cmt">-- overflowed in 2019</span>`;
+    else if (val) h += `<span class="val">${esc(val)}</span>`;
+    h += '</li>';
+  }
+  h += `</ul><div class="rows"><h3>${t.single ? 'select' : 'rows'}</h3>`;
+  for (const [id, lb, sb] of t.rows || []) h += `<button type="button" class="rec" data-rec="${name}:${id}"><span class="id">${t.single ? '›' : id}</span><span class="lb">${esc(lb)}<span class="sb">${esc(sb)}</span></span><span class="ar">→</span></button>`;
+  for (const [k, v, href] of t.links || []) h += `<a class="rec" href="${href}"><span class="id">›</span><span class="lb">${esc(v)}<span class="sb">kind: ${k}</span></span><span class="ar">↗</span></a>`;
+  for (const [id, lb, sb] of t.plain || []) h += `<div class="rec"><span class="id">${id}</span><span class="lb">${esc(lb)}<span class="sb">${esc(sb)}</span></span></div>`;
+  el.innerHTML = h + '</div>';
+  erd.appendChild(el); els[name] = el;
+});
+
+/* ---------- wires ---------- */
+const NS = 'http://www.w3.org/2000/svg';
+const wires = FKS.map(([from, col, to]) => {
+  const g = document.createElementNS(NS, 'g'); g.setAttribute('class', 'wire'); g.style.setProperty('--wc', TABLES[from].color === '#FFD400' ? '#15171c' : TABLES[from].color);
+  const ln = document.createElementNS(NS, 'path'), deco = document.createElementNS(NS, 'path'); ln.setAttribute('class', 'ln');
+  g.append(ln, deco); svg.appendChild(g);
+  return { from, col, to, g, ln, deco };
+});
+let stacked = false;
+function draw() {
+  if (stacked) return;
+  const cr = erd.getBoundingClientRect();
+  for (const w of wires) {
+    const A = els[w.from], B = els[w.to];
+    if (A.hidden || B.hidden) { w.g.style.display = 'none'; continue; }
+    w.g.style.display = '';
+    const ar = A.getBoundingClientRect(), br = B.getBoundingClientRect();
+    const rowA = A.querySelector(`[data-col="${w.col}"] .cn`).getBoundingClientRect(), rowB = B.querySelector('.cols li .cn').getBoundingClientRect();
+    const y1 = rowA.top + rowA.height / 2 - cr.top, y2 = rowB.top + rowB.height / 2 - cr.top;
+    let x1, d1, x2, d2;                                   // d = direction the wire leaves the card
+    if (ar.right + 36 < br.left) { x1 = ar.right; d1 = 1; x2 = br.left; d2 = -1; }
+    else if (br.right + 36 < ar.left) { x1 = ar.left; d1 = -1; x2 = br.right; d2 = 1; }
+    else { x1 = ar.right; d1 = 1; x2 = br.right; d2 = 1; } // overlapping columns: loop out on the right
+    x1 -= cr.left; x2 -= cr.left;
+    const k = d1 === d2 ? 70 : Math.max(46, Math.abs(x2 - x1) / 2);
+    const s1 = x1 + d1 * 15, s2 = x2 + d2 * 17;           // straight stubs so the feet stay horizontal
+    w.ln.setAttribute('d', `M${x1},${y1}H${s1}C${s1 + d1 * k},${y1} ${s2 + d2 * k},${y2} ${s2},${y2}H${x2}`);
+    w.deco.setAttribute('d', `M${s1},${y1}L${x1},${y1 - 7}M${s1},${y1}L${x1},${y1 + 7}` +          // crow's foot: many
+      `M${x2 + d2 * 8},${y2 - 7}V${y2 + 7}M${x2 + d2 * 13},${y2 - 7}V${y2 + 7}`);               // double bar: exactly one
+  }
+}
+let loopUntil = 0, looping = false;
+function drawFor(ms) {                                      // keep wires glued on while cards animate
+  loopUntil = performance.now() + ms; if (looping) return; looping = true;
+  (function tick() { draw(); if (performance.now() < loopUntil) requestAnimationFrame(tick); else looping = false; })();
+}
+function fitHeight() {
+  if (stacked) { erd.style.height = ''; return; }
+  let m = 0; for (const el of Object.values(els)) if (!el.hidden) m = Math.max(m, el.offsetTop + el.offsetHeight);
+  erd.style.height = m + 70 + 'px';
+}
+function tidy(animate) {
+  stacked = erd.clientWidth < 1080; erd.classList.toggle('stack', stacked);
+  if (stacked) { for (const el of Object.values(els)) el.style.left = el.style.top = ''; fitHeight(); return; }
+  const W = erd.clientWidth, g = (W - 1020) / 4, xs = [g, g * 2 + 320, g * 3 + 700];
+  const colsOf = [[['projects', 'posts'], 34], [['v', 'contact', 'secrets'], 84], [['jobs', 'skills'], 10]];
+  erd.classList.toggle('tidy', !!animate && !reduced);
+  colsOf.forEach(([names, top], ci) => { let y = top; for (const n of names) { const el = els[n]; if (el.hidden) continue; el.style.left = xs[ci] + 'px'; el.style.top = y + 'px'; y += el.offsetHeight + 60; } });
+  fitHeight(); drawFor(animate ? 700 : 0);
+  if (animate) setTimeout(() => erd.classList.remove('tidy'), 650);
+}
+
+/* ---------- drag + keyboard move ---------- */
+let z = 5;
+function moveTo(el, x, y) {
+  el.style.left = Math.max(0, Math.min(erd.clientWidth - el.offsetWidth, x)) + 'px';
+  el.style.top = Math.max(0, y) + 'px';
+  fitHeight(); draw();
+}
+erd.addEventListener('pointerdown', e => {
+  const th = e.target.closest('.th'); if (!th || stacked || e.button) return;
+  const el = th.parentNode, ox = e.clientX - el.offsetLeft, oy = e.clientY - el.offsetTop;
+  el.style.zIndex = ++z; el.classList.add('drag'); th.setPointerCapture(e.pointerId);
+  const mv = ev => moveTo(el, ev.clientX - ox, ev.clientY - oy);
+  const up = () => { el.classList.remove('drag'); th.removeEventListener('pointermove', mv); th.removeEventListener('pointerup', up); th.removeEventListener('pointercancel', up); };
+  th.addEventListener('pointermove', mv); th.addEventListener('pointerup', up); th.addEventListener('pointercancel', up);
+});
+erd.addEventListener('keydown', e => {
+  const th = e.target.closest('.th'); if (!th || stacked) return;
+  const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key]; if (!d) return;
+  e.preventDefault(); const el = th.parentNode, s = e.shiftKey ? 66 : 22; el.style.zIndex = ++z;
+  moveTo(el, el.offsetLeft + d[0] * s, el.offsetTop + d[1] * s);
+});
+const hot = (name, on) => wires.forEach(w => (w.from === name || w.to === name) && w.g.classList.toggle('hot', on));
+for (const [name, el] of Object.entries(els)) {
+  el.addEventListener('pointerenter', () => hot(name, true)); el.addEventListener('pointerleave', () => hot(name, false));
+  el.addEventListener('focusin', () => hot(name, true)); el.addEventListener('focusout', () => hot(name, false));
+}
+
+/* ---------- toast, FK chips, records ---------- */
+const toastEl = $('#toast'); let toastT;
+function toast(html, ms = 4200) { toastEl.innerHTML = html; toastEl.classList.add('on'); clearTimeout(toastT); toastT = setTimeout(() => toastEl.classList.remove('on'), ms); }
+function flash(el) { el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash'); setTimeout(() => el.classList.remove('flash'), 950); }
+
+const drawer = $('#drawer'); let lastFocus;
+function openRec(t, id) {
+  const r = RECORDS[t][id]; if (!r) return;
+  drawer.style.setProperty('--tc', TABLES[t].color);
+  $('#dq').textContent = `SELECT * FROM ${t} WHERE id = ${id};`;
+  $('#dt').textContent = r.title;
+  $('#dk').innerHTML = r.kv.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('');
+  $('#dp').innerHTML = r.body + (r.link ? `<a class="more" href="${r.link[0]}">${r.link[1]}</a>` : '');
+  lastFocus = document.activeElement; document.body.classList.add('open'); $('.db').scrollTop = 0;
+  setTimeout(() => $('#dx').focus(), 30);
+}
+function closeRec() { if (!document.body.classList.contains('open')) return; document.body.classList.remove('open'); lastFocus && lastFocus.focus(); }
+$('#dx').onclick = closeRec; $('#scrim').onclick = closeRec;
+drawer.addEventListener('keydown', e => {                    // keep Tab inside the dialog
+  if (e.key !== 'Tab') return; const f = drawer.querySelectorAll('button,a[href]'); if (!f.length) return;
+  if (e.shiftKey && document.activeElement === f[0]) { e.preventDefault(); f[f.length - 1].focus(); }
+  else if (!e.shiftKey && document.activeElement === f[f.length - 1]) { e.preventDefault(); f[0].focus(); }
+});
+
+erd.addEventListener('click', e => {
+  const rec = e.target.closest('[data-rec]'); if (rec) { const [t, id] = rec.dataset.rec.split(':'); return openRec(t, id); }
+  const fk = e.target.closest('.fkref'); if (fk) { const el = els[fk.dataset.ref]; el.scrollIntoView({ block: stacked ? 'start' : 'nearest', behavior: reduced ? 'auto' : 'smooth' }); flash(el); el.querySelector('.th').focus({ preventScroll: true }); return; }
+  if (e.target.id === 'coffee') {                             // egg 4
+    const c = e.target, over = c.textContent[0] !== '-'; c.textContent = over ? '-9223372036854775808' : '9223372036854775807';
+    toast(over ? '<b>ERROR:</b> bigint out of range. Switching to tea was considered and rejected.' : '<b>ROLLBACK.</b> We do not talk about 2019.');
+  }
+});
+
+/* egg 1: double-click a column type */
+const ALT = { TEXT: 'VARCHAR(42)', INT: 'BIGINT /* just in case */', DATE: 'TIMESTAMPTZ /* always */', BOOL: 'TRISTATE /* true, false, it depends */', BIGINT: 'NUMERIC(∞)', DATERANGE: 'TEXT /* "a while" */' };
+erd.addEventListener('dblclick', e => {
+  const c = e.target.closest('.ctype'); if (!c) return;
+  const t = c.closest('.tbl').dataset.t, col = c.parentNode.dataset.col, back = c.classList.contains('altered');
+  c.textContent = back ? c.dataset.o : (ALT[c.dataset.o] || 'JSONB /* gave up */'); c.classList.toggle('altered', !back);
+  toast(back ? `<b>ROLLBACK;</b> ${t}.${col} is ${c.dataset.o} again. Nobody saw anything.` : `<b>ALTER TABLE</b> ${t} <b>ALTER COLUMN</b> ${col} <b>TYPE</b> ${esc(c.textContent)}; — 0 rows affected, 1 DBA upset.`);
+  draw();
+});
+
+/* eggs 2 + 3: pending migrations (and typing \d+) */
+function applied(btn) { if (!btn) return; const st = btn.closest('li').lastElementChild; st.className = 'st'; st.textContent = 'applied · just now'; btn.replaceWith(btn.textContent); }
+function reveal(name) { const el = els[name]; el.hidden = false; el.style.animation = 'none'; }
+const MIG = {
+  secrets() {
+    if (!els.secrets.hidden) return toast('<b>NOTICE:</b> relation "secrets" already exists, skipping.');
+    reveal('secrets'); applied($('[data-mig="secrets"]')); $('#count').textContent = '7 tables · 7 relations';
+    if (!stacked) { const v = els.contact; els.secrets.style.left = v.style.left; els.secrets.style.top = v.offsetTop + v.offsetHeight + 60 + 'px'; }
+    fitHeight(); drawFor(300); flash(els.secrets); els.secrets.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' });
+    toast('<b>CREATE TABLE</b> secrets; — 42 rows. You were not supposed to find this.');
+  },
+  towel() {
+    if ($('[data-col="towel"]')) return toast('<b>NOTICE:</b> column "towel" already exists. Of course it does.');
+    const li = document.createElement('li'); li.dataset.col = 'towel'; li.className = 'new';
+    li.innerHTML = '<span class="k" style="visibility:hidden">X</span><span class="cn">towel</span><span class="ctype" data-o="BOOL">BOOL</span><span class="val">true — he knows where it is</span>';
+    els.v.querySelector('.cols').appendChild(li); applied($('[data-mig="towel"]'));
+    if (!stacked) tidy(true); flash(els.v); els.v.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' });
+    toast('<b>ALTER TABLE</b> v <b>ADD COLUMN</b> towel BOOL NOT NULL DEFAULT true; — mostly harmless migration.');
+  }
+};
+$('#mig').addEventListener('click', e => { const b = e.target.closest('[data-mig]'); if (b) MIG[b.dataset.mig](); });
+let typed = '';
+addEventListener('keydown', e => {
+  if (e.key === 'Escape') return closeRec();
+  if (e.key.length !== 1) return;
+  typed = (typed + e.key).slice(-3); if (typed === '\\d+') MIG.secrets();
+});
+
+$('#tidy').onclick = () => { tidy(true); toast(stacked ? 'Already tidy. Stacked layouts do not negotiate.' : '<b>VACUUM FULL;</b> — diagram tidied.', 2200); };
+let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => tidy(false), 120); });
+tidy(false); drawFor(reduced ? 0 : 1300); erd.classList.add('ready');
+document.fonts && document.fonts.ready.then(() => { tidy(false); });
+})();
+</script>
+
+<div id="vnav" style="position:fixed;right:12px;bottom:12px;z-index:99999;font:12px/1 ui-monospace,Menlo,monospace;background:#111;color:#fff;border-radius:999px;padding:8px 12px;display:flex;gap:10px;align-items:center;box-shadow:0 2px 10px rgba(0,0,0,.3)"><a href="04-pipeline.html" style="color:#FFD400;text-decoration:none" aria-label="Previous variation">‹</a><a href="index.html" style="color:#fff;text-decoration:none">05/20 · schema-erd</a><a href="06-commander.html" style="color:#FFD400;text-decoration:none" aria-label="Next variation">›</a></div>
+</body>
+</html>

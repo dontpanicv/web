@@ -1,0 +1,625 @@
+<!doctype html>
+<!--
+  14 · GIT LOG — life and work as a git history. Branches are topics, commits are jobs, projects and posts,
+  posts are tagged releases with release notes (the reading view).
+  Signature interaction: the branch switcher (chips or the project cards) filters the history to one branch and the
+    SVG commit graph redraws itself; every commit expands (native <details>, so Enter/Space work) into prose plus a
+    tasteful diff.
+  Easter eggs:
+    1. "blame" toggle in the toolbar (or press b)   → every paragraph is annotated with who is really responsible (coffee, 3am-me…).
+    2. "git push --force" button                    → the history shakes, then the remote refuses.
+    3. Press r, or click the "17 commits" counter   → the hidden reflog appears.
+    4. Commit 4242424 "add towel"                   → open it. Mostly harmless. Do not revert.
+    5. "bisect" in the toolbar                      → a four-step game to find the commit that introduced panic.
+    6. README badges                                → click "towel: present".
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dontpanicv / life — git log</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Figtree:ital,wght@0,400;0,600;0,700;1,400&family=Fraunces:ital,opsz,wght@0,9..144,500;0,9..144,700;1,9..144,500&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f4ede1; --card:#fffaf1; --ink:#2a2320; --mute:#6b6053; --rule:#dfd2bb; --yellow:#FFD400;
+  --main:#2a2320; --keboola:#1c8571; --meiro:#c4501c; --golem:#9a6c1f; --shadow:#4a4e96; --mycroft:#ad2468;
+  --disp:'Fraunces',Georgia,'Times New Roman',serif;
+  --body:'Figtree',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --mono:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,Consolas,monospace;
+  --gw:150px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;color:var(--ink);font:400 17.5px/1.65 var(--body);background:var(--paper) radial-gradient(#00000012 1px,#0000 1.2px) 0 0/22px 22px;-webkit-font-smoothing:antialiased}
+a{color:var(--meiro);text-underline-offset:3px;text-decoration-thickness:1px}
+a:hover{color:var(--ink)}
+:focus-visible{outline:2.5px solid var(--ink);outline-offset:3px;border-radius:4px}
+button{font:inherit;color:inherit;cursor:pointer}
+code,kbd{font-family:var(--mono);font-size:.86em}
+.wrap{max-width:1180px;margin:0 auto;padding:0 28px}
+
+/* repo header */
+.repo{padding:30px 0 22px;display:flex;flex-wrap:wrap;gap:14px 28px;align-items:flex-end;justify-content:space-between;border-bottom:2px solid var(--ink)}
+.crumb{margin:0;font:500 clamp(34px,5vw,58px)/1 var(--disp);letter-spacing:-.02em}
+.crumb span{color:var(--mute);font-weight:500}
+.crumb .slash{color:var(--meiro);padding:0 .12em}
+.crumb sup{display:inline-block;vertical-align:.9em;margin-left:10px;padding:4px 9px;border:1.5px solid var(--ink);border-radius:999px;font:600 11.5px/1 var(--mono);letter-spacing:.04em}
+.desc{margin:10px 0 0;max-width:56ch;color:var(--mute);font-size:18px}
+.hright{display:grid;gap:10px;justify-items:end}
+.mini{width:380px;max-width:100%;height:auto;display:block}
+.mini path{fill:none;stroke-width:3;stroke-linecap:round}
+.mini text{font:10.5px var(--mono);fill:var(--mute);text-anchor:middle}
+.stats{display:flex;flex-wrap:wrap;gap:8px;font:13.5px/1 var(--mono)}
+.stats>*{display:inline-flex;align-items:center;gap:7px;padding:9px 12px;border:1.5px solid var(--rule);border-radius:8px;background:var(--card)}
+.stats b{font-weight:600}
+#nc{border-color:var(--rule)}
+#nc:hover{border-color:var(--ink)}
+
+/* top grid: README + side */
+.top{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:26px;padding:26px 0 8px;align-items:start}
+.file{background:var(--card);border:1.5px solid var(--ink);border-radius:12px;box-shadow:5px 5px 0 var(--ink);overflow:hidden}
+.file>h2{margin:0;padding:10px 18px;border-bottom:1.5px solid var(--ink);font:600 13.5px/1 var(--mono);letter-spacing:.02em;display:flex;justify-content:space-between;gap:12px;background:#fbf2df}
+.file>h2 span{color:var(--mute);font-weight:400}
+.md{padding:22px 26px 24px}
+.md h1{margin:0 0 10px;font:700 clamp(34px,4vw,46px)/1.04 var(--disp);letter-spacing:-.02em}
+.md h1 mark{background:linear-gradient(transparent 58%,var(--yellow) 58% 92%,transparent 92%);color:inherit;padding:0 .06em}
+.md p{margin:0 0 .95em;max-width:62ch}
+.md .lead{font:italic 500 22px/1.4 var(--disp);color:var(--ink)}
+.badges{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 0;padding:0;list-style:none;font:12.5px/1 var(--mono)}
+.badges li,.badges button{display:inline-flex;border-radius:5px;overflow:hidden;border:0;padding:0;background:none}
+.badges span{padding:6px 8px;background:var(--ink);color:var(--paper)}
+.badges b{padding:6px 8px;background:var(--keboola);color:#fff;font-weight:600}
+.badges .y b{background:var(--yellow);color:var(--ink)}
+.badges .r b{background:var(--meiro)}
+.side h2{margin:0 0 10px;font:600 13px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--mute)}
+.branches{display:grid;gap:10px;margin:0 0 24px;padding:0;list-style:none}
+.bcard{display:block;width:100%;text-align:left;padding:13px 15px 13px 18px;background:var(--card);border:1.5px solid var(--rule);border-left:6px solid var(--c);border-radius:10px;transition:transform .15s,border-color .15s}
+.bcard:hover,.bcard[aria-pressed="true"]{border-color:var(--ink);border-left-color:var(--c);transform:translateX(3px)}
+.bcard strong{font:700 21px/1.1 var(--disp);letter-spacing:-.01em}
+.bcard em{float:right;font:12px/1.6 var(--mono);font-style:normal;color:var(--mute)}
+.bcard span{display:block;margin-top:3px;color:var(--mute);font-size:15.5px;line-height:1.45}
+.rels{margin:0;padding:0;list-style:none}
+.rels li{padding:10px 0;border-top:1.5px dashed var(--rule);line-height:1.4}
+.rels li:first-child{border-top:0;padding-top:0}
+.rels a{font-weight:600;color:var(--ink);text-decoration:none}
+.rels a:hover{text-decoration:underline}
+.rels small{display:block;margin-top:3px;font:12.5px/1.3 var(--mono);color:var(--mute)}
+.tag{display:inline-block;padding:3px 8px;border-radius:999px;background:var(--yellow);color:var(--ink);font:600 12px/1.3 var(--mono);white-space:nowrap}
+.tag.wip{background:none;border:1.5px dashed var(--mute);color:var(--mute)}
+
+/* history */
+.hhead{display:flex;flex-wrap:wrap;gap:12px 18px;align-items:center;justify-content:space-between;margin:34px 0 14px}
+.hhead h2{margin:0;font:700 34px/1 var(--disp);letter-spacing:-.02em}
+.tools{display:flex;flex-wrap:wrap;gap:8px;font:13px/1 var(--mono)}
+.tools button{padding:9px 12px;background:var(--card);border:1.5px solid var(--ink);border-radius:8px;box-shadow:2px 2px 0 var(--ink)}
+.tools button:hover{transform:translate(-1px,-1px);box-shadow:3px 3px 0 var(--ink)}
+.tools button:active{transform:translate(2px,2px);box-shadow:none}
+.tools button[aria-pressed="true"]{background:var(--ink);color:var(--paper)}
+.tools .danger{border-color:var(--meiro);color:var(--meiro);box-shadow:2px 2px 0 var(--meiro)}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 20px;padding:0;list-style:none;font:13.5px/1 var(--mono)}
+.chips button{display:inline-flex;align-items:center;gap:8px;padding:8px 12px;background:none;border:1.5px solid var(--rule);border-radius:999px}
+.chips button::before{content:"";width:10px;height:10px;border-radius:50%;background:var(--c,var(--mute))}
+.chips button small{font-size:12px;color:var(--mute)}
+.chips button:hover{border-color:var(--ink)}
+.chips button[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:var(--paper)}
+.chips button[aria-pressed="true"] small{color:#cfc4b2}
+
+.log{position:relative;padding-left:var(--gw)}
+#graph{position:absolute;left:0;top:0;width:var(--gw);overflow:visible;pointer-events:none}
+#graph path{fill:none;stroke-width:3;stroke-linecap:round}
+#graph .edges path{stroke-dasharray:1;stroke-dashoffset:var(--o,0)}
+#graph circle{stroke:var(--paper);stroke-width:3}
+.commits{margin:0;padding:0;list-style:none}
+.commit{border-top:1.5px solid var(--rule);transition:opacity .25s}
+.commit:first-child{border-top:0}
+.commit[hidden]{display:none}
+.commit.dim{opacity:.32}
+.commit.testing{outline:2.5px solid var(--ink);outline-offset:-1px;border-radius:10px;background:var(--card)}
+summary{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:4px 14px;padding:14px 10px 14px 4px;cursor:pointer;list-style:none;border-radius:8px}
+summary::-webkit-details-marker{display:none}
+summary:hover{background:#00000008}
+.msg{font-weight:600;font-size:18.5px;line-height:1.35}
+.msg::before{content:"▸";display:inline-block;width:1.1em;color:var(--mute);transition:transform .15s}
+details[open]>summary .msg::before{transform:rotate(90deg)}
+.msg i{font:400 .82em var(--mono);font-style:normal;color:var(--c);margin-right:.35em}
+.refs{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-end;align-items:flex-start}
+.ref{display:inline-block;padding:3px 8px;border-radius:5px;background:var(--c);color:#fff;font:600 12px/1.3 var(--mono);white-space:nowrap}
+.ref.head{background:var(--ink)}
+.sub{grid-column:1/-1;padding-left:1.25em;font:13px/1.4 var(--mono);color:var(--mute)}
+.sub code{color:var(--ink);font-weight:600;font-size:13px}
+.body{padding:2px 10px 24px 1.5em;max-width:calc(66ch + 1.5em)}
+.body p{margin:0 0 .95em}
+.diff{margin:4px 0 16px;padding:0;list-style:none;border-radius:8px;overflow:hidden;border:1.5px solid var(--rule);font:14px/1.55 var(--mono)}
+.diff li{padding:5px 12px 5px 34px;position:relative;background:#e4f0dc;color:#1c4a18}
+.diff li::before{content:"+";position:absolute;left:12px;font-weight:600}
+.diff .del{background:#f7ddd3;color:#7a2410}
+.diff .del::before{content:"−"}
+.diff .ctx{background:var(--card);color:var(--mute)}
+.diff .ctx::before{content:" "}
+.links{display:flex;flex-wrap:wrap;gap:8px 18px;font:13.5px/1.4 var(--mono);margin:0}
+.b-main{--c:var(--main)}.b-keboola{--c:var(--keboola)}.b-meiro{--c:var(--meiro)}.b-golem{--c:var(--golem)}.b-shadow{--c:var(--shadow)}.b-mycroft{--c:var(--mycroft)}
+
+/* release notes = the reading view */
+.notes{margin:6px 0 18px;padding:28px clamp(18px,3vw,34px) 26px;background:var(--card);border:1.5px solid var(--ink);border-radius:12px;box-shadow:5px 5px 0 var(--yellow)}
+.notes .k{margin:0 0 10px;font:600 12.5px/1 var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--meiro)}
+.notes h3{margin:0 0 16px;font:700 clamp(27px,3.2vw,36px)/1.12 var(--disp);letter-spacing:-.02em}
+.notes p{font-size:18.5px;line-height:1.72;margin:0 0 1.05em}
+.notes pre{margin:0 0 1.1em;padding:14px 16px;border-radius:8px;background:var(--ink);color:#f4ede1;font:13.5px/1.6 var(--mono);white-space:pre-wrap;overflow-wrap:anywhere}
+.notes pre i{color:var(--yellow);font-style:normal}
+
+/* blame */
+body.blame [data-blame]{border-left:3px solid var(--yellow);padding-left:12px;margin-left:-15px}
+body.blame [data-blame]::before{content:"blame › " attr(data-blame);display:block;font:12px/1.5 var(--mono);color:var(--mute)}
+
+/* reflog, bisect, terminal */
+.panel{margin:0 0 18px;padding:16px 18px;border-radius:12px;background:var(--ink);color:#f4ede1;font:14px/1.7 var(--mono)}
+.panel[hidden]{display:none}
+.panel h3{margin:0 0 6px;font:600 13px/1 var(--mono);letter-spacing:.1em;color:var(--yellow);text-transform:uppercase}
+.panel ol{margin:0;padding:0;list-style:none}
+.panel b{color:var(--yellow);font-weight:600}
+.panel button{margin:10px 8px 0 0;padding:8px 12px;border:1.5px solid #f4ede1;border-radius:8px;background:none;color:#f4ede1;font:13px/1 var(--mono)}
+.panel button:hover{background:#f4ede1;color:var(--ink)}
+#bisect{position:sticky;top:10px;z-index:30;box-shadow:0 10px 30px #0004}
+#bres.ok{color:#9be29a}#bres.bad{color:#ff9d7a}
+#term{position:fixed;left:16px;bottom:16px;z-index:9000;width:min(500px,calc(100vw - 32px));margin:0;opacity:0;transform:translateY(10px);transition:.25s;pointer-events:none;white-space:pre-wrap;box-shadow:0 10px 30px #0005}
+#term.on{opacity:1;transform:none}
+.shake{animation:shake .6s cubic-bezier(.3,.1,.3,1)}
+
+/* contact */
+.contrib{margin:44px 0 90px}
+.contrib .md{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:10px 34px;align-items:center}
+.contrib ul{margin:0;padding:0;list-style:none;font:15px/1 var(--mono)}
+.contrib li{display:grid;grid-template-columns:9ch 1fr;padding:11px 0;border-top:1.5px dashed var(--rule)}
+.contrib li:first-child{border-top:0}
+.contrib li span{color:var(--mute)}
+.contrib h3{margin:0 0 8px;font:700 32px/1.05 var(--disp);letter-spacing:-.02em}
+
+@keyframes shake{10%{transform:translateX(-9px) rotate(-.4deg)}25%{transform:translateX(8px) rotate(.4deg)}40%{transform:translateX(-6px)}55%{transform:translateX(5px)}70%{transform:translateX(-3px)}85%{transform:translateX(2px)}}
+
+@media (max-width:900px){
+  .hright{justify-items:start}
+  .top{grid-template-columns:minmax(0,1fr)}
+  .contrib .md{grid-template-columns:minmax(0,1fr)}
+}
+@media (max-width:640px){
+  :root{--gw:66px}
+  body{font-size:17px}
+  .wrap{padding:0 14px}
+  .md{padding:18px 16px 20px}
+  .file{box-shadow:3px 3px 0 var(--ink)}
+  summary{grid-template-columns:minmax(0,1fr);padding-right:0}
+  .refs{justify-content:flex-start;padding-left:1.25em}
+  .msg{font-size:17.5px}
+  .body{padding-right:0;padding-left:.4em}
+  .notes{margin-left:calc(-1 * var(--gw) + 2px);position:relative;z-index:2}
+  .notes p{font-size:18px}
+  body.blame [data-blame]{margin-left:-9px;padding-left:6px}
+  .bcard em{float:none;display:block}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="repo">
+    <div>
+      <h1 class="crumb"><span>dontpanicv</span><span class="slash">/</span>life<sup>public · append-only</sup></h1>
+      <p class="desc">The working history of Vojtěch “V” Kurka — Head of R&amp;D &amp; co-founder at Meiro, Brno. Nothing here has ever been rebased.</p>
+    </div>
+    <div class="hright">
+    <svg class="mini" viewBox="0 0 380 78" role="img" aria-label="Branch overview: keboola merged into main in 2018; meiro, golem, shadow and mycroft still open">
+      <path d="M6 58H374" stroke="var(--main)"/>
+      <path d="M38 58C54 58 54 42 70 42H118C134 42 134 58 150 58" stroke="var(--keboola)"/>
+      <path d="M150 58C168 58 166 26 184 26H374" stroke="var(--meiro)"/>
+      <path d="M296 58C308 58 308 46 320 46H374" stroke="var(--golem)"/>
+      <path d="M330 46C340 46 338 36 348 36H374" stroke="var(--shadow)"/>
+      <path d="M296 58C312 58 306 10 322 10H374" stroke="var(--mycroft)"/>
+      <g class="dots"><circle cx="6" cy="58" r="4" fill="var(--main)"/><circle cx="38" cy="58" r="4" fill="var(--main)"/><circle cx="94" cy="42" r="4" fill="var(--keboola)"/><circle cx="150" cy="58" r="5.500" fill="var(--yellow)" stroke="var(--ink)"/><circle cx="236" cy="26" r="4" fill="var(--meiro)"/><circle cx="264" cy="58" r="5.500" fill="var(--yellow)" stroke="var(--ink)"/><circle cx="296" cy="58" r="5.500" fill="var(--yellow)" stroke="var(--ink)"/><circle cx="330" cy="26" r="4" fill="var(--meiro)"/><circle cx="346" cy="10" r="4" fill="var(--mycroft)"/><circle cx="352" cy="46" r="4" fill="var(--golem)"/><circle cx="366" cy="36" r="4" fill="var(--shadow)"/><circle cx="374" cy="58" r="4" fill="var(--main)"/></g>
+      <text x="38" y="75">2015</text><text x="150" y="75">2018</text><text x="236" y="75">2024</text><text x="330" y="75">2026</text>
+    </svg>
+    <div class="stats">
+      <button id="nc" title="commits"><b>17</b> commits</button>
+      <span><b>6</b> branches</span>
+      <span><b>3</b> tags</span>
+    </div>
+    </div>
+  </header>
+
+  <section class="top">
+    <article class="file readme">
+      <h2>README.md <span>about</span></h2>
+      <div class="md">
+        <h1>Don't <mark>Panic</mark>, V!</h1>
+        <p class="lead" data-blame="V, in one line · GitHub bio">“I write code no one wants to read, but everyone needs to have. Data whatever.”</p>
+        <p data-blame="curiosity · since forever">I like knowing how things work — from CPUs and protocols to databases and containers. Almost ten years of building a data platform in production taught me most of it.</p>
+        <p data-blame="debugging production · 03:12">Some of it I picked up out of curiosity, the rest by debugging production. The domains that stuck: customer data infrastructure, identity resolution and real-time pipelines.</p>
+        <p data-blame="a local Qwen · last night">Now I spend that curiosity on AI: local models, agentic workflows, and getting it all into production for real customers, not just demos.</p>
+        <p data-blame="whoever asked the question" style="margin-bottom:0">If I can't explain it to someone else, I don't understand it yet. Teaching is how I verify I actually understand something.</p>
+        <ul class="badges" aria-label="Status badges">
+          <li><span>build</span><b>passing</b></li>
+          <li class="r"><span>coffee</span><b>required</b></li>
+          <li><span>status</span><b>mostly harmless</b></li>
+          <li class="y"><button id="towel" aria-label="towel: present"><span>towel</span><b>present</b></button></li>
+        </ul>
+      </div>
+    </article>
+
+    <aside class="side">
+      <h2>Active branches · projects</h2>
+      <ul class="branches">
+        <li><button class="bcard" style="--c:var(--mycroft)" data-filter="mycroft" aria-pressed="false"><strong>mycroft</strong><em>Swift · ★ 41</em><span>A self-modifying, durable agent that lives on your iPhone. Brain on the phone, hands on your machines.</span></button></li>
+        <li><button class="bcard" style="--c:var(--golem)" data-filter="golem" aria-pressed="false"><strong>golem</strong><em>TypeScript</em><span>Family AI assistant and second brain on our own machines. No cloud, no central server.</span></button></li>
+        <li><button class="bcard" style="--c:var(--shadow)" data-filter="shadow" aria-pressed="false"><strong>shadow</strong><em>TypeScript</em><span>A shadow company for your team: every employee gets an agent that reads their Slack and mail.</span></button></li>
+        <li><button class="bcard" style="--c:var(--meiro)" data-filter="meiro" aria-pressed="false"><strong>meiro</strong><em>since 2018</em><span>The day job. Customer data infrastructure: Pipes, Engage and the AI Analyst.</span></button></li>
+      </ul>
+      <h2>Releases · writing</h2>
+      <ul class="rels">
+        <li><a href="#c-rel2" data-open="c-rel2">Beyond the Tool-Calling Loop: How We Built an AI Analyst with Bash, a Mounted Filesystem, and a JSON Renderer</a><small><span class="tag">post/2026-04-29</span></small></li>
+        <li><a href="#c-rel1" data-open="c-rel1">Stop Letting AI Agents Guess Where Code Goes</a><small><span class="tag">post/2026-02-10</span></small></li>
+        <li><a href="#c-wip" data-open="c-wip">Claude Code vs Codex: Same Coding AI, Different People</a><small><span class="tag wip">draft · uncommitted</span></small></li>
+      </ul>
+    </aside>
+  </section>
+
+  <section aria-labelledby="hh">
+    <div class="hhead">
+      <h2 id="hh">History</h2>
+      <div class="tools">
+        <button id="xall" aria-pressed="false">expand all</button>
+        <button id="blame" aria-pressed="false">blame</button>
+        <button id="bis">bisect</button>
+        <button id="force" class="danger">git push --force</button>
+      </div>
+    </div>
+    <ul class="chips" id="chips" aria-label="Filter history by branch">
+      <li><button data-filter="all" aria-pressed="true">all branches</button></li>
+      <li><button data-filter="main" style="--c:var(--main)" aria-pressed="false">main <small>writing &amp; life</small></button></li>
+      <li><button data-filter="mycroft" style="--c:var(--mycroft)" aria-pressed="false">mycroft</button></li>
+      <li><button data-filter="golem" style="--c:var(--golem)" aria-pressed="false">golem</button></li>
+      <li><button data-filter="shadow" style="--c:var(--shadow)" aria-pressed="false">shadow</button></li>
+      <li><button data-filter="meiro" style="--c:var(--meiro)" aria-pressed="false">meiro <small>day job</small></button></li>
+      <li><button data-filter="keboola" style="--c:var(--keboola)" aria-pressed="false">keboola <small>merged 2018</small></button></li>
+    </ul>
+
+    <div class="panel" id="reflog" hidden>
+      <h3>git reflog — you were not supposed to find this</h3>
+      <ol>
+        <li><b>4242424</b> HEAD@{0}: commit: add towel</li>
+        <li><b>0c0ffee</b> HEAD@{1}: commit (amend): drink coffee, amend opinion</li>
+        <li><b>badc0de</b> HEAD@{2}: reset: moving to "it worked on my machine"</li>
+        <li><b>deadbee</b> HEAD@{3}: checkout: moving from friday-deploy to main (wisely)</li>
+        <li><b>f005ba1</b> HEAD@{4}: rebase (abort): started explaining Kafka at a party</li>
+        <li><b>0000042</b> HEAD@{5}: commit: answer question; question not found</li>
+      </ol>
+    </div>
+
+    <div class="panel" id="bisect" hidden aria-live="polite">
+      <h3>git bisect — find the commit that introduced panic</h3>
+      <div id="bmsg"></div>
+      <div id="bres"></div>
+      <div id="bbtn"><button id="bgood">git bisect good</button><button id="bbad">git bisect bad</button><button id="breset">reset</button></div>
+    </div>
+
+    <div class="log" id="log">
+      <svg id="graph" aria-hidden="true"></svg>
+      <ol class="commits" id="commits">
+
+        <li class="commit b-main" id="c-wip" data-branch="main" data-parents="head" data-kind="wip">
+          <details>
+            <summary><span class="msg"><i>wip</i>Uncommitted changes: one draft, one stash</span><span class="refs"><span class="tag wip">working tree</span></span><span class="sub"><code>·······</code> · not yet · V</span></summary>
+            <div class="body">
+              <p data-blame="procrastination · ongoing"><strong>Claude Code vs Codex: Same Coding AI, Different People</strong> (draft). Why the two aren't interchangeable: prompting style and ambiguity tolerance shape the outcome more than the model name does.</p>
+              <p data-blame="a bad idea that might be good"><strong>stash@{0}: Gaslighting Coding Agents for Better Security</strong>. Tell an agent, as fact, that a pentester already got RCE, and let it work out how. It isn't true. The agent doesn't know that.</p>
+              <ul class="diff"><li class="ctx">posts/claude-code-vs-codex.md</li><li>status: draft</li><li class="del">status: published</li></ul>
+            </div>
+          </details>
+        </li>
+
+        <li class="commit b-main" id="c-head" data-branch="main" data-parents="rel2">
+          <details>
+            <summary><span class="msg"><i>chore(web):</i>move dontpanicv.com to static hosting, rm nginx.conf</span><span class="refs"><span class="ref head">HEAD → main</span></span><span class="sub"><code>cf0a9e5</code> · 2026 · V</span></summary>
+            <div class="body">
+              <p data-blame="a server nobody wanted to babysit">The site you are reading. Static files at the edge, no server to keep alive, and one fewer thing that can page anyone at night.</p>
+              <ul class="diff"><li class="del">nginx.conf</li><li>static files, served from the edge</li><li>this history, as a design experiment</li></ul>
+            </div>
+          </details>
+        </li>
+
+        <li class="commit b-shadow" id="c-shadow" data-branch="shadow" data-parents="golem">
+          <details>
+            <summary><span class="msg"><i>feat:</i>Shadow — a shadow company for your team</span><span class="refs"><span class="ref">shadow</span></span><span class="sub"><code>5bad0e5</code> · 2026 · V · branched from golem</span></summary>
+            <div class="body">
+              <p data-blame="an unread Slack channel">Every employee gets a shadow: an AI agent that reads their Slack and mail, keeps track of what each conversation asks of them, and helps them do the work when they ask.</p>
+              <p data-blame="3am-me">It lives in Slack and stays quiet. It notifies you only when you must act or when you asked for it. It runs on your own server: one SQLite database, Markdown files, and no cloud service between your company and its data.</p>
+              <ul class="diff"><li>a shadow for every employee</li><li>tracks what is asked of you, nudges until it is dealt with</li><li>asks before it sends mail or a message as you</li><li class="del">reading every message to know what is happening</li></ul>
+              <p class="links"><a href="https://github.com/dontpanicv/shadow">github.com/dontpanicv/shadow ↗</a></p>
+            </div>
+          </details>
+        </li>
+
+        <li class="commit b-golem" id="c-golem" data-branch="golem" data-parents="rel2">
+          <details>
+            <summary><span class="msg"><i>feat:</i>Golem — a family AI assistant made of SQLite and Markdown</span><span class="refs"><span class="ref">golem</span></span><span class="sub"><code>c1a7b0d</code> · 2026 · V</span></summary>
+            <div class="body">
+              <p data-blame="Rabbi Loew (original author)">In Prague legend, Rabbi Loew shaped the Golem from clay to serve and protect his community. This one is made from SQLite and Markdown.</p>
+              <p data-blame="the family group chat">A family AI assistant and second brain that runs on our own machines. One server at home, one app for the whole family on the web, the iPhone and Android. It remembers: topic briefs and learned facts about each person. It does real work on your machines, and it asks before it sends, buys or deletes.</p>
+              <ul class="diff"><li>one assistant for the whole family</li><li>memory: topic briefs + learned facts</li><li>your data stays on your server</li><li class="del">cloud</li><li class="del">central server</li></ul>
+              <p class="links"><a href="https://github.com/dontpanicv/golem">github.com/dontpanicv/golem ↗</a></p>
+            </div>
+          </details>
+        </li>
+
+        <li class="commit b-mycroft" id="c-mycroft" data-branch="mycroft" data-parents="rel2">
+          <details open>
+            <summary><span class="msg"><i>feat:</i>Mycroft — a self-modifying agent that lives on your iPhone</span><span class="refs"><span class="ref">mycroft</span><span class="tag">★ 41</span></span><span class="sub"><code>a11c0de</code> · 2026 · V · Swift</span></summary>
+            <div class="body">
+              <p data-blame="Mycroft Holmes, from the armchair">A self-modifying, durable agent that lives on your iPhone. The brain is on the phone; the hands are on your machines. Mycroft Holmes was the brother who stayed in his armchair while others did the legwork. This one sits in your pocket.</p>
+              <p data-blame="the agent itself (it edits this)">The agent loop, its state and its own source code live on the phone. It edits its own behaviour and its own screen, keeps the known-good generations, and can roll back. <code>hands</code> is a small daemon for macOS and Linux that gives it files, a shell and supervised jobs that keep running when the phone goes offline.</p>
+              <ul class="diff"><li>brain on the phone</li><li>hands on your machines</li><li>edits itself, with rollback</li><li>voice in every thread, one infinite chat with a memory tree</li><li class="del">a server in the middle</li></ul>
+              <p class="links"><a href="https://github.com/dontpanicv/mycroft">github.com/dontpanicv/mycroft ↗</a></p>
+            </div>
+          </details>
+        </li>
+
+        <li class="commit b-main" id="c-rel2" data-branch="main" data-parents="rel1 analyst" data-kind="release">
+          <details open>
+            <summary><span class="msg"><i>release:</i>Beyond the Tool-Calling Loop</span><span class="refs"><span class="tag">post/2026-04-29</span></span><span class="sub"><code>f11e5f5</code> · 2026-04-29 · V · merges meiro/ai-analyst</span></summary>
+            <div class="body">
+              <article class="notes">
+                <p class="k">Release notes · reading view</p>
+                <h3>Beyond the Tool-Calling Loop: How We Built an AI Analyst with Bash, a Mounted Filesystem, and a JSON Renderer</h3>
+                <p data-blame="every AI demo of the last two years">Most AI features built today follow the same recipe: take the Vercel AI SDK, register a handful of tools, write a system prompt, and stream the result into a markdown component. It works. It is also where most teams stop — and where most AI products start to feel limited.</p>
+                <p data-blame="50,000 rows of JSON">The first wall you hit is large tool outputs. Whatever a tool returns goes straight into the model's context. A query that returns 50k rows is now 50k rows of JSON sitting in the conversation, on every subsequent turn, paid for in tokens, and pushing earlier reasoning out of the window. Tool results are a terrible place to put data.</p>
+                <p data-blame="an agreeable model">The second wall is subtler and arrives earlier: metadata bloat. To answer almost any analytical question the model needs to know what exists, and the naive way to expose that is one inventory tool per kind of thing. The model, being agreeable, calls all of them at the start of every conversation “to orient itself”. There is no <code>grep</code>.</p>
+                <p data-blame="a shell, finally">So the Analyst gets one tool, <code>bash</code>, and a filesystem with the inventory already written to disk:</p>
+<pre><i>const</i> workspace = <i>new</i> Bash();
+<i>await</i> workspace.writeFile('/context/inventory.json', JSON.stringify(inventory));
+<i>await</i> workspace.writeFile('/context/instructions.md', customInstructions);</pre>
+                <p data-blame="the renderer">Two more ideas complete it: a SQL execution layer that mounts query results as files instead of returning rows, and a JSON renderer with a predefined component manifest, so the answer arrives as charts and tables rather than a wall of prose.</p>
+                <p style="margin:0"><a href="https://dontpanicv.com/posts/ai-analyst-architecture/">Read the full article →</a></p>
+              </article>
+              <ul class="diff"><li>one tool: bash, on an in-memory filesystem</li><li>SQL results mounted as files</li><li>JSON renderer with a component manifest</li><li class="del">a dozen inventory tools</li><li class="del">50k rows of JSON in the context window</li></ul>
+            </div>
+          </details>
+        </li>
+
+        <li class="commit b-meiro" id="c-analyst" data-branch="meiro" data-parents="role">
+          <details>
+            <summary><span class="msg"><i>feat(ai-analyst):</i>give the agent bash, a filesystem and a renderer</span><span class="refs"><span class="ref">meiro</span></span><span class="sub"><code>0ddba11</code> · 2026 · V &amp; team</span></summary>
+            <div class="body">
+              <p data-blame="streamText() in a trench coat">The AI Analyst in Meiro Engage: an analytical agent that thinks with data instead of drowning in it. As the commit author put it elsewhere: “Your AI doesn't need more tools. It needs fewer tools and a filesystem. Possibly also therapy, but we're starting with the filesystem.”</p>
+              <ul class="diff"><li>competence that scales better than prompt length</li><li class="del">politely vomiting 50k rows of JSON into its own context</li></ul>
+              <p class="links"><a href="https://meiro.io">meiro.io ↗</a></p>
+            </div>
+          </details>
+        </li>
+
+        <li class="commit b-main" id="c-rel1" data-branch="main" data-parents="towel" data-kind="release">
+          <details>
+            <summary><span class="msg"><i>release:</i>Stop Letting AI Agents Guess Where Code Goes</span><span class="refs"><span class="tag">post/2026-02-10</span></span><span class="sub"><code>ab1e5ea</code> · 2026-02-10 · V</span></summary>
+            <div class="body">
+              <p data-blame="an agent that put it in utils/">A modular-monolith refactor designed for AI agents. If the codebase has an obvious answer to “where does this go?”, the agent stops guessing, and so do the humans.</p>
+              <ul class="diff"><li>predictable module layout</li><li>centralized auth</li><li>a strict <code>public.ts</code> boundary per module</li><li class="del">architecture that erodes one helpful commit at a time</li></ul>
+              <p class="links"><a href="https://dontpanicv.com/posts/ai-agents-codebases/">Read the article →</a></p>
+            </div>
+          </details>
+        </li>
+
+        <li class="commit b-main" id="c-towel" data-branch="main" data-parents="merge">
+          <details>
+            <summary><span class="msg"><i>chore:</i>add towel</span><span class="refs"></span><span class="sub"><code>4242424</code> · a Thursday · V</span></summary>
+            <div class="body">
+              <p data-blame="a hitchhiker">Mostly harmless. Do not revert. Several things downstream depend on knowing where it is.</p>
+              <ul class="diff"><li>towel</li><li class="ctx">panic: unchanged (still: don't)</li></ul>
+            </div>
+          </details>
+        </li>
+
+        <li class="commit b-meiro" id="c-role" data-branch="meiro" data-parents="cdp">
+          <details>
+            <summary><span class="msg"><i>refactor(role):</i>CTO → Head of R&amp;D</span><span class="refs"></span><span class="sub"><code>0ffc105</code> · 2024 · V</span></summary>
+            <div class="body">
+              <p data-blame="curiosity (again)">Same company, same co-founder, different job. Less of running everything, more of picking up new technology, understanding how it actually works and figuring out how to apply it.</p>
+              <ul class="diff"><li>Head of R&amp;D &amp; Co-Founder</li><li>local models, agentic workflows, self-learning data analysis tools</li><li class="del">CTO &amp; Co-Founder</li></ul>
+            </div>
+          </details>
+        </li>
+
+        <li class="commit b-meiro" id="c-cdp" data-branch="meiro" data-parents="found">
+          <details>
+            <summary><span class="msg"><i>feat(cdp):</i>Pipes and Engage — customer data infrastructure</span><span class="refs"></span><span class="sub"><code>da7aba5</code> · 2018 – 2024 · V &amp; team</span></summary>
+            <div class="body">
+              <p data-blame="an enterprise customer's edge case">Owned product architecture, development and implementations of the Meiro CDP. <strong>Pipes</strong> is the infrastructure: sources, events, identity and destinations. <strong>Engage</strong> is what you do with it: audiences, journeys and campaigns. Self-hostable, so it is yours to own, control and audit.</p>
+              <ul class="diff"><li>identity resolution</li><li>real-time pipelines</li><li>the edge cases that come with running a CDP for enterprise customers</li></ul>
+            </div>
+          </details>
+        </li>
+
+        <li class="commit b-meiro" id="c-found" data-branch="meiro" data-parents="merge">
+          <details>
+            <summary><span class="msg"><i>feat:</i>co-found Meiro, take the CTO chair</span><span class="refs"></span><span class="sub"><code>2018ace</code> · Sep 2018 · V · Brno</span></summary>
+            <div class="body">
+              <p data-blame="optimism">A new branch, cut from <code>main</code> right after the Keboola merge. It has not been merged back since and shows no sign of wanting to be.</p>
+              <ul class="diff"><li>CTO &amp; Co-Founder, Meiro</li><li class="del">free weekends (see: startup)</li></ul>
+            </div>
+          </details>
+        </li>
+
+        <li class="commit b-main" id="c-merge" data-branch="main" data-parents="fit bali" data-kind="merge">
+          <details>
+            <summary><span class="msg"><i>merge:</i>branch 'keboola' into main</span><span class="refs"><span class="tag">v2018</span></span><span class="sub"><code>d0e5d0e</code> · 2018 · V</span></summary>
+            <div class="body">
+              <p data-blame="three years of other people's data">Three years of data integrations, merged without conflicts. What came with it: how data actually moves, and how it breaks on the way.</p>
+            </div>
+          </details>
+        </li>
+
+        <li class="commit b-keboola" id="c-bali" data-branch="keboola" data-parents="keb">
+          <details>
+            <summary><span class="msg"><i>feat(remote):</i>ship data integrations, partly from Bali</span><span class="refs"><span class="ref">keboola</span></span><span class="sub"><code>ba11ed0</code> · 2015 – 2018 · V · Bali, Indonesia</span></summary>
+            <div class="body">
+              <p data-blame="a hotel wifi">Designed solutions to customer needs and helped teams ship data integrations end to end, including the data transport and transformation problems that only show up with real data.</p>
+              <ul class="diff"><li>timezone: WITA</li><li class="del">stable wifi</li></ul>
+            </div>
+          </details>
+        </li>
+
+        <li class="commit b-keboola" id="c-keb" data-branch="keboola" data-parents="fit">
+          <details>
+            <summary><span class="msg"><i>feat:</i>join Keboola as Solutions Architect, later Head Nerd</span><span class="refs"></span><span class="sub"><code>1e77e25</code> · 2015 · V</span></summary>
+            <div class="body">
+              <p data-blame="whoever prints the business cards">Yes, “Head Nerd” was the title. It has been kept in the bio ever since, on the grounds that it is accurate.</p>
+            </div>
+          </details>
+        </li>
+
+        <li class="commit b-main" id="c-fit" data-branch="main" data-parents="init">
+          <details>
+            <summary><span class="msg"><i>docs:</i>study at VUT FIT, Brno</span><span class="refs"></span><span class="sub"><code>ed0c5ed</code> · before 2015 · V</span></summary>
+            <div class="body">
+              <p data-blame="a compiler course">Brno University of Technology, Faculty of Information Technology. Where “how do CPUs execute instructions” stopped being a rhetorical question.</p>
+            </div>
+          </details>
+        </li>
+
+        <li class="commit b-main" id="c-init" data-branch="main" data-parents="">
+          <details>
+            <summary><span class="msg"><i>init:</i>take things apart to see how they work</span><span class="refs"></span><span class="sub"><code>0000001</code> · the beginning · V</span></summary>
+            <div class="body">
+              <p data-blame="unknown (no history before this point)">Initial commit. CPUs, operating systems, programming languages, databases, containers, proxies, protocols: how do they all fit together? This question has not been closed.</p>
+            </div>
+          </details>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="file contrib" id="contact">
+    <h2>CONTRIBUTING.md <span>contact</span></h2>
+    <div class="md">
+      <div>
+        <h3>Pull requests welcome.</h3>
+        <p style="margin:0">Questions, ideas, a system that behaves strangely in production, or an invitation to explain something on a stage. Open an issue by writing to any of these.</p>
+      </div>
+      <ul>
+        <li><span>email</span><a href="mailto:kurka.vojtech@gmail.com">kurka.vojtech@gmail.com</a></li>
+        <li><span>github</span><a href="https://github.com/dontpanicv">github.com/dontpanicv</a></li>
+        <li><span>x</span><a href="https://x.com/dontpanicv">x.com/dontpanicv</a></li>
+        <li><span>linkedin</span><a href="https://www.linkedin.com/in/kurkavojtech/">linkedin.com/in/kurkavojtech</a></li>
+      </ul>
+    </div>
+  </section>
+</div>
+<pre class="panel" id="term" role="status" aria-live="polite"></pre>
+
+<script>
+(()=>{
+const $=(s,r=document)=>r.querySelector(s),$$=(s,r=document)=>[...r.querySelectorAll(s)];
+const calm=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const log=$('#log'),svg=$('#graph'),rows=$$('.commit');
+const LANE={main:0,keboola:1,meiro:2,golem:3,shadow:4,mycroft:5};
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue('--'+n).trim();
+
+// ---- the graph: measured from the real rows, so it survives filtering, expanding and resizing
+function draw(){
+  const gw=parseFloat(css('gw')),gap=(gw-34)/5,box=log.getBoundingClientRect(),pos={};
+  rows.forEach(r=>{if(r.hidden)return;const s=$('summary',r).getBoundingClientRect();pos[r.id.slice(2)]={x:14+LANE[r.dataset.branch]*gap,y:s.top-box.top+27,r}});
+  let paths='',dots='';
+  for(const id in pos){
+    const c=pos[id],cb=c.r.dataset.branch;
+    c.r.dataset.parents.split(' ').filter(Boolean).forEach((pid,i)=>{
+      const p=pos[pid];if(!p)return;
+      const k=Math.min(26,(p.y-c.y)/2),pb=p.r.dataset.branch;let d,col;
+      if(c.x===p.x){d=`M${c.x} ${c.y}L${p.x} ${p.y}`;col=cb}
+      else if(i>0){d=`M${c.x} ${c.y}Q${p.x} ${c.y} ${p.x} ${c.y+k}L${p.x} ${p.y}`;col=pb}        // merge: curve out, then down the parent's lane
+      else{d=`M${c.x} ${c.y}L${c.x} ${p.y-k}Q${c.x} ${p.y} ${p.x} ${p.y}`;col=cb}                // fork: down the child's lane, curve into the parent
+      paths+=c.r.dataset.kind==='wip'?`<path d="${d}" stroke="${css(col)}" style="stroke-dasharray:2 7;stroke-dashoffset:0;opacity:.6"/>`:`<path pathLength="1" d="${d}" stroke="${css(col)}"/>`;
+    });
+    const kind=c.r.dataset.kind,col=css(cb);
+    dots+=kind==='release'?`<circle cx="${c.x}" cy="${c.y}" r="8" fill="${css('yellow')}" style="stroke:${css('ink')}"/>`
+      :kind==='merge'?`<circle cx="${c.x}" cy="${c.y}" r="8" fill="${col}"/><circle cx="${c.x}" cy="${c.y}" r="2.5" fill="${css('paper')}" style="stroke:none"/>`
+      :kind==='wip'?`<circle cx="${c.x}" cy="${c.y}" r="6" fill="${css('paper')}" style="stroke:${col};stroke-dasharray:3 3"/>`
+      :`<circle cx="${c.x}" cy="${c.y}" r="6.5" fill="${col}"/>`;
+  }
+  svg.setAttribute('height',log.offsetHeight);svg.setAttribute('width',gw);
+  svg.innerHTML=`<g class="edges">${paths}</g>${dots}`;
+}
+// draw-in is timer-driven so it also runs where CSS animation clocks are frozen (background tabs, headless checks)
+function drawIn(){if(calm)return;const t0=Date.now(),id=setInterval(()=>{const p=Math.min(1,(Date.now()-t0)/1300);svg.style.setProperty('--o',(1-p)*(1-p));if(p>=1)clearInterval(id)},33)}
+new ResizeObserver(draw).observe(log);
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(draw);
+draw();drawIn();
+
+// ---- branch filter (chips and project cards share it)
+function filter(b){
+  rows.forEach(r=>r.hidden=b!=='all'&&r.dataset.branch!==b);
+  $$('[data-filter]').forEach(x=>x.setAttribute('aria-pressed',x.dataset.filter===b));
+  draw();drawIn();
+}
+$$('[data-filter]').forEach(x=>x.addEventListener('click',()=>{
+  const on=x.getAttribute('aria-pressed')==='true'&&x.dataset.filter!=='all';
+  filter(on?'all':x.dataset.filter);
+  if(x.classList.contains('bcard')&&!on){$('details',$('.commit:not([hidden])')).open=true;$('#hh').scrollIntoView({behavior:calm?'auto':'smooth',block:'start'})}
+}));
+$$('[data-open]').forEach(a=>a.addEventListener('click',()=>{filter('all');$('details',document.getElementById(a.dataset.open)).open=true}));
+const xall=$('#xall');
+xall.addEventListener('click',()=>{const on=xall.getAttribute('aria-pressed')!=='true';xall.setAttribute('aria-pressed',on);xall.textContent=on?'collapse all':'expand all';$$('.commit details').forEach(d=>d.open=on)});
+
+// ---- terminal toast
+const term=$('#term');let tt;
+function say(lines,hold=4200){clearTimeout(tt);term.textContent='';term.classList.add('on');let i=0;(function next(){if(i<lines.length){term.textContent+=(i?'\n':'')+lines[i++];tt=setTimeout(next,calm?0:420)}else tt=setTimeout(()=>term.classList.remove('on'),hold)})()}
+
+// Egg 1: blame
+const blame=$('#blame');
+function toggleBlame(){const on=!document.body.classList.contains('blame');document.body.classList.toggle('blame',on);blame.setAttribute('aria-pressed',on);if(on)say(['$ git blame life','every line now names who is really responsible.'],2600)}
+blame.addEventListener('click',toggleBlame);
+
+// Egg 2: push --force
+$('#force').addEventListener('click',()=>{
+  log.classList.remove('shake');void log.offsetWidth;log.classList.add('shake');
+  say(['$ git push --force origin life','remote: error: denied. This history is append-only.','remote: hint: you cannot rebase 2019. People have tried.','remote: hint: write a new commit instead. It is the only way anyone ever fixed anything.',' ! [remote rejected] life -> life (don\'t panic)'],5200);
+});
+
+// Egg 3: reflog
+function reflog(){const p=$('#reflog');p.hidden=!p.hidden;if(!p.hidden){p.scrollIntoView({behavior:calm?'auto':'smooth',block:'center'});say(['$ git reflog','the things that never made it into the history.'],2400)}draw()}
+$('#nc').addEventListener('click',reflog);
+
+// Egg 6: towel badge
+let tw=0;$('#towel').addEventListener('click',()=>say([['$ which towel','/home/v/towel'],['$ towel --status','present. always.'],['$ sudo rm towel','rm: refusing. See commit 4242424.']][tw++%3],2600));
+
+// Egg 5: bisect
+const order=['init','fit','keb','bali','merge','found','cdp','role','towel','rel1','analyst','rel2','mycroft','golem','shadow','head'],CULPRIT=5;
+let lo,hi,mid;const bp=$('#bisect'),bmsg=$('#bmsg'),bres=$('#bres'),row=id=>document.getElementById('c-'+id),msg=r=>$('.msg',r).textContent.replace(/:(?=\S)/,': ');
+function bshow(){
+  rows.forEach(r=>{const i=order.indexOf(r.id.slice(2));r.classList.toggle('dim',i<0||i<=lo||i>hi);r.classList.remove('testing')});
+  if(hi-lo<=1){const r=row(order[hi]);r.classList.add('testing');r.classList.remove('dim');$('details',r).open=true;
+    bmsg.innerHTML=`<b>${$('.sub code',r).textContent}</b> is the first bad commit — ${msg(r)}`;
+    bres.className='bad';bres.textContent='Panic was introduced here. So was nearly everything interesting. Resolution: WONTFIX. Don\'t panic.';
+    $('#bgood').hidden=$('#bbad').hidden=true;r.scrollIntoView({behavior:calm?'auto':'smooth',block:'center'});return}
+  mid=Math.floor((lo+hi)/2);const r=row(order[mid]),bad=mid>=CULPRIT;r.classList.add('testing');
+  bmsg.innerHTML=`${hi-lo-1} revision${hi-lo-1>1?'s':''} left to test. Checked out <b>${$('.sub code',r).textContent}</b> — ${msg(r)}`;
+  bres.className=bad?'bad':'ok';bres.textContent='$ ./is-there-panic.sh  →  '+(bad?'✘ PANIC detected':'✔ calm');
+  r.scrollIntoView({behavior:calm?'auto':'smooth',block:'center'});
+}
+function bstart(){filter('all');bp.hidden=false;$('#bgood').hidden=$('#bbad').hidden=false;lo=0;hi=order.length-1;bshow()}
+function banswer(saysBad){if(saysBad!==(mid>=CULPRIT)){bres.textContent+='   ← that is not what the test said. Don\'t panic; read it again.';return}if(saysBad)hi=mid;else lo=mid;bshow()}
+$('#bis').addEventListener('click',bstart);
+$('#bgood').addEventListener('click',()=>banswer(false));
+$('#bbad').addEventListener('click',()=>banswer(true));
+$('#breset').addEventListener('click',()=>{bp.hidden=true;rows.forEach(r=>r.classList.remove('dim','testing'));draw()});
+
+document.addEventListener('keydown',e=>{
+  if(/^(INPUT|TEXTAREA)$/.test(e.target.tagName)||e.metaKey||e.ctrlKey||e.altKey)return;
+  if(e.key==='r')reflog();if(e.key==='b')toggleBlame();
+});
+})();
+</script>
+<div id="vnav" style="position:fixed;right:12px;bottom:12px;z-index:99999;font:12px/1 ui-monospace,Menlo,monospace;background:#111;color:#fff;border-radius:999px;padding:8px 12px;display:flex;gap:10px;align-items:center;box-shadow:0 2px 10px rgba(0,0,0,.3)"><a href="13-spreadsheet.html" style="color:#FFD400;text-decoration:none" aria-label="Previous variation">‹</a><a href="index.html" style="color:#fff;text-decoration:none">14/20 · git-log</a><a href="15-observability.html" style="color:#FFD400;text-decoration:none" aria-label="Next variation">›</a></div>
+</body>
+</html>

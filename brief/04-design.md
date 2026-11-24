@@ -1,5 +1,7 @@
 # Design
 
+> **Current design (2026-11): "Agent Trace".** The homepage headline is a prompt box answered by a model on the visitor's device; the written answer about V sits under it, then tool cards whose results are the content (about, projects, writing, CV), with a right rail showing the context window and the model. No decorative labels. Paper background `#F5F3EC`, ink `#1A1A17`, one accent `#FFD400`; Newsreader for reading, JetBrains Mono for labels. Picked from 20 mockups in `design/variations/` (number 07). The notes below describe the earlier brief and remain as background.
+
 ## Theme / concept
 **"Don’t Panic, V"** is a deliberate Hitchhiker’s Guide to the Galaxy reference.
 The visual identity should nod to the iconic **DON’T PANIC** aesthetic and the **yellow thumbs‑up** motif from the movie, without turning the site into a parody.

@@ -1,22 +1,29 @@
 {
-  "name": "astro",
+  "name": "dontpanicv",
   "type": "module",
   "version": "0.0.1",
   "scripts": {
     "dev": "astro dev",
     "build": "astro build",
-    "build:main": "astro build --outDir ../main",
     "preview": "astro preview",
+    "test": "node src/agent/route.test.ts",
+    "eval:models": "node evals/models.mjs",
+    "eval:page": "node evals/page.mjs",
+    "deploy": "astro build && cf deploy ./dist",
     "astro": "astro"
   },
   "dependencies": {
+    "@earendil-works/chord": "^1.5.2",
+    "@earendil-works/pi-ai": "^1.5.2",
+    "@earendil-works/pi-durable": "^1.5.2",
+    "@huggingface/transformers": "^4.3.2",
     "@iconify-json/lucide": "^1.2.89",
     "@iconify-json/simple-icons": "^1.2.69",
     "astro": "^5.16.15",
     "astro-icon": "^1.1.5"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.1.18",
-    "tailwindcss": "^4.1.18"
+    "cf": "^1.0.0-rc.2",
+    "puppeteer-core": "^24.43.1"
   }
 }

@@ -1,0 +1,15 @@
+---
+// The short answer to "who is V and what is he building?", with the ways to reach him.
+import { contact } from '../../data/profile';
+---
+
+<section class="lead-answer" id="contact">
+  <div class="answer">
+    <p>V is <strong>Vojtěch Kurka</strong>: co-founder and Head of R&amp;D at Meiro in Brno, a backend and data person who wants to understand systems end to end — some of it picked up out of curiosity, the rest by debugging production.</p>
+    <p>Right now he builds agents that run on machines you own: <a href="#projects">Mycroft</a> on the phone, <a href="#projects">Golem</a> for the family, <a href="#projects">Shadow</a> for the company, and the AI Analyst inside Meiro. He <a href="#writing">writes</a> about what breaks along the way.</p>
+    <p>He is reachable here, and he does answer:</p>
+  </div>
+  <ul class="contacts">
+    {contact.map((c) => <li><span>{c.label}</span><a href={c.url} rel="me">{c.text}</a></li>)}
+  </ul>
+</section>

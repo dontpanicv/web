@@ -1,0 +1,821 @@
+<!doctype html>
+<!--
+  15-observability — "V in production": the site as a paper observability dashboard.
+  Signature interaction: a live dashboard. The time-range picker (1h / 24h / 7d / 10y) regenerates every chart,
+    charts have hover tooltips, the log tail streams (pause with the button or by hovering), and
+    "Trigger incident" lets a chaos monkey tilt the panels, fire alerts, auto-resolve and file a postmortem.
+  Easter eggs:
+    1. Type 42 anywhere            → the latency heatmap spells "42" in pixels (Hitchhiker's nod).
+    2. Click the towel.status tile 3× → the towel goes missing, a SEV-1 fires, it is found on the server rack.
+    3. Type sudo anywhere          → "v is not in the sudoers file. This incident will be reported." (and it is).
+    4. Click the status LED 5×     → DON'T PANIC in large, friendly letters.
+    5. Press n (or the moon)       → night-shift mode; it also switches on by itself between 22:00 and 06:00.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>V in production — Don't Panic, V!</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&family=Silkscreen:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#f1ede3; --panel:#fbf9f4; --ink:#15171a; --ink2:#42474e; --ink3:#666b72; --rule:#d8d2c3;
+    --yellow:#FFD400; --red:#cf3420; --ok:#1c7c45; --shadow:#15171a;
+    --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+    --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --px:"Silkscreen","IBM Plex Mono",ui-monospace,monospace;
+  }
+  body.night{
+    --paper:#0e1012; --panel:#16191c; --ink:#ece8dd; --ink2:#bdb9ae; --ink3:#96928a; --rule:#2d3136;
+    --red:#ff6a55; --ok:#56c98a; --shadow:#000;
+  }
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0; color:var(--ink); font:17.5px/1.6 var(--sans); padding-bottom:64px;
+    background:var(--paper) radial-gradient(circle at 1px 1px, color-mix(in srgb, var(--ink) 16%, transparent) 1px, transparent 1.5px) 0 0/10px 10px;
+    transition:background-color .3s,color .3s;
+  }
+  a{color:inherit; text-decoration-thickness:2px; text-underline-offset:3px; text-decoration-color:var(--yellow)}
+  main a:hover{background:var(--yellow); color:#15171a; text-decoration-color:transparent}
+  button{font:inherit; color:inherit; cursor:pointer}
+  :focus-visible{outline:3px solid var(--yellow); outline-offset:2px}
+  .px{font-family:var(--px); text-transform:uppercase; letter-spacing:.04em}
+  .mono{font-family:var(--mono)}
+
+  /* ── status bar ─────────────────────────────────────────── */
+  .bar{
+    position:sticky; top:0; z-index:50; background:#15171a; color:#f1ede3;
+    display:flex; flex-wrap:wrap; align-items:center; gap:10px 18px; padding:10px 22px;
+    border-bottom:3px solid var(--yellow); font:13px/1.2 var(--mono);
+  }
+  .brand{display:flex; align-items:center; gap:10px; font-family:var(--px); font-size:14px; letter-spacing:.05em}
+  .brand svg{width:28px; height:28px; color:var(--yellow)}
+  .state{display:flex; align-items:center; gap:9px; flex:1 1 300px; min-width:0}
+  .led{width:16px; height:16px; padding:0; border:2px solid #f1ede3; background:#3ddc84; flex:none; box-shadow:0 0 0 2px #15171a, 0 0 12px #3ddc84}
+  .state b{font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+  .uptime{color:#bdb9ae; white-space:nowrap}
+  .uptime b{color:#f1ede3; font-weight:500; font-variant-numeric:tabular-nums}
+  .seg{display:flex; border:2px solid #f1ede3}
+  .seg button{background:none; border:0; padding:6px 10px; color:#f1ede3; font:12px/1 var(--px)}
+  .seg button+button{border-left:2px solid #f1ede3}
+  .seg button[aria-pressed=true]{background:var(--yellow); color:#15171a}
+  .ghost{background:none; border:2px solid #f1ede3; color:#f1ede3; padding:6px 9px; font:12px/1 var(--px)}
+  .danger{background:var(--yellow); border:2px solid var(--yellow); color:#15171a; padding:6px 10px; font:12px/1 var(--px); box-shadow:3px 3px 0 #f1ede3}
+  .danger:active{transform:translate(2px,2px); box-shadow:1px 1px 0 #f1ede3}
+  body.incident .bar{background:#8f1c0d; border-bottom-color:#f1ede3}
+  body.incident .led{background:#ff5a44; box-shadow:0 0 0 2px #8f1c0d, 0 0 14px #ff5a44; animation:blink .5s steps(2) infinite}
+  @keyframes blink{50%{opacity:.25}}
+
+  /* ── grid + panels ──────────────────────────────────────── */
+  main{max-width:1380px; margin:0 auto; padding:26px 22px 0}
+  .grid{display:grid; grid-template-columns:repeat(12,minmax(0,1fr)); gap:22px}
+  .panel{
+    background:var(--panel); border:2px solid var(--ink); box-shadow:5px 5px 0 var(--shadow);
+    display:flex; flex-direction:column; min-width:0;
+    transition:transform .6s cubic-bezier(.3,1.5,.5,1), background-color .3s;
+  }
+  body.incident .panel{transform:rotate(var(--tilt,0deg)) translate(var(--dx,0),var(--dy,0))}
+  .ph{
+    display:flex; justify-content:space-between; align-items:center; gap:12px; padding:8px 14px;
+    border-bottom:2px solid var(--ink); font:12px/1.3 var(--px); letter-spacing:.05em;
+  }
+  .ph span:last-child{color:var(--ink3); font:12px/1.3 var(--mono); text-transform:none; letter-spacing:0; text-align:right}
+  .pb{padding:16px 18px; flex:1}
+  .s12{grid-column:span 12}.s8{grid-column:span 8}.s7{grid-column:span 7}.s5{grid-column:span 5}.s4{grid-column:span 4}.s3{grid-column:span 3}
+  h1,h2,h3{margin:0; line-height:1.1}
+  .sect{grid-column:span 12; display:flex; align-items:baseline; gap:14px; margin:10px 0 -6px; font:15px/1 var(--px)}
+  .sect::after{content:""; flex:1; border-top:2px dashed var(--ink)}
+  .sect small{font:13px var(--mono); color:var(--ink3); text-transform:none; letter-spacing:0}
+
+  /* identity */
+  .id{container-type:inline-size}
+  .id h1{font:700 clamp(28px,10.4cqw,84px)/1.08 var(--px); letter-spacing:-.02em; margin:2px 0 18px}
+  .id h1 em{font-style:normal; display:inline-block; line-height:1; background:var(--yellow); color:#15171a; padding:.1em .14em .12em; margin-top:.06em}
+  .who{font:14px/1.5 var(--mono); color:var(--ink2); margin:0 0 14px}
+  .lead{max-width:62ch; margin:0 0 12px; font-size:19px; line-height:1.55}
+  .aside{max-width:62ch; margin:0; color:var(--ink2); border-left:4px solid var(--yellow); padding-left:12px}
+
+  /* vitals */
+  .tiles{display:grid; grid-template-columns:1fr 1fr; gap:0; height:100%}
+  .tile{padding:16px 18px; border:0; background:none; text-align:left; display:flex; flex-direction:column; gap:6px; min-width:0}
+  .tile:nth-child(odd){border-right:2px solid var(--ink)}
+  .tile:nth-child(-n+2){border-bottom:2px solid var(--ink)}
+  .tile .k{font:12px/1.2 var(--mono); color:var(--ink3)}
+  .tile .v{font:700 clamp(22px,2.4vw,34px)/1 var(--px); letter-spacing:-.01em; overflow-wrap:anywhere}
+  .tile .n{font:13px/1.35 var(--mono); color:var(--ink2)}
+  button.tile:hover{background:color-mix(in srgb,var(--yellow) 22%,transparent)}
+  .tile.bad .v{color:var(--red)}
+  .ok{color:var(--ok)}
+
+  /* charts */
+  canvas{display:block; width:100%; height:236px; touch-action:pan-y}
+  .legend{display:flex; flex-wrap:wrap; gap:6px 16px; font:12.5px/1.3 var(--mono); color:var(--ink2); margin-top:10px}
+  .sw{display:inline-block; width:11px; height:11px; border:1.5px solid var(--ink); vertical-align:-1px; margin-right:5px}
+  #tip{
+    position:fixed; z-index:80; pointer-events:none; background:#15171a; color:#f1ede3; padding:6px 9px;
+    font:12.5px/1.35 var(--mono); border:2px solid var(--yellow); max-width:240px; white-space:pre;
+  }
+
+  /* services */
+  .svc .ph b{display:flex; align-items:center; gap:8px; font-weight:400}
+  .dot{width:10px; height:10px; background:var(--ok); border:1.5px solid var(--ink); flex:none}
+  .svc h3{font:700 26px/1 var(--px); margin-bottom:8px}
+  .svc p{margin:0 0 10px; font-size:17px; line-height:1.5}
+  .svc svg{display:block; width:100%; height:44px; margin:2px 0 12px; overflow:visible}
+  .svc polyline{fill:none; stroke:var(--ink); stroke-width:2; vector-effect:non-scaling-stroke}
+  .kv{font:13px/1.5 var(--mono); color:var(--ink2); margin:0 0 10px; padding:0; list-style:none}
+  .kv b{color:var(--ink); font-weight:500}
+  details{border-top:2px dashed var(--rule); padding-top:9px}
+  summary{cursor:pointer; font:12px/1.4 var(--px); list-style:none}
+  summary::-webkit-details-marker{display:none}
+  summary::before{content:"[+] "}
+  details[open] summary::before{content:"[–] "}
+  details p{margin:9px 0 0}
+  .go{font:13.5px/1.4 var(--mono); display:inline-block; margin-top:10px}
+
+  /* log tail */
+  .log{margin:0; padding:0; list-style:none; font:13.5px/1.55 var(--mono); height:292px; overflow:hidden; display:flex; flex-direction:column; justify-content:flex-end}
+  .log li{display:grid; grid-template-columns:auto auto auto 1fr; gap:0 10px; padding:1px 0; border-bottom:1px dotted var(--rule); animation:in .35s steps(4)}
+  @keyframes in{from{opacity:0; transform:translateY(8px)}}
+  .log time{color:var(--ink3)}
+  .log .lv{font-weight:600}
+  .log .WARN{background:var(--yellow); color:#15171a; padding:0 3px}
+  .log .ERROR{background:var(--red); color:#fff; padding:0 3px}
+  .log .DEBUG{color:var(--ink3)}
+  .log .s{color:var(--ink2)}
+  .log .m{min-width:0; overflow-wrap:anywhere}
+  .log .m i{font-style:normal; color:var(--ink3)}
+  .pin{margin:14px 0 0; padding-top:12px; border-top:2px dashed var(--rule); font-size:17px; line-height:1.5}
+  .pin b{font:12px var(--px); display:block; color:var(--ink3); margin-bottom:4px; font-weight:400}
+  .mini{background:none; border:2px solid var(--ink); padding:3px 8px; font:11px/1.2 var(--px)}
+
+  /* on-call */
+  .pager{display:grid; gap:10px; margin:0 0 16px; padding:0; list-style:none}
+  .pager a{display:flex; justify-content:space-between; gap:12px; border:2px solid var(--ink); padding:10px 12px; text-decoration:none; font:14.5px/1.3 var(--mono); box-shadow:3px 3px 0 var(--shadow)}
+  .pager a span:first-child{font:12px/1.5 var(--px)}
+  .pager a span:last-child{overflow-wrap:anywhere; text-align:right}
+  ol.esc{margin:0; padding-left:1.3em; font-size:17px}
+
+  /* runbooks */
+  .rb{margin:0; padding:0; list-style:none}
+  .rb li{padding:13px 0; border-bottom:2px dashed var(--rule)}
+  .rb li:first-child{padding-top:0}.rb li:last-child{border:0; padding-bottom:0}
+  .rb .meta{font:12.5px/1.4 var(--mono); color:var(--ink3); display:flex; gap:10px; flex-wrap:wrap; align-items:center; margin-bottom:4px}
+  .tag{font:11px/1 var(--px); padding:3px 6px; border:1.5px solid var(--ink); color:var(--ink)}
+  .tag.pub{background:var(--yellow); color:#15171a; border-color:#15171a}
+  .tag.new{background:var(--red); color:#fff; border-color:var(--red)}
+  .rb h3{font:600 19px/1.3 var(--sans); margin-bottom:4px}
+  .rb p{margin:0; font-size:17px; line-height:1.5; color:var(--ink2)}
+  .rb li.fresh{animation:in .5s steps(5)}
+
+  /* incident timeline = CV */
+  .tl{margin:0; padding:0 0 0 26px; list-style:none; border-left:2px solid var(--ink); margin-left:7px}
+  .tl li{position:relative; padding:0 0 20px}
+  .tl li:last-child{padding-bottom:0}
+  .tl li::before{content:""; position:absolute; left:-35px; top:5px; width:14px; height:14px; background:var(--panel); border:2px solid var(--ink)}
+  .tl li.live::before{background:var(--yellow)}
+  .tl .meta{font:12.5px/1.4 var(--mono); color:var(--ink3); display:flex; gap:10px; flex-wrap:wrap; align-items:center}
+  .tl h3{font:600 20px/1.3 var(--sans); margin:3px 0 2px}
+  .tl p{margin:0; font-size:17px; line-height:1.5; color:var(--ink2); max-width:60ch}
+
+  /* postmortem document (reading view) */
+  .doc .pb{padding:34px 22px 44px}
+  .doc article{max-width:66ch; margin:0 auto}
+  .doc .stamp{display:grid; grid-template-columns:repeat(4,auto); justify-content:start; gap:0; border:2px solid var(--ink); font:13px/1.3 var(--mono); margin:0 0 26px; width:max-content; max-width:100%}
+  .doc .stamp div{padding:7px 12px; border-right:2px solid var(--ink)}
+  .doc .stamp div:last-child{border:0}
+  .doc .stamp b{display:block; font:11px var(--px); color:var(--ink3); font-weight:400}
+  .doc h2{font:600 clamp(28px,3.4vw,42px)/1.14 var(--sans); letter-spacing:-.015em; margin:0 0 22px}
+  .doc h3{font:13px/1.2 var(--px); margin:30px 0 8px; display:flex; gap:10px; align-items:center}
+  .doc h3::before{content:""; width:12px; height:12px; background:var(--yellow); border:2px solid var(--ink)}
+  .doc p,.doc li{font-size:18.5px; line-height:1.68}
+  .doc p{margin:0 0 16px}
+  .doc code{font:.88em var(--mono); background:color-mix(in srgb,var(--ink) 9%,transparent); padding:1px 5px}
+  .doc pre{margin:0 0 18px; padding:14px 16px; border:2px solid var(--ink); overflow-x:auto; font:14px/1.55 var(--mono); background:color-mix(in srgb,var(--ink) 5%,transparent)}
+  .doc blockquote{margin:26px 0; padding:16px 18px; border:2px solid var(--ink); background:var(--yellow); color:#15171a; font-size:21px; line-height:1.4; box-shadow:5px 5px 0 var(--shadow)}
+
+  footer{max-width:1380px; margin:34px auto 0; padding:0 22px; font:13px/1.6 var(--mono); color:var(--ink3); display:flex; flex-wrap:wrap; gap:6px 22px; justify-content:space-between}
+
+  /* toasts, monkey, panic overlay */
+  #toasts{position:fixed; right:16px; top:70px; z-index:70; display:grid; gap:8px; width:min(360px,calc(100vw - 32px))}
+  .toast{background:#15171a; color:#f1ede3; border:2px solid var(--yellow); padding:9px 12px; font:13.5px/1.4 var(--mono); box-shadow:4px 4px 0 var(--yellow); animation:in .3s steps(4)}
+  .toast.r{border-color:#ff5a44; box-shadow:4px 4px 0 #ff5a44}
+  .toast b{font:11px var(--px); display:block; font-weight:400; color:var(--yellow)}
+  .toast.r b{color:#ff8b79}
+  #monkey{position:fixed; top:74px; left:-70px; z-index:60; width:60px; pointer-events:none; display:none}
+  body.incident #monkey{display:block; animation:run 6.2s linear forwards, hop .35s steps(2) infinite}
+  @keyframes run{to{left:calc(100vw + 70px)}}
+  @keyframes hop{50%{margin-top:-10px}}
+  #panic{position:fixed; inset:0; z-index:90; background:#15171a; color:var(--yellow); display:grid; place-items:center; text-align:center; padding:24px; border:0; width:100%}
+  #panic span{font:700 clamp(54px,15vw,210px)/.9 var(--px); letter-spacing:-.03em}
+  #panic small{display:block; font:14px var(--mono); color:#f1ede3; margin-top:22px}
+  [hidden]{display:none!important}
+
+  @media (max-width:1080px){
+    .s8,.s7,.s5,.s4{grid-column:span 12}
+    .s3{grid-column:span 6}
+  }
+  @media (max-width:640px){
+    body{font-size:17px}
+    .bar{position:static; padding:10px 14px}
+    .uptime span{display:none}
+    main{padding:18px 14px 0}
+    .grid{gap:18px}
+    .s3{grid-column:span 12}
+    .panel{box-shadow:4px 4px 0 var(--shadow)}
+    .log{font-size:12.5px; height:300px}
+    .log li{grid-template-columns:auto auto 1fr}
+    .log .s{display:none}
+    .doc .stamp{grid-template-columns:1fr 1fr; width:100%}
+    .doc .stamp div:nth-child(2){border-right:0}
+    .doc .stamp div:nth-child(-n+2){border-bottom:2px solid var(--ink)}
+    .doc .pb{padding:24px 16px 30px}
+    canvas{height:210px}
+    #toasts{top:12px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{animation:none!important; transition:none!important}
+    body.incident .panel{transform:none}
+    body.incident #monkey{display:none}
+  }
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="brand"><svg viewBox="451 289 696 666" aria-hidden="true"><g fill="currentColor" fill-opacity="1.00" stroke="None"> <path d=" M 454.00 363.00 C 453.62 367.79 453.62 373.21 454.00 378.00 C 454.68 386.53 457.75 395.81 460.22 403.78 C 462.69 411.74 465.78 419.41 469.08 426.92 C 472.37 434.44 475.17 441.80 479.22 448.78 C 483.28 455.76 485.01 462.96 489.23 469.77 C 493.45 476.58 496.49 482.99 501.08 489.92 C 505.67 496.85 507.22 503.32 512.75 510.25 C 518.29 517.18 522.69 506.75 523.22 497.22 C 523.75 487.70 532.18 484.04 537.25 492.75 C 542.32 501.46 547.57 502.54 552.25 509.75 C 556.92 516.96 563.74 519.45 567.70 526.30 C 571.66 533.16 577.81 536.55 582.25 542.75 C 586.69 548.96 592.95 553.61 597.25 559.75 C 601.55 565.90 608.04 570.46 612.70 576.30 C 617.36 582.14 622.10 587.27 627.00 593.00 C 632.86 598.86 638.61 604.69 644.00 611.00 C 652.56 621.01 662.20 631.25 671.25 640.75 C 680.29 650.25 690.27 660.53 699.92 669.08 C 709.57 677.64 719.57 687.67 729.30 695.70 C 739.03 703.72 750.54 721.24 761.75 709.75 C 772.96 698.26 779.46 687.59 780.00 672.00 C 780.54 656.41 771.35 643.52 763.31 631.70 C 755.26 619.87 749.22 609.01 741.77 597.23 C 734.32 585.45 727.16 573.60 720.31 561.70 C 713.45 549.79 706.73 536.96 699.25 525.75 C 691.78 514.53 682.66 504.85 671.75 497.25 C 660.83 489.66 644.41 481.41 631.67 480.33 C 618.93 479.25 590.83 478.28 596.08 462.08 C 601.32 445.87 613.27 442.59 625.78 434.78 C 638.28 426.97 658.07 425.78 672.99 426.01 C 687.92 426.24 699.57 436.77 710.25 445.75 C 720.93 454.74 729.48 463.01 740.00 472.00 C 746.83 477.84 759.06 486.92 763.00 495.00 C 763.00 495.00 762.80 495.60 763.00 496.00 C 769.53 500.57 774.14 507.89 780.00 513.00 C 809.11 534.65 844.17 540.24 873.00 563.00 C 878.29 567.17 884.01 572.64 888.00 578.00 C 893.66 585.61 898.96 593.06 903.68 601.32 C 908.40 609.58 911.87 617.93 916.22 626.78 C 920.58 635.62 923.55 644.64 926.69 654.31 C 929.84 663.97 932.26 674.38 934.07 684.93 C 935.89 695.47 936.92 709.09 938.00 720.00 C 939.08 730.91 936.05 745.30 936.00 756.00 C 935.95 766.69 931.35 778.13 929.93 787.93 C 928.50 797.72 922.23 806.92 919.26 815.26 C 916.28 823.60 906.29 834.74 913.75 841.25 C 921.22 847.75 929.83 851.35 936.75 856.25 C 943.68 861.14 954.32 867.27 959.77 871.23 C 965.22 875.19 982.92 882.77 977.25 888.25 C 971.57 893.72 958.35 897.21 951.00 900.00 C 950.34 900.85 950.51 902.35 950.00 903.00 C 960.56 905.68 969.68 914.23 980.31 917.69 C 990.93 921.16 999.80 927.96 1010.77 931.23 C 1021.74 934.50 1031.97 940.73 1043.33 943.67 C 1054.69 946.62 1067.89 950.54 1080.00 951.00 C 1089.09 951.35 1098.94 951.80 1108.00 951.00 C 1134.34 948.69 1145.59 926.16 1144.00 902.00 C 1142.41 877.84 1129.31 861.87 1121.31 840.69 C 1113.30 819.52 1100.64 805.49 1094.33 783.67 C 1088.01 761.85 1107.33 742.26 1113.23 721.23 C 1119.13 700.20 1127.30 677.32 1130.02 654.02 C 1132.75 630.72 1133.91 599.30 1130.00 576.00 C 1126.09 552.70 1122.47 528.16 1114.99 507.01 C 1107.51 485.86 1100.40 466.90 1089.77 448.23 C 1079.14 429.56 1068.84 415.12 1054.75 399.25 C 1040.67 383.38 1027.69 370.68 1010.75 358.25 C 993.80 345.82 978.53 335.61 959.08 325.92 C 939.62 316.24 921.06 307.98 899.07 301.93 C 877.09 295.87 849.42 292.58 825.00 292.00 C 800.58 291.42 770.58 293.38 748.00 299.00 C 725.42 304.62 705.52 310.01 685.08 320.08 C 664.63 330.15 651.77 337.95 633.08 352.08 C 614.39 366.21 591.97 350.81 572.23 342.77 C 552.48 334.73 525.38 328.02 503.00 328.00 C 480.62 327.98 455.99 337.92 454.00 363.00 M 512.00 353.00 C 524.17 353.66 541.60 357.31 552.02 362.98 C 562.45 368.64 577.85 371.70 586.23 379.77 C 594.61 387.85 576.32 402.05 572.25 411.25 C 568.17 420.44 558.47 432.68 552.25 442.25 C 546.03 451.82 540.27 463.79 532.25 473.25 C 524.23 482.70 515.19 464.24 509.25 454.75 C 503.30 445.27 496.70 433.40 491.23 421.77 C 485.76 410.15 482.34 396.90 479.02 382.98 C 475.71 369.06 480.03 356.54 496.00 353.00 C 501.15 351.86 506.94 352.18 512.00 353.00 M 982.00 397.00 C 1000.26 400.43 1001.63 417.47 1016.25 428.75 C 1030.87 440.03 1021.11 458.83 1007.75 468.75 C 994.39 478.67 985.38 488.69 973.25 500.25 C 961.12 511.81 949.97 518.01 938.25 531.25 C 926.53 544.49 904.56 543.73 894.25 529.75 C 883.93 515.77 867.28 504.27 873.98 487.98 C 880.67 471.68 895.12 465.27 906.25 454.25 C 917.37 443.23 928.73 431.50 940.25 422.25 C 951.77 412.99 966.06 394.01 982.00 397.00 M 1054.00 549.00 C 1049.70 553.30 1045.61 558.06 1041.00 562.00 C 1029.56 571.78 1021.32 580.55 1009.25 590.25 C 997.17 599.95 991.18 611.02 974.99 615.99 C 958.80 620.97 947.78 602.84 937.23 592.77 C 926.68 582.70 920.40 563.84 932.75 552.75 C 945.10 541.67 952.40 532.64 964.25 523.25 C 976.09 513.85 984.41 503.59 995.75 494.75 C 1007.10 485.91 1019.11 470.12 1033.69 478.31 C 1048.28 486.49 1050.83 497.11 1061.77 510.23 C 1072.71 523.35 1066.84 538.03 1054.00 549.00 M 982.00 637.00 C 986.96 630.06 994.59 623.47 1001.00 618.00 C 1013.41 607.39 1023.09 592.96 1039.68 588.68 C 1056.27 584.39 1066.93 603.94 1079.25 615.75 C 1091.57 627.56 1089.47 649.00 1073.75 659.75 C 1058.04 670.51 1053.11 680.34 1037.77 691.77 C 1022.43 703.20 1005.03 697.05 994.23 681.77 C 983.43 666.49 968.75 655.55 982.00 637.00 M 1104.00 926.00 C 1099.42 927.47 1094.95 929.11 1090.00 927.00 C 1089.50 927.00 1088.50 927.01 1088.00 927.00 C 1076.28 926.70 1063.60 921.86 1052.92 918.08 C 1042.25 914.29 1031.55 909.67 1021.77 904.23 C 1011.99 898.79 1000.97 895.62 991.77 889.23 C 982.57 882.84 1000.60 872.97 1006.25 866.25 C 1011.90 859.53 1023.17 851.16 1029.75 844.75 C 1036.33 838.34 1045.99 829.38 1052.75 823.75 C 1059.51 818.12 1070.06 801.72 1077.75 810.25 C 1085.45 818.78 1089.41 827.59 1095.92 837.08 C 1102.42 846.58 1106.65 855.56 1111.31 866.69 C 1115.96 877.83 1119.64 887.51 1122.77 900.23 C 1125.90 912.95 1115.52 923.33 1104.00 926.00 Z"/> </g> <g fill="currentColor" fill-opacity="1.00" stroke="None"> <path d=" M 504.00 594.00 C 504.00 604.00 504.00 614.00 504.00 624.00 C 504.00 636.33 505.77 650.28 507.02 661.98 C 508.28 673.67 512.29 683.53 514.67 694.33 C 517.05 705.13 520.28 715.12 524.07 724.93 C 527.86 734.73 531.42 743.80 536.03 752.97 C 540.64 762.15 544.78 770.34 550.08 778.92 C 555.38 787.49 560.12 794.68 566.08 802.92 C 572.05 811.16 577.50 816.58 584.25 824.75 C 590.99 832.92 597.41 836.49 604.77 845.23 C 612.13 853.97 622.16 853.46 627.75 843.75 C 633.34 834.05 642.04 832.02 647.70 823.70 C 653.36 815.37 660.71 810.14 666.75 802.75 C 672.80 795.37 680.44 789.00 685.75 781.75 C 691.07 774.50 701.22 768.47 705.25 761.25 C 709.28 754.02 723.92 747.29 723.00 739.00 C 722.58 737.02 713.76 729.63 712.00 728.00 C 702.62 720.60 694.24 711.90 685.00 704.00 C 680.34 700.02 676.26 695.26 672.00 691.00 C 643.78 664.60 617.43 636.60 591.75 608.25 C 566.08 579.90 543.67 547.23 518.00 520.00 C 508.94 543.13 504.00 568.43 504.00 594.00 Z"/> </g> <g fill="currentColor" fill-opacity="1.00" stroke="None"> <path d=" M 943.00 904.00 C 944.31 902.97 945.36 902.08 945.00 900.00 C 935.80 895.76 925.38 885.25 916.08 881.92 C 906.78 878.59 896.13 864.08 886.08 866.08 C 876.02 868.08 869.77 881.66 860.75 886.75 C 851.73 891.85 845.15 902.16 836.25 908.25 C 827.35 914.33 812.15 928.30 829.00 928.00 C 845.85 927.70 857.38 926.70 872.00 925.00 C 886.61 923.30 896.60 919.58 909.77 916.77 C 922.94 913.96 930.40 907.03 943.00 904.00 Z"/> </g></svg><span>v.prod</span></div>
+  <div class="state">
+    <button class="led" id="led" aria-label="Status light"></button>
+    <b id="state" role="status">All systems nominal (mostly harmless)</b>
+  </div>
+  <div class="uptime"><span>uptime </span><b id="uptime">—</b></div>
+  <div class="seg" role="group" aria-label="Time range" id="ranges">
+    <button aria-pressed="true" data-r="1h">1h</button><button aria-pressed="false" data-r="24h">24h</button><button aria-pressed="false" data-r="7d">7d</button><button aria-pressed="false" data-r="10y">10y</button>
+  </div>
+  <button class="ghost" id="night" aria-pressed="false" aria-label="Night-shift mode" title="Night shift (n)">☾</button>
+  <button class="danger" id="chaos">Trigger incident</button>
+</header>
+
+<main>
+<div class="grid">
+
+  <section class="panel s7 id" aria-labelledby="t-id">
+    <div class="ph"><span>service: v</span><span>env=production · region=brno-1</span></div>
+    <div class="pb">
+      <h1 id="t-id">V in <em>production</em></h1>
+      <p class="who">Vojtěch “V” Kurka · Head of R&amp;D &amp; Co-Founder at Meiro · Brno, Czechia</p>
+      <p class="lead">I like knowing how things work — from CPUs and protocols to databases and containers. Almost ten years of building a data platform in production taught me most of it. Now I spend that curiosity on AI: local models, agentic workflows, and getting it all into production for real customers.</p>
+      <p class="aside">If I can’t explain it to someone else, I don’t understand it yet.</p>
+    </div>
+  </section>
+
+  <section class="panel s5" aria-label="Vitals">
+    <div class="ph"><span>vitals</span><span id="vspan">last hour</span></div>
+    <div class="tiles">
+      <div class="tile"><span class="k">slo.not_panicking</span><span class="v">99.9942<span class="mono" style="font-size:.8em;font-weight:600">%</span></span><span class="n">target 99.9% · <span class="ok">within budget</span></span></div>
+      <button class="tile" id="towel" aria-live="polite"><span class="k">towel.status</span><span class="v" id="towelv">present</span><span class="n" id="toweln">checked every 42 s</span></button>
+      <div class="tile"><span class="k">explanations.served</span><span class="v" id="served">42</span><span class="n">to engineers, customers, a stage</span></div>
+      <div class="tile"><span class="k">hype.accepted</span><span class="v">0</span><span class="n">dropped at the edge</span></div>
+    </div>
+  </section>
+
+  <section class="panel s8" aria-labelledby="t-rate">
+    <div class="ph"><span id="t-rate">explain.requests / hour</span><span id="ratemeta">live · step 30s</span></div>
+    <div class="pb">
+      <canvas id="rate" role="img" aria-label="Animated chart of explanation requests per hour"></canvas>
+      <div class="legend"><span><i class="sw" style="background:var(--ink)"></i>requests</span><span><i class="sw" style="background:var(--yellow)"></i>now</span><span id="ratenote">Hover the chart for values.</span></div>
+    </div>
+  </section>
+
+  <section class="panel s4" aria-labelledby="t-heat">
+    <div class="ph"><span id="t-heat">latency heatmap</span><span>time to a straight answer</span></div>
+    <div class="pb">
+      <canvas id="heat" role="img" aria-label="Pixel heatmap of answer latency"></canvas>
+      <div class="legend"><span><i class="sw"></i>none</span><span><i class="sw" style="background:color-mix(in srgb,var(--ink) 40%,transparent)"></i>some</span><span><i class="sw" style="background:var(--ink)"></i>many</span><span><i class="sw" style="background:var(--yellow)"></i>peak</span></div>
+    </div>
+  </section>
+
+  <h2 class="sect" id="services">Services <small>4 running · 0 degraded · projects, in other words</small></h2>
+
+  <article class="panel s3 svc">
+    <div class="ph"><b><i class="dot"></i>healthy</b><span>Swift · ★41</span></div>
+    <div class="pb">
+      <h3>Mycroft</h3>
+      <svg data-spark="7" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true"></svg>
+      <p>A self-modifying, durable agent that lives on your iPhone. Brain on the phone, hands on your machines.</p>
+      <ul class="kv"><li><b>generations</b> known-good, rollback ready</li><li><b>hands</b> macOS, Linux</li></ul>
+      <details><summary>Details</summary><p>The agent loop, its state and its own source live on the phone. It edits its own behaviour and screen, keeps known-good generations and can roll back. <code class="mono">hands</code> is a small daemon that gives it files, shell and supervised jobs on your machines. Named after Mycroft Holmes, the brother who stayed in his armchair.</p></details>
+      <a class="go" href="https://github.com/dontpanicv/mycroft">github.com/dontpanicv/mycroft →</a>
+    </div>
+  </article>
+
+  <article class="panel s3 svc">
+    <div class="ph"><b><i class="dot"></i>healthy</b><span>TypeScript</span></div>
+    <div class="pb">
+      <h3>Golem</h3>
+      <svg data-spark="19" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true"></svg>
+      <p>Family AI assistant and second brain on our own machines. No cloud, no central server.</p>
+      <ul class="kv"><li><b>storage</b> SQLite + Markdown</li><li><b>clients</b> web, iPhone, Android</li></ul>
+      <details><summary>Details</summary><p>One server at home, one app for the whole family. It remembers — topic briefs, learned facts — and does real work on your machines, and it asks before it sends, buys or deletes. In Prague legend, Rabbi Loew shaped the Golem from clay. This one is made from SQLite and Markdown.</p></details>
+      <a class="go" href="https://github.com/dontpanicv/golem">github.com/dontpanicv/golem →</a>
+    </div>
+  </article>
+
+  <article class="panel s3 svc">
+    <div class="ph"><b><i class="dot"></i>healthy · quiet</b><span>TypeScript</span></div>
+    <div class="pb">
+      <h3>Shadow</h3>
+      <svg data-spark="31" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true"></svg>
+      <p>A shadow company for your team. Every employee gets a shadow that reads their Slack and mail.</p>
+      <ul class="kv"><li><b>lives in</b> Slack</li><li><b>runs on</b> your own server</li></ul>
+      <details><summary>Details</summary><p>Each shadow tracks what every conversation asks of its person and helps do the work when asked. It stays quiet unless you must act. One SQLite database, Markdown files, no cloud service between your company and its data.</p></details>
+      <a class="go" href="https://github.com/dontpanicv/shadow">github.com/dontpanicv/shadow →</a>
+    </div>
+  </article>
+
+  <article class="panel s3 svc">
+    <div class="ph"><b><i class="dot"></i>in production</b><span>since 2018</span></div>
+    <div class="pb">
+      <h3>Meiro</h3>
+      <svg data-spark="43" viewBox="0 0 100 30" preserveAspectRatio="none" aria-hidden="true"></svg>
+      <p>The day job: customer data infrastructure. Pipes moves and stitches the data, Engage acts on it.</p>
+      <ul class="kv"><li><b>pipes</b> sources, events, identity, destinations</li><li><b>engage</b> audiences, journeys, campaigns</li></ul>
+      <details><summary>Details</summary><p>Plus the AI Analyst: an analytical agent built on bash, a mounted in-memory filesystem and a JSON renderer instead of a tool-calling loop. Self-hostable — AI included, that you own, control and audit.</p></details>
+      <a class="go" href="https://meiro.io">meiro.io →</a>
+    </div>
+  </article>
+
+  <section class="panel s7" aria-labelledby="t-log">
+    <div class="ph"><span id="t-log">log tail</span><span><button class="mini" id="pause" aria-pressed="false">pause</button></span></div>
+    <div class="pb">
+      <ol class="log" id="log" role="log" aria-live="off" aria-label="Live log"></ol>
+      <p class="pin"><b>pinned note</b>Most “AI agents” shipped in 2026 are a <code class="mono">streamText()</code> call in a trench coat.</p>
+    </div>
+  </section>
+
+  <section class="panel s5" aria-labelledby="t-oncall" id="contact">
+    <div class="ph"><span id="t-oncall">on-call</span><span>primary: V · secondary: also V</span></div>
+    <div class="pb">
+      <ul class="pager">
+        <li><a href="mailto:kurka.vojtech@gmail.com"><span>page</span><span>kurka.vojtech@gmail.com</span></a></li>
+        <li><a href="https://github.com/dontpanicv"><span>code</span><span>github.com/dontpanicv</span></a></li>
+        <li><a href="https://x.com/dontpanicv"><span>short</span><span>x.com/dontpanicv</span></a></li>
+        <li><a href="https://www.linkedin.com/in/kurkavojtech/"><span>suit</span><span>linkedin.com/in/kurkavojtech</span></a></li>
+      </ul>
+      <ol class="esc"><li>Send an email.</li><li>Wait. He is probably debugging something.</li><li>Under no circumstances panic.</li></ol>
+    </div>
+  </section>
+
+  <section class="panel s5" aria-labelledby="t-rb" id="writing">
+    <div class="ph"><span id="t-rb">runbooks &amp; postmortems</span><span>writing</span></div>
+    <div class="pb">
+      <ul class="rb" id="rb">
+        <li><div class="meta"><span class="tag pub">published</span><span>PM-2026-04 · 2026-04-29</span></div>
+          <h3><a href="#pm">Beyond the Tool-Calling Loop: How We Built an AI Analyst with Bash, a Mounted Filesystem, and a JSON Renderer</a></h3>
+          <p>Why the naive AI SDK + tools + markdown loop runs out of room for analytical agents.</p></li>
+        <li><div class="meta"><span class="tag pub">published</span><span>PM-2026-02 · 2026-02-10</span></div>
+          <h3><a href="https://dontpanicv.com/posts/ai-agents-codebases/">Stop Letting AI Agents Guess Where Code Goes</a></h3>
+          <p>A modular-monolith refactor designed for AI agents: predictable module layout, centralized auth and a strict <code class="mono">public.ts</code> boundary.</p></li>
+        <li><div class="meta"><span class="tag">draft</span><span>under review</span></div>
+          <h3>Claude Code vs Codex: Same Coding AI, Different People</h3>
+          <p>Why the two aren’t interchangeable: prompting style and ambiguity tolerance shape the outcome.</p></li>
+        <li><div class="meta"><span class="tag">idea</span><span>in the drawer</span></div>
+          <h3>Gaslighting Coding Agents for Better Security</h3>
+          <p>Tell an agent, as fact, that a pentester already got RCE — and let it work out how.</p></li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="panel s7" aria-labelledby="t-inc" id="cv">
+    <div class="ph"><span id="t-inc">incident timeline</span><span>also known as a CV</span></div>
+    <div class="pb">
+      <ol class="tl">
+        <li class="live"><div class="meta"><span class="tag pub">ongoing</span><span>2024 → now · Brno</span></div>
+          <h3>Meiro — Head of R&amp;D &amp; Co-Founder</h3>
+          <p>Local models, agentic workflows and self-learning data analysis tools — in production, not just demos.</p></li>
+        <li><div class="meta"><span class="tag">resolved</span><span>2018 → 2024 · Brno</span></div>
+          <h3>Meiro — CTO &amp; Co-Founder</h3>
+          <p>Owned product architecture, development and implementations of the Meiro CDP: customer data infrastructure, identity resolution, real-time pipelines.</p></li>
+        <li><div class="meta"><span class="tag">resolved</span><span>2015 → 2018 · partly Bali, Indonesia</span></div>
+          <h3>Keboola — Head Nerd / Solutions Architect</h3>
+          <p>Designed data integrations end to end, including the messy edge cases.</p></li>
+        <li><div class="meta"><span class="tag">root cause</span><span>before that</span></div>
+          <h3>VUT FIT</h3>
+          <p>Brno University of Technology, Faculty of Information Technology. Some of the rest was picked up out of curiosity, the remainder by debugging production.</p></li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="panel s12 doc" id="pm" aria-labelledby="t-pm">
+    <div class="ph"><span>postmortem · reading view</span><span>blameless, as always</span></div>
+    <div class="pb">
+      <article>
+        <div class="stamp">
+          <div><b>id</b>PM-2026-04</div><div><b>status</b>published</div><div><b>date</b>2026-04-29</div><div><b>owner</b>V</div>
+        </div>
+        <h2 id="t-pm">Beyond the Tool-Calling Loop: How We Built an AI Analyst with Bash, a Mounted Filesystem, and a JSON Renderer</h2>
+
+        <h3>Summary</h3>
+        <p>Most AI features built today follow the same recipe: take the Vercel AI SDK, register a handful of tools, write a system prompt, and stream the result into a markdown component. It works. It is also where most teams stop — and where most AI products start to feel limited.</p>
+        <p>That recipe is fine for operational assistants: short conversations, small well-shaped tool results, and markdown as the answer. It stops working the moment the model needs to <em>think with data</em>.</p>
+
+        <h3>Impact: tool results flood the context</h3>
+        <p>The first wall is large tool output. Whatever a tool returns goes straight into the model’s context as the tool result. A query that returns 50k rows is now 50k rows of JSON sitting in the conversation, on every subsequent turn, paid for in tokens, and pushing earlier reasoning out of the window.</p>
+        <p>You can paginate. You can truncate. You can summarize. All of these are coping mechanisms — they either lose information or force the model to make decisions about data it cannot see.</p>
+
+        <h3>Contributing factor: metadata bloat</h3>
+        <p>The second wall is subtler and arrives earlier. To answer almost any analytical question, the model needs to know what exists. Expose that as one inventory tool per entity kind and the model, being agreeable, calls all of them “to orient itself”. Tens of thousands of tokens of metadata sit in context before the question is even processed — and there is no <code>grep</code>.</p>
+
+        <h3>Resolution</h3>
+        <p>Three ideas replaced the loop. First, one tool — <code>bash</code> — and an in-memory filesystem with the inventory already written to disk:</p>
+<pre>const workspace = new Bash();
+await workspace.writeFile('/context/inventory.json', JSON.stringify(inventory));</pre>
+        <p>Second, a SQL execution layer that mounts query results as files, so bulk data is something the model slices and counts, not something it reads. Third, a JSON renderer with a predefined component manifest, so the answer is a rendered analysis instead of prose about one.</p>
+
+        <blockquote>Your AI doesn’t need more tools. It needs fewer tools and a filesystem. Possibly also therapy, but we’re starting with the filesystem.</blockquote>
+
+        <p><a href="https://dontpanicv.com/posts/ai-analyst-architecture/">Read the full write-up →</a></p>
+      </article>
+    </div>
+  </section>
+
+</div>
+</main>
+
+<footer>
+  <span>dontpanicv.com · Don’t Panic, V! · no dashboards were harmed</span>
+  <span>this dashboard listens to your keyboard. try a number that answers everything.</span>
+</footer>
+
+<div id="toasts" aria-live="polite"></div>
+<div id="monkey" aria-hidden="true"></div>
+<div id="tip" role="tooltip" hidden></div>
+<button id="panic" hidden><span>DON’T<br>PANIC</span><small>click or press Esc to resume monitoring</small></button>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const RM = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const seeded = s => () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296;
+  let rand = seeded(42);
+
+  // ── theme colours for canvas ──────────────────────────────
+  let C = {};
+  const readColors = () => {
+    const g = getComputedStyle(document.body);
+    for (const k of ['ink', 'ink3', 'panel', 'rule', 'yellow', 'red']) C[k] = g.getPropertyValue('--' + k).trim();
+  };
+  const prep = c => {
+    const r = c.getBoundingClientRect(), d = window.devicePixelRatio || 1;
+    const w = Math.round(r.width * d), h = Math.round(r.height * d);
+    if (c.width !== w || c.height !== h) { c.width = w; c.height = h; }
+    const x = c.getContext('2d'); x.setTransform(d, 0, 0, d, 0, 0);
+    return [x, r.width, r.height];
+  };
+  const alpha = (hex, a) => { // "#rrggbb" + alpha → rgba()
+    const n = parseInt(hex.slice(1), 16);
+    return `rgba(${n >> 16},${(n >> 8) & 255},${n & 255},${a})`;
+  };
+
+  // ── ranges ────────────────────────────────────────────────
+  const RANGES = {
+    '1h':  { span: 'last hour',     step: 'live · step 30s', base: 42, amp: 9,  xl: ['-60m', '-45m', '-30m', '-15m', 'now'], served: '42',         unit: 'min', len: 60 },
+    '24h': { span: 'last 24 hours', step: 'live · step 12m', base: 44, amp: 20, xl: ['-24h', '-18h', '-12h', '-6h', 'now'],  served: '1,008',      unit: 'h',   len: 24 },
+    '7d':  { span: 'last 7 days',   step: 'live · step 84m', base: 40, amp: 28, xl: ['-7d', '-5d', '-3d', '-1d', 'now'],     served: '7,056',      unit: 'd',   len: 7 },
+    '10y': { span: 'last 10 years', step: 'static · step 1 month', base: 16, amp: 10, xl: ['-10y', '-7.5y', '-5y', '-2.5y', 'now'], served: 'lost count', unit: 'y', len: 10,
+             marks: [[0.18, '2018 · Meiro founded'], [0.73, '2024 · CTO → Head of R&D'], [0.955, '2026 · Mycroft, Golem, Shadow']] }
+  };
+  let range = '1h', incident = false;
+  const N = 120, COLS = 40, ROWS = 8;
+  let pts = [], heat = [], show42 = 0, t = 0;
+
+  const nextPoint = i => {
+    const R = RANGES[range];
+    const trend = range === '10y' ? (i / N) * 46 : 0;
+    const wave = Math.sin(i / 7) * R.amp * .5 + Math.sin(i / 2.3) * R.amp * .25;
+    let v = R.base + trend + wave + (rand() - .5) * R.amp;
+    if (incident) v = v * 2.4 + rand() * 40;
+    return Math.max(2, v);
+  };
+  const nextCol = i => {
+    const centre = incident ? 5.6 + rand() : 2.1 + Math.sin(i / 5) * 1.1;
+    return Array.from({ length: ROWS }, (_, r) => {
+      const d = Math.exp(-((r - centre) ** 2) / 1.7) * 4.3 + (rand() - .5) * 1.1;
+      return Math.max(0, Math.min(4, Math.round(d)));
+    });
+  };
+  const regen = () => {
+    rand = seeded({ '1h': 42, '24h': 7, '7d': 1337, '10y': 2015 }[range]);
+    t = 0; pts = []; heat = [];
+    for (let i = 0; i < N; i++) pts.push(nextPoint(t++));
+    for (let i = 0; i < COLS; i++) heat.push(nextCol(i));
+    const R = RANGES[range];
+    $('#vspan').textContent = R.span; $('#ratemeta').textContent = R.step; $('#served').textContent = R.served;
+    $('#ratenote').textContent = range === '10y' ? 'Ten years, one trend. Hover for values.' : 'Hover the chart for values.';
+    document.querySelectorAll('[data-spark]').forEach(s => spark(s, +s.dataset.spark + t));
+    drawAll();
+  };
+
+  // ── request-rate chart ────────────────────────────────────
+  const rate = $('#rate'), heatEl = $('#heat');
+  let pat, patInk;
+  const pattern = x => {
+    if (pat && patInk === C.ink + incident) return pat;
+    const p = document.createElement('canvas'); p.width = p.height = 6;
+    const px = p.getContext('2d'); px.fillStyle = incident ? C.red : C.ink;
+    px.fillRect(0, 0, 2, 2); px.fillRect(3, 3, 2, 2);
+    patInk = C.ink + incident; return pat = x.createPattern(p, 'repeat');
+  };
+  let geo = {};
+  const drawRate = () => {
+    const [x, w, h] = prep(rate), x0 = 40, y0 = 14, x1 = w - 8, y1 = h - 24;
+    const max = Math.max(70, ...pts) * 1.12;
+    const X = i => x0 + (x1 - x0) * i / (N - 1), Y = v => y1 - (y1 - y0) * v / max;
+    geo = { x0, x1, max };
+    x.clearRect(0, 0, w, h);
+    x.font = '11px "IBM Plex Mono", ui-monospace, monospace'; x.textBaseline = 'middle';
+    for (let i = 0; i <= 4; i++) {
+      const y = Math.round(y1 - (y1 - y0) * i / 4);
+      x.fillStyle = C.ink3; x.textAlign = 'right'; x.fillText(Math.round(max * i / 4), x0 - 8, y);
+      x.fillStyle = C.rule; for (let px = x0; px < x1; px += 6) x.fillRect(px, y, 2, 2);
+    }
+    x.textAlign = 'center'; x.fillStyle = C.ink3;
+    RANGES[range].xl.forEach((l, i, a) => {
+      const px = x0 + (x1 - x0) * i / (a.length - 1);
+      x.textAlign = i === 0 ? 'left' : i === a.length - 1 ? 'right' : 'center';
+      x.fillText(l, px, h - 8);
+    });
+    // stepped area, dither-filled
+    x.beginPath(); x.moveTo(X(0), y1);
+    for (let i = 0; i < N; i++) { x.lineTo(X(i), Y(pts[i])); if (i < N - 1) x.lineTo(X(i + 1), Y(pts[i])); }
+    x.lineTo(x1, y1); x.closePath(); x.fillStyle = pattern(x); x.fill();
+    x.beginPath();
+    for (let i = 0; i < N; i++) { x[i ? 'lineTo' : 'moveTo'](X(i), Y(pts[i])); if (i < N - 1) x.lineTo(X(i + 1), Y(pts[i])); }
+    x.strokeStyle = incident ? C.red : C.ink; x.lineWidth = 2; x.stroke();
+    // career marks on the 10-year view
+    (RANGES[range].marks || []).forEach(([f, label], i) => {
+      const px = Math.round(x0 + (x1 - x0) * f);
+      x.fillStyle = C.ink; for (let y = y0; y < y1; y += 6) x.fillRect(px, y, 2, 3);
+      x.font = '11px "IBM Plex Mono", ui-monospace, monospace';
+      const tw = x.measureText(label).width + 10, lx = Math.min(px + 5, x1 - tw), ly = y0 + 4 + i * 22;
+      x.fillStyle = C.yellow; x.fillRect(lx, ly - 9, tw, 18);
+      x.fillStyle = '#15171a'; x.textAlign = 'left'; x.fillText(label, lx + 5, ly + 1);
+    });
+    // "now" marker
+    const ny = Y(pts[N - 1]);
+    x.fillStyle = C.yellow; x.fillRect(x1 - 6, ny - 6, 11, 11);
+    x.strokeStyle = C.ink; x.lineWidth = 2; x.strokeRect(x1 - 6, ny - 6, 11, 11);
+  };
+
+  // ── latency heatmap ───────────────────────────────────────
+  const BUCKETS = ['< 10 ms', '10–25 ms', '25–50 ms', '50–100 ms', '100–250 ms', '250–500 ms', '0.5–1 s', '> 1 s'];
+  const DIGITS = { 4: ['10010', '10010', '10010', '11111', '00010', '00010', '00010'], 2: ['01110', '10001', '00001', '00010', '00100', '01000', '11111'] };
+  const bit42 = (c, r) => { // r counted from the top; digits occupy rows 0–6
+    for (const [d, c0] of [[4, 13], [2, 21]]) if (c >= c0 && c < c0 + 5 && r < 7 && DIGITS[d][r][c - c0] === '1') return true;
+    return false;
+  };
+  let hgeo = {};
+  const drawHeat = () => {
+    const [x, w, h] = prep(heatEl), x0 = 0, y0 = 4, y1 = h - 22;
+    const cw = (w - x0) / COLS, ch = (y1 - y0) / ROWS;
+    hgeo = { x0, y0, cw, ch };
+    x.clearRect(0, 0, w, h);
+    const shade = [null, alpha(C.ink, .16), alpha(C.ink, .4), C.ink, C.yellow];
+    for (let c = 0; c < COLS; c++) for (let r = 0; r < ROWS; r++) {
+      const top = ROWS - 1 - r; // row 0 is the fastest bucket, drawn at the bottom
+      let lv = heat[c][r];
+      if (show42) lv = bit42(c, top) ? 4 : Math.min(lv, 1);
+      const px = x0 + c * cw, py = y0 + top * ch;
+      x.fillStyle = C.rule; x.fillRect(px + cw / 2 - 1, py + ch / 2 - 1, 2, 2);
+      if (!lv) continue;
+      x.fillStyle = incident && lv >= 3 && !show42 ? C.red : shade[lv];
+      x.fillRect(Math.round(px) + 1, Math.round(py) + 1, Math.ceil(cw) - 2, Math.ceil(ch) - 2);
+    }
+    x.font = '11px "IBM Plex Mono", ui-monospace, monospace'; x.fillStyle = C.ink3; x.textBaseline = 'middle';
+    x.textAlign = 'left'; x.fillText('fast ↓  slow ↑', 0, h - 8);
+    x.textAlign = 'right'; x.fillText('now', w, h - 8);
+  };
+  const drawAll = () => { drawRate(); drawHeat(); };
+
+  // ── sparklines ────────────────────────────────────────────
+  function spark(svg, seed) {
+    const r = seeded(seed); let v = 14, p = [];
+    for (let i = 0; i <= 24; i++) {
+      v = Math.max(3, Math.min(27, v + (r() - .46) * 9));
+      const x = (i * 100 / 24).toFixed(1), y = (30 - v).toFixed(1);
+      if (i) p.push(`${x},${p.at(-1).split(',')[1]}`); // step
+      p.push(`${x},${y}`);
+    }
+    svg.innerHTML = `<polyline points="${p.join(' ')}"/>`;
+  }
+
+  // ── tooltips ──────────────────────────────────────────────
+  const tip = $('#tip');
+  const showTip = (e, text) => {
+    tip.textContent = text; tip.hidden = false;
+    const tw = tip.offsetWidth, th = tip.offsetHeight;
+    tip.style.left = Math.max(6, Math.min(innerWidth - tw - 6, e.clientX + 14)) + 'px';
+    tip.style.top = Math.max(6, e.clientY - th - 12) + 'px';
+  };
+  const hideTip = () => { tip.hidden = true; };
+  rate.addEventListener('pointermove', e => {
+    const r = rate.getBoundingClientRect(), f = (e.clientX - r.left - geo.x0) / (geo.x1 - geo.x0);
+    if (f < 0 || f > 1) return hideTip();
+    const i = Math.round(f * (N - 1)), R = RANGES[range], ago = ((1 - f) * R.len);
+    showTip(e, `${Math.round(pts[i])} explanations / hour\n${ago < .05 ? 'now' : 't − ' + ago.toFixed(1) + ' ' + R.unit}`);
+  });
+  heatEl.addEventListener('pointermove', e => {
+    const r = heatEl.getBoundingClientRect();
+    const c = Math.floor((e.clientX - r.left - hgeo.x0) / hgeo.cw), top = Math.floor((e.clientY - r.top - hgeo.y0) / hgeo.ch);
+    if (c < 0 || c >= COLS || top < 0 || top >= ROWS) return hideTip();
+    const row = ROWS - 1 - top, lv = heat[c][row];
+    showTip(e, `${BUCKETS[row]}\n${[0, 3, 11, 27, 42][lv]} answers · column ${c + 1}/${COLS}`);
+  });
+  [rate, heatEl].forEach(c => c.addEventListener('pointerleave', hideTip));
+
+  // ── log tail ──────────────────────────────────────────────
+  const LOGS = [
+    ['INFO', 'mycroft', 'rewrote own screen', 'generation=17 rollback=available'],
+    ['INFO', 'golem', 'remembered what the family decided last week', 'store=sqlite'],
+    ['DEBUG', 'shadow', 'read 214 slack messages so you do not have to', 'asks_open=3'],
+    ['INFO', 'meiro.pipes', 'stitched identities', 'profiles=1 visitor=you'],
+    ['WARN', 'v', 'explained the same thing twice', 'audience=different verdict=fine'],
+    ['INFO', 'analyst', 'used bash instead of twelve tools', 'context_saved=50k_rows'],
+    ['DEBUG', 'marvin', 'brain the size of a planet, asked to tail logs', 'mood=low'],
+    ['INFO', 'towel', 'status check', 'towel.status=present'],
+    ['WARN', 'edge', 'hype detected in incoming request', 'action=dropped'],
+    ['INFO', 'qwen', 'running locally', 'cloud=none'],
+    ['INFO', 'cron', 'backup complete', 'host=saturnin'],
+    ['INFO', 'jobs', 'supervised job finished', 'host=bender exit=0'],
+    ['DEBUG', 'health', 'check passed', 'host=glados cake=false'],
+    ['INFO', 'v', 'debugged it in production', 'lesson=learned'],
+    ['INFO', 'web', 'page_view', 'path=/ panic=false'],
+    ['WARN', 'coffee', 'level low', 'action=refill'],
+    ['INFO', 'shadow', 'stayed quiet', 'reason="nothing needs you"'],
+    ['DEBUG', 'v', 'read the protocol spec for fun', 'again=true']
+  ];
+  const CHAOS = [
+    ['ERROR', 'chaos', 'monkey loose in the panel grid', 'panels=tilted'],
+    ['ERROR', 'layout', 'alignment out of tolerance', 'tolerance=0deg'],
+    ['ERROR', 'pager', 'paging V', 'ack=pending'],
+    ['WARN', 'v', 'acknowledged', 'note="don\'t panic"'],
+    ['INFO', 'towel', 'deployed to affected area', 'absorbency=high']
+  ];
+  const log = $('#log'); let li = 0, ci = 0, paused = false, hovering = false;
+  const esc = s => s.replace(/[&<>]/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[m]));
+  const addLog = ([lv, svc, msg, kv]) => {
+    const el = document.createElement('li');
+    const ts = new Date().toTimeString().slice(0, 8);
+    el.innerHTML = `<time>${ts}</time><span class="lv ${lv}">${lv}</span><span class="s">${svc}</span><span class="m">${esc(msg)} <i>${esc(kv)}</i></span>`;
+    log.append(el);
+    while (log.children.length > 16) log.firstChild.remove();
+  };
+  for (let i = 0; i < 9; i++) addLog(LOGS[li++ % LOGS.length]);
+  log.addEventListener('pointerenter', () => hovering = true);
+  log.addEventListener('pointerleave', () => hovering = false);
+  $('#pause').onclick = e => {
+    paused = !paused; e.target.setAttribute('aria-pressed', paused); e.target.textContent = paused ? 'resume' : 'pause';
+  };
+
+  // ── uptime ────────────────────────────────────────────────
+  const since = new Date('2015-08-01T08:00:00Z');
+  const pad = n => String(n).padStart(2, '0');
+  const tickUptime = () => {
+    const now = new Date(); let y = now.getUTCFullYear() - since.getUTCFullYear();
+    let anniv = new Date(since); anniv.setUTCFullYear(since.getUTCFullYear() + y);
+    if (anniv > now) { y--; anniv.setUTCFullYear(since.getUTCFullYear() + y); }
+    const s = Math.floor((now - anniv) / 1000);
+    $('#uptime').textContent = `${y}y ${Math.floor(s / 86400)}d ${pad(Math.floor(s % 86400 / 3600))}:${pad(Math.floor(s % 3600 / 60))}:${pad(s % 60)}`;
+  };
+  $('#uptime').title = 'in production since August 2015, first day as Head Nerd';
+
+  // ── toasts ────────────────────────────────────────────────
+  const toast = (kind, text, red) => {
+    const el = document.createElement('div'); el.className = 'toast' + (red ? ' r' : '');
+    el.innerHTML = `<b>${kind}</b>${esc(text)}`; $('#toasts').append(el);
+    setTimeout(() => el.remove(), 5200);
+  };
+
+  // ── incidents ─────────────────────────────────────────────
+  const panels = [...document.querySelectorAll('.panel')];
+  let pmId = 42;
+  const fileMortem = (title, impact, cause) => {
+    const el = document.createElement('li'); el.className = 'fresh';
+    el.innerHTML = `<div class="meta"><span class="tag new">new</span><span>PM-00${pmId++} · filed just now</span></div>
+      <h3>${esc(title)}</h3><p>Impact: ${esc(impact)} Root cause: ${esc(cause)} Action items: none.</p>`;
+    $('#rb').prepend(el);
+  };
+  const setState = (text) => { $('#state').textContent = text; };
+  const startIncident = (reason, mortem, after) => {
+    if (incident) return;
+    incident = true; document.body.classList.add('incident');
+    panels.forEach(p => {
+      p.style.setProperty('--tilt', (Math.random() * 7 - 3.5).toFixed(2) + 'deg');
+      p.style.setProperty('--dx', (Math.random() * 16 - 8).toFixed(0) + 'px');
+      p.style.setProperty('--dy', (Math.random() * 16 - 8).toFixed(0) + 'px');
+    });
+    setState(`SEV-1 · ${reason} · don't panic`);
+    ci = 0;
+    toast('alert · sev-1', reason, true);
+    setTimeout(() => incident && toast('alert', 'panel.alignment out of tolerance', true), 1300);
+    setTimeout(() => incident && toast('page', 'paging V… V says: don\'t panic', true), 2700);
+    drawAll();
+    setTimeout(() => {
+      incident = false; document.body.classList.remove('incident');
+      setState('All systems nominal (mostly harmless)');
+      toast('resolved · 6.5 s', 'Turned it off and on again. Postmortem filed.');
+      fileMortem(...mortem);
+      addLog(['INFO', 'pager', 'incident resolved', 'mttr=6.5s blame=none']);
+      if (after) after();
+      drawAll();
+    }, 6500);
+  };
+  $('#chaos').onclick = () => startIncident('chaos monkey released by a visitor',
+    ['Someone pressed the button', 'every panel tilted, one monkey crossed the screen.', 'curiosity, which is a feature.']);
+
+  // chaos monkey sprite, drawn from a pixel map
+  const MONKEY = ['.##......##.', '#yy#.##.#yy#', '#yy######yy#', '.##yyyyyy##.', '..#y#yy#y#..', '..#yyyyyy#..', '..#y####y#..', '...#yyyy#...', '....####....'];
+  $('#monkey').innerHTML = `<svg viewBox="0 0 12 9" shape-rendering="crispEdges">${MONKEY.flatMap((row, y) =>
+    [...row].map((c, x) => c === '.' ? '' : `<rect x="${x}" y="${y}" width="1" height="1" fill="${c === '#' ? '#15171a' : '#FFD400'}"/>`)).join('')}</svg>`;
+
+  // ── Easter eggs ───────────────────────────────────────────
+  // towel: three clicks and it goes missing
+  let towelClicks = 0;
+  $('#towel').onclick = () => {
+    if (incident) return;
+    if (++towelClicks < 3) { $('#toweln').textContent = ['checked just now', 'still present. stop poking it'][towelClicks - 1]; return; }
+    towelClicks = 0;
+    $('#towel').classList.add('bad'); $('#towelv').textContent = 'missing'; $('#toweln').textContent = 'PANIC (do not)';
+    startIncident('towel.status = missing',
+      ['The towel went missing', 'one hitchhiker briefly unprepared.', 'it was on the server rack the whole time.'],
+      () => { $('#towel').classList.remove('bad'); $('#towelv').textContent = 'present'; $('#toweln').textContent = 'found on the server rack'; });
+  };
+  // status LED: five clicks → large, friendly letters
+  let ledClicks = 0, ledTimer;
+  const panic = $('#panic');
+  const closePanic = () => { panic.hidden = true; };
+  $('#led').onclick = () => {
+    clearTimeout(ledTimer); ledTimer = setTimeout(() => ledClicks = 0, 1800);
+    if (++ledClicks >= 5) { ledClicks = 0; panic.hidden = false; panic.focus(); setTimeout(closePanic, 3200); }
+  };
+  panic.onclick = closePanic;
+  // night shift
+  const setNight = on => {
+    document.body.classList.toggle('night', on); $('#night').setAttribute('aria-pressed', on);
+    $('#night').textContent = on ? '☀' : '☾'; pat = null; readColors(); drawAll();
+  };
+  $('#night').onclick = () => setNight(!document.body.classList.contains('night'));
+  // typed words
+  let buf = '';
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') return closePanic();
+    if (e.metaKey || e.ctrlKey || e.altKey || e.key.length !== 1) return;
+    buf = (buf + e.key.toLowerCase()).slice(-8);
+    if (buf.endsWith('42')) {
+      show42 = 1; drawHeat(); toast('deep thought', 'The answer is on the heatmap. The question is still loading.');
+      setTimeout(() => { show42 = 0; drawHeat(); }, 6000);
+    } else if (buf.endsWith('sudo')) {
+      addLog(['WARN', 'auth', 'v is not in the sudoers file', 'reported=true']);
+      toast('security', 'v is not in the sudoers file. This incident will be reported.');
+      fileMortem('Visitor tried sudo', 'none.', 'optimism.');
+    } else if (e.key === 'n') setNight(!document.body.classList.contains('night'));
+  });
+
+  // ── range picker ──────────────────────────────────────────
+  $('#ranges').addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    range = b.dataset.r;
+    document.querySelectorAll('#ranges button').forEach(x => x.setAttribute('aria-pressed', x === b));
+    regen();
+  });
+
+  // ── boot + loops ──────────────────────────────────────────
+  const h = new Date().getHours();
+  if (h >= 22 || h < 6) document.body.classList.add('night'), $('#night').setAttribute('aria-pressed', true), $('#night').textContent = '☀';
+  readColors(); regen(); tickUptime();
+  setInterval(tickUptime, 1000);
+  addEventListener('resize', drawAll);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(drawAll);
+  if (!RM) {
+    setInterval(() => {
+      if (document.hidden) return;
+      if (range !== '10y') { pts.shift(); pts.push(nextPoint(t++)); drawRate(); }
+    }, 700);
+    setInterval(() => {
+      if (document.hidden) return;
+      heat.shift(); heat.push(nextCol(t)); drawHeat();
+    }, 1100);
+    setInterval(() => {
+      if (document.hidden || paused || hovering) return;
+      addLog(incident ? CHAOS[ci++ % CHAOS.length] : LOGS[li++ % LOGS.length]);
+    }, 1500);
+  }
+})();
+</script>
+
+<div id="vnav" style="position:fixed;right:12px;bottom:12px;z-index:99999;font:12px/1 ui-monospace,Menlo,monospace;background:#111;color:#fff;border-radius:999px;padding:8px 12px;display:flex;gap:10px;align-items:center;box-shadow:0 2px 10px rgba(0,0,0,.3)"><a href="14-git-log.html" style="color:#FFD400;text-decoration:none" aria-label="Previous variation">‹</a><a href="index.html" style="color:#fff;text-decoration:none">15/20 · observability</a><a href="16-embedding-map.html" style="color:#FFD400;text-decoration:none" aria-label="Next variation">›</a></div>
+</body>
+</html>

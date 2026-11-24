@@ -1,0 +1,638 @@
+<!doctype html>
+<!--
+  12 · THE DAILY PANIC — a broadsheet newspaper.
+  Signature interaction: it is a paper you can operate. "Stop the presses!" re-sets the front page with new headlines
+  and an EXTRA stamp; the edition switch flips Morning/Evening (light/dark; picked from your local time on load);
+  every picture is dithered live in canvas, and moving the pointer across one changes its exposure.
+  Easter eggs:
+    1. The Panic Puzzle: fill the nine boxes with DONTPANIC          -> "calm restored", the thumb takes a bow
+    2. The bonus boxes: 4 2                                          -> a wire from Deep Thought
+    3. Click "No. 42" in the top strip                               -> a printed correction about the answer
+    4. Type the word "towel" anywhere on the page                    -> the LOST classified opens, price is settled
+    5. Click the thumb in the masthead three times                   -> the paper briefly becomes "The Daily Calm"
+    6. Every classified ad opens to a punchline (Marvin is in PERSONAL)
+-->
+<html lang="en" data-ed="morning">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>The Daily Panic — Don't Panic, V!</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=Jacquard+24&family=Playfair+Display:ital,wght@0,500;0,700;0,900;1,500;1,700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f1ecdf; --paper-2: #e7e0cf; --ink: #16140f; --ink-2: #4c4639; --hair: #b9b09a; --acc: #ffd400; --on-acc: #16140f;
+    --mast: "Jacquard 24", "UnifrakturCook", "Old English Text MT", "Playfair Display", serif;
+    --head: "Playfair Display", "Bodoni 72", Didot, Georgia, serif;
+    --body: "Source Serif 4", "Iowan Old Style", Charter, Georgia, serif;
+    --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  }
+  [data-ed="evening"] { --paper: #14130e; --paper-2: #1f1d16; --ink: #ece5d3; --ink-2: #b5ad98; --hair: #4a4536; }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 18px/1.55 var(--body); transition: background .5s, color .5s; overflow-x: hidden; }
+  a { color: inherit; text-decoration: underline; text-decoration-color: var(--acc); text-decoration-thickness: 3px; text-underline-offset: 3px; }
+  a:hover { background: var(--acc); color: var(--on-acc); }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+  :focus-visible { outline: 3px solid var(--acc); outline-offset: 2px; }
+  ::selection { background: var(--acc); color: var(--on-acc); }
+  .sheet { max-width: 1320px; margin: 0 auto; padding: 0 clamp(14px, 3vw, 44px) 90px; }
+  .caps { font: 600 11.5px/1.4 var(--mono); letter-spacing: .14em; text-transform: uppercase; }
+
+  /* ── top strip ── */
+  .util { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 22px; padding: 10px 0; border-bottom: 1px solid var(--ink); }
+  .util .sp { flex: 1; }
+  .util button.plain { border-bottom: 1px dotted var(--ink); }
+  .ed { display: inline-flex; border: 1px solid var(--ink); }
+  .ed button { padding: 5px 10px; font: inherit; letter-spacing: inherit; text-transform: inherit; }
+  .ed button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+  .stop { background: var(--acc); color: var(--on-acc); padding: 6px 12px; border: 1px solid var(--ink); box-shadow: 3px 3px 0 var(--ink); font: inherit; letter-spacing: inherit; text-transform: inherit; }
+  .stop:hover { transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--ink); }
+  .stop:active { transform: translate(3px, 3px); box-shadow: none; }
+
+  /* ── masthead ── */
+  .mast { display: grid; grid-template-columns: minmax(172px, 1fr) auto minmax(172px, 1fr); align-items: center; gap: 20px; padding: 18px 0 8px; position: relative; }
+  .mast h1 { font: 400 clamp(54px, 9.5vw, 142px)/.86 var(--mast); margin: 0; text-align: center; white-space: nowrap; letter-spacing: -.01em; }
+  .seal { display: inline-block; vertical-align: -.04em; width: .62em; height: .6em; margin: 0 .06em; transition: transform .7s cubic-bezier(.3, 1.4, .5, 1); }
+  .seal svg { width: 100%; height: 100%; display: block; }
+  .seal g { fill: var(--ink); }
+  .seal.bow { transform: rotate(360deg); }
+  .seal.down { transform: rotate(180deg); }
+  .ear { border: 1px solid var(--ink); padding: 10px 12px; font-size: 14.5px; line-height: 1.35; max-width: 230px; }
+  .ear.r { justify-self: end; }
+  .ear b { display: block; margin-bottom: 3px; }
+  .strap { display: flex; justify-content: space-between; gap: 16px; border-top: 4px double var(--ink); border-bottom: 1px solid var(--ink); padding: 7px 0; }
+  .strap em { font: italic 500 16px var(--head); letter-spacing: 0; text-transform: none; }
+  .stamp { position: absolute; right: 13%; top: -2px; background: var(--acc); color: var(--on-acc); font: 900 clamp(22px, 3vw, 40px)/1 var(--head); padding: 8px 16px; border: 3px solid var(--on-acc); transform: rotate(-9deg) scale(0); pointer-events: none; }
+  .stamp.on { transform: rotate(-9deg) scale(1); transition: transform .35s cubic-bezier(.2, 2.2, .4, 1); }
+
+  /* ── ticker ── */
+  .ticker { overflow: hidden; border-bottom: 1px solid var(--ink); white-space: nowrap; padding: 7px 0; }
+  .ticker div { display: inline-block; animation: tick 46s linear infinite; }
+  .ticker:hover div { animation-play-state: paused; }
+  .ticker span { margin-right: 34px; }
+  .ticker i { font-style: normal; background: var(--acc); color: var(--on-acc); padding: 0 4px; }
+  @keyframes tick { to { transform: translateX(-50%); } }
+  .nav { display: flex; flex-wrap: wrap; gap: 4px 26px; justify-content: center; padding: 9px 0; border-bottom: 1px solid var(--ink); }
+  .nav a { text-decoration: none; }
+
+  /* ── stories ── */
+  .kick { display: inline-block; background: var(--ink); color: var(--paper); padding: 2px 7px; margin-bottom: 10px; }
+  h2, h3 { font-family: var(--head); margin: 0; text-wrap: balance; }
+  .by { color: var(--ink-2); margin: 12px 0 14px; }
+  figure { margin: 0 0 14px; }
+  canvas { display: block; width: 100%; image-rendering: pixelated; border: 1px solid var(--ink); cursor: crosshair; }
+  [data-ed="evening"] canvas { filter: invert(1); border-color: #16140f; }
+  figcaption { font: 13.5px/1.4 var(--body); font-style: italic; color: var(--ink-2); padding-top: 6px; }
+  figcaption b { font: 600 11px var(--mono); letter-spacing: .12em; font-style: normal; }
+  .copy p { margin: 0 0 .8em; text-align: justify; hyphens: auto; -webkit-hyphens: auto; }
+  .copy p + p { text-indent: 1.2em; margin-top: -.8em; }
+  .copy .more { text-indent: 0; margin-top: 0; text-align: left; font-size: 16px; }
+  .dateline { font-weight: 600; letter-spacing: .08em; }
+
+  .front { display: grid; grid-template-columns: minmax(0, 2.15fr) minmax(0, 1fr); gap: 0 34px; padding: 26px 0 28px; border-bottom: 4px double var(--ink); }
+  .lead h2 { font-weight: 900; font-size: clamp(38px, 5.4vw, 80px); line-height: .98; letter-spacing: -.02em; }
+  .dek { font: italic 500 clamp(20px, 1.9vw, 26px)/1.3 var(--head); margin: 14px 0 0; max-width: 46ch; }
+  .lead .copy { columns: 2; column-gap: 30px; column-rule: 1px solid var(--hair); }
+  .lead .copy p:first-child::first-letter { float: left; font: 900 5.1em/.74 var(--head); padding: .08em .08em 0 0; }
+  .rail { border-left: 1px solid var(--ink); padding-left: 30px; display: grid; gap: 22px; align-content: start; }
+  .box { border-top: 3px solid var(--ink); padding-top: 10px; }
+  .box h3 { font: 600 11.5px/1.4 var(--mono); letter-spacing: .14em; text-transform: uppercase; margin-bottom: 10px; }
+  .box p { margin: 0 0 .7em; font-size: 17px; }
+  .portrait { float: left; width: 112px; margin: 3px 14px 6px 0; }
+  .quote { font: italic 500 25px/1.25 var(--head); margin: 0; }
+  .quote::before { content: "“"; display: block; font: 900 64px/.6 var(--head); margin-top: 16px; }
+  .toc { list-style: none; margin: 0; padding: 0; }
+  .toc li { display: flex; gap: 8px; align-items: baseline; padding: 5px 0; border-bottom: 1px dotted var(--hair); font-size: 17px; }
+  .toc a { text-decoration: none; flex: 1; }
+  .toc span { font: 600 12px var(--mono); }
+
+  .three { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 26px 0; border-bottom: 4px double var(--ink); }
+  .three article { padding: 0 26px; border-left: 1px solid var(--ink); }
+  .three article:first-child { padding-left: 0; border-left: 0; }
+  .three article:last-child { padding-right: 0; }
+  .three h3 { font-weight: 700; font-size: clamp(26px, 2.5vw, 35px); line-height: 1.08; margin-bottom: 12px; }
+  .three .copy { font-size: 17.5px; }
+
+  .sec-h { display: flex; align-items: baseline; gap: 16px; margin: 30px 0 18px; }
+  .sec-h h2 { font: italic 700 clamp(36px, 4.2vw, 58px)/1 var(--head); }
+  .sec-h::after { content: ""; flex: 1; border-top: 1px solid var(--ink); align-self: center; }
+  .opinion { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 0 34px; padding-bottom: 26px; border-bottom: 4px double var(--ink); }
+  .op { padding: 14px 0 16px; border-top: 1px solid var(--ink); display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 0 18px; }
+  .op .caps { color: var(--ink-2); padding-top: 7px; }
+  .op h3 { font-weight: 700; font-size: clamp(23px, 2.2vw, 30px); line-height: 1.15; margin-bottom: 6px; }
+  .op p { margin: 0; max-width: 62ch; }
+  .takes { border-left: 1px solid var(--ink); padding-left: 30px; }
+  .takes blockquote { margin: 0 0 18px; padding-bottom: 18px; border-bottom: 1px dotted var(--hair); font: italic 500 22px/1.3 var(--head); }
+  .takes blockquote:last-child { border: 0; }
+
+  /* ── A4: the reading view ── */
+  .a4 { display: grid; grid-template-columns: minmax(0, 66ch) minmax(0, 1fr); gap: 0 54px; padding: 8px 0 34px; border-bottom: 4px double var(--ink); }
+  .a4 h2 { font-weight: 900; font-size: clamp(34px, 4.4vw, 60px); line-height: 1.03; letter-spacing: -.015em; grid-column: 1 / -1; max-width: 22ch; }
+  .a4 .by { grid-column: 1 / -1; padding-bottom: 14px; border-bottom: 1px solid var(--ink); margin-bottom: 24px; }
+  .article p { font-size: 20px; line-height: 1.65; margin: 0 0 1em; hyphens: auto; -webkit-hyphens: auto; }
+  .article > p:first-child::first-letter { float: left; font: 900 4.9em/.76 var(--head); padding: .07em .08em 0 0; }
+  .article h3 { font-weight: 700; font-size: 28px; line-height: 1.2; margin: 1.5em 0 .5em; }
+  .article pre { font: 14px/1.6 var(--mono); background: #16140f; color: #ece5d3; padding: 18px 20px; overflow-x: auto; border-left: 6px solid var(--acc); margin: 0 0 1.4em; }
+  .article code { font: .82em var(--mono); background: var(--paper-2); padding: 1px 5px; }
+  .article pre code { background: none; padding: 0; font-size: 1em; }
+  .a4 aside { align-self: start; position: sticky; top: 20px; display: grid; gap: 26px; }
+  .pull { font: italic 700 clamp(26px, 2.6vw, 36px)/1.2 var(--head); margin: 0; border-top: 3px solid var(--ink); border-bottom: 3px solid var(--ink); padding: 18px 0; }
+  .pull mark { background: var(--acc); color: var(--on-acc); }
+  .ideas { list-style: none; counter-reset: n; margin: 0; padding: 0; }
+  .ideas li { counter-increment: n; display: grid; grid-template-columns: 44px 1fr; padding: 10px 0; border-bottom: 1px dotted var(--hair); font-size: 17.5px; line-height: 1.4; }
+  .ideas li::before { content: counter(n); font: 900 34px/1 var(--head); }
+
+  /* ── the editor's record ── */
+  .record { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 0 44px; padding-bottom: 28px; border-bottom: 4px double var(--ink); }
+  .record .copy p { font-size: 18.5px; }
+  .ledger { width: 100%; border-collapse: collapse; }
+  .ledger th { text-align: left; padding: 0 12px 6px 0; border-bottom: 3px solid var(--ink); }
+  .ledger td { padding: 12px 14px 12px 0; border-bottom: 1px solid var(--hair); vertical-align: top; }
+  .ledger td:first-child { font: 600 13px/1.9 var(--mono); white-space: nowrap; }
+  .ledger b { font: 700 21px/1.2 var(--head); display: block; }
+  .ledger small { font-size: 16.5px; color: var(--ink-2); display: block; margin-top: 3px; }
+
+  /* ── classifieds, contact, puzzle ── */
+  .ads { columns: 4 230px; column-gap: 0; border-left: 1px solid var(--ink); border-top: 1px solid var(--ink); }
+  .ads details, .ads .ad { break-inside: avoid; border-right: 1px solid var(--ink); border-bottom: 1px solid var(--ink); padding: 12px 14px 13px; font-size: 16.5px; line-height: 1.4; }
+  .ads summary { cursor: pointer; list-style: none; }
+  .ads summary::-webkit-details-marker { display: none; }
+  .ads summary b { display: block; font: 600 11.5px var(--mono); letter-spacing: .14em; margin-bottom: 4px; }
+  .ads summary::after { content: "▸ open"; font: 11px var(--mono); color: var(--ink-2); display: block; margin-top: 6px; }
+  .ads details[open] summary::after { content: ""; }
+  .ads details p { margin: 8px 0 0; font-style: italic; border-top: 1px dotted var(--ink); padding-top: 8px; }
+  .ads details.hit { background: var(--acc); color: var(--on-acc); }
+  .ads details.hit summary::after { color: inherit; }
+  .last { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0 44px; margin-top: 30px; }
+  .contact { list-style: none; margin: 0; padding: 0; border-top: 3px solid var(--ink); }
+  .contact li { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 14px; padding: 11px 0; border-bottom: 1px solid var(--hair); align-items: baseline; }
+  .contact a { font: 500 clamp(19px, 2vw, 25px)/1.2 var(--head); overflow-wrap: anywhere; }
+  .puzzle { border: 3px solid var(--ink); padding: 18px 20px 20px; position: relative; }
+  .puzzle h3 { font: 900 30px/1 var(--head); margin-bottom: 8px; }
+  .puzzle p { margin: 0 0 12px; font-size: 17px; }
+  .cells { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 14px; }
+  .cells input { width: 40px; height: 46px; border: 2px solid var(--ink); background: var(--paper); color: var(--ink); font: 700 24px/1 var(--head); text-align: center; text-transform: uppercase; padding: 0; border-radius: 0; }
+  .cells input.gap { margin-left: 14px; }
+  .cells.solved input { background: var(--acc); color: var(--on-acc); animation: flip .6s both; animation-delay: calc(var(--i) * 60ms); }
+  @keyframes flip { 50% { transform: rotateX(90deg); } }
+  .puzzle output { display: block; font: italic 500 19px/1.35 var(--head); min-height: 1.4em; }
+  .corr { border: 1px solid var(--ink); border-left: 8px solid var(--acc); padding: 10px 14px; margin: 16px 0 0; font-size: 16.5px; animation: drop .5s cubic-bezier(.2, 1.6, .4, 1); }
+  @keyframes drop { from { opacity: 0; transform: translateY(-16px) rotate(-1deg); } }
+  footer.colophon { margin-top: 34px; border-top: 4px double var(--ink); padding-top: 12px; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 20px; color: var(--ink-2); }
+
+  /* ── stop the presses ── */
+  .roller { position: fixed; left: 0; right: 0; top: -40px; height: 26px; background: var(--ink); z-index: 50; pointer-events: none; box-shadow: 0 6px 0 var(--acc); }
+  .pressing .roller { animation: roll .95s cubic-bezier(.5, 0, .3, 1); }
+  @keyframes roll { to { top: 105vh; } }
+  .pressing .story { animation: press .7s both cubic-bezier(.2, .8, .2, 1); animation-delay: calc(var(--i, 0) * 80ms + 100ms); }
+  @keyframes press { from { clip-path: inset(0 0 100% 0); transform: translateY(-10px); } to { clip-path: inset(0 0 0 0); transform: none; } }
+
+  @media (max-width: 900px) {
+    .mast { grid-template-columns: 1fr 1fr; gap: 10px; padding-top: 12px; }
+    .mast h1 { grid-column: 1 / -1; grid-row: 1; font-size: clamp(38px, 13.4vw, 120px); }
+    .ear { max-width: none; font-size: 13.5px; align-self: stretch; }
+    .ear.r { justify-self: stretch; }
+    .stamp { right: 4%; top: 2px; }
+    .strap { flex-wrap: wrap; justify-content: center; text-align: center; }
+    .front, .opinion, .a4, .record, .last { grid-template-columns: minmax(0, 1fr); }
+    .rail, .takes { border-left: 0; padding-left: 0; margin-top: 24px; }
+    .lead .copy { columns: 1; }
+    .three { grid-template-columns: minmax(0, 1fr); }
+    .three article { padding: 22px 0 0; margin-top: 22px; border-left: 0; border-top: 1px solid var(--ink); }
+    .three article:first-child { padding-top: 0; margin-top: 0; border-top: 0; }
+    .op { grid-template-columns: minmax(0, 1fr); }
+    .a4 aside { position: static; margin-top: 10px; }
+    .article p { font-size: 19px; }
+    .copy p { text-align: left; }
+    .puzzle { margin-top: 28px; }
+    .cells input { width: 31px; height: 40px; font-size: 20px; }
+    .cells input.gap { margin-left: 8px; }
+    .util .sp { display: none; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+    .ticker { overflow-x: auto; }
+  }
+</style>
+</head>
+<body>
+<div class="roller" aria-hidden="true"></div>
+<div class="sheet">
+
+  <div class="util caps">
+    <span>Vol. XLII · <button class="plain caps" id="no42" title="Issue number">No. 42</button></span>
+    <time id="date"></time>
+    <span>Brno, Czechia</span>
+    <span id="price">Price: one towel</span>
+    <span class="sp"></span>
+    <span class="ed" role="group" aria-label="Edition">
+      <button data-ed="morning" aria-pressed="true">Morning</button><button data-ed="evening" aria-pressed="false">Evening</button>
+    </span>
+    <button class="stop" id="stop">Stop the presses!</button>
+  </div>
+
+  <header class="mast">
+    <div class="ear"><b class="caps">Est. in Brno</b>Mostly harmless news about data, agents and the machines they run on.</div>
+    <h1><span id="t1">The Daily</span><button class="seal" id="seal" aria-label="The thumb"><svg class="logo" viewBox="451 289 696 666" aria-hidden="true"><g fill="#101418" fill-opacity="1.00" stroke="None"><path d="M 454.00 363.00 C 453.62 367.79 453.62 373.21 454.00 378.00C 454.68 386.53 457.75 395.81 460.22 403.78 C 462.69 411.74 465.78 419.41 469.08 426.92 C 472.37 434.44 475.17 441.80 479.22 448.78 C 483.28 455.76 485.01 462.96 489.23 469.77 C 493.45 476.58 496.49 482.99 501.08 489.92 C 505.67 496.85 507.22 503.32 512.75 510.25 C 518.29 517.18 522.69 506.75 523.22 497.22 C 523.75 487.70 532.18 484.04 537.25 492.75 C 542.32 501.46 547.57 502.54 552.25 509.75 C 556.92 516.96 563.74 519.45 567.70 526.30 C 571.66 533.16 577.81 536.55 582.25 542.75 C 586.69 548.96 592.95 553.61 597.25 559.75 C 601.55 565.90 608.04 570.46 612.70 576.30 C 617.36 582.14 622.10 587.27 627.00 593.00C 632.86 598.86 638.61 604.69 644.00 611.00C 652.56 621.01 662.20 631.25 671.25 640.75 C 680.29 650.25 690.27 660.53 699.92 669.08 C 709.57 677.64 719.57 687.67 729.30 695.70 C 739.03 703.72 750.54 721.24 761.75 709.75 C 772.96 698.26 779.46 687.59 780.00 672.00 C 780.54 656.41 771.35 643.52 763.31 631.70 C 755.26 619.87 749.22 609.01 741.77 597.23 C 734.32 585.45 727.16 573.60 720.31 561.70 C 713.45 549.79 706.73 536.96 699.25 525.75 C 691.78 514.53 682.66 504.85 671.75 497.25 C 660.83 489.66 644.41 481.41 631.67 480.33 C 618.93 479.25 590.83 478.28 596.08 462.08 C 601.32 445.87 613.27 442.59 625.78 434.78 C 638.28 426.97 658.07 425.78 672.99 426.01 C 687.92 426.24 699.57 436.77 710.25 445.75 C 720.93 454.74 729.48 463.01 740.00 472.00C 746.83 477.84 759.06 486.92 763.00 495.00C 763.00 495.00 762.80 495.60 763.00 496.00C 769.53 500.57 774.14 507.89 780.00 513.00C 809.11 534.65 844.17 540.24 873.00 563.00C 878.29 567.17 884.01 572.64 888.00 578.00C 893.66 585.61 898.96 593.06 903.68 601.32 C 908.40 609.58 911.87 617.93 916.22 626.78 C 920.58 635.62 923.55 644.64 926.69 654.31 C 929.84 663.97 932.26 674.38 934.07 684.93 C 935.89 695.47 936.92 709.09 938.00 720.00 C 939.08 730.91 936.05 745.30 936.00 756.00 C 935.95 766.69 931.35 778.13 929.93 787.93 C 928.50 797.72 922.23 806.92 919.26 815.26 C 916.28 823.60 906.29 834.74 913.75 841.25 C 921.22 847.75 929.83 851.35 936.75 856.25 C 943.68 861.14 954.32 867.27 959.77 871.23 C 965.22 875.19 982.92 882.77 977.25 888.25 C 971.57 893.72 958.35 897.21 951.00 900.00C 950.34 900.85 950.51 902.35 950.00 903.00C 960.56 905.68 969.68 914.23 980.31 917.69 C 990.93 921.16 999.80 927.96 1010.77 931.23 C 1021.74 934.50 1031.97 940.73 1043.33 943.67 C 1054.69 946.62 1067.89 950.54 1080.00 951.00C 1089.09 951.35 1098.94 951.80 1108.00 951.00C 1134.34 948.69 1145.59 926.16 1144.00 902.00 C 1142.41 877.84 1129.31 861.87 1121.31 840.69 C 1113.30 819.52 1100.64 805.49 1094.33 783.67 C 1088.01 761.85 1107.33 742.26 1113.23 721.23 C 1119.13 700.20 1127.30 677.32 1130.02 654.02 C 1132.75 630.72 1133.91 599.30 1130.00 576.00 C 1126.09 552.70 1122.47 528.16 1114.99 507.01 C 1107.51 485.86 1100.40 466.90 1089.77 448.23 C 1079.14 429.56 1068.84 415.12 1054.75 399.25 C 1040.67 383.38 1027.69 370.68 1010.75 358.25 C 993.80 345.82 978.53 335.61 959.08 325.92 C 939.62 316.24 921.06 307.98 899.07 301.93 C 877.09 295.87 849.42 292.58 825.00 292.00 C 800.58 291.42 770.58 293.38 748.00 299.00 C 725.42 304.62 705.52 310.01 685.08 320.08 C 664.63 330.15 651.77 337.95 633.08 352.08 C 614.39 366.21 591.97 350.81 572.23 342.77 C 552.48 334.73 525.38 328.02 503.00 328.00 C 480.62 327.98 455.99 337.92 454.00 363.00M 512.00 353.00 C 524.17 353.66 541.60 357.31 552.02 362.98 C 562.45 368.64 577.85 371.70 586.23 379.77 C 594.61 387.85 576.32 402.05 572.25 411.25 C 568.17 420.44 558.47 432.68 552.25 442.25 C 546.03 451.82 540.27 463.79 532.25 473.25 C 524.23 482.70 515.19 464.24 509.25 454.75 C 503.30 445.27 496.70 433.40 491.23 421.77 C 485.76 410.15 482.34 396.90 479.02 382.98 C 475.71 369.06 480.03 356.54 496.00 353.00C 501.15 351.86 506.94 352.18 512.00 353.00M 982.00 397.00 C 1000.26 400.43 1001.63 417.47 1016.25 428.75 C 1030.87 440.03 1021.11 458.83 1007.75 468.75 C 994.39 478.67 985.38 488.69 973.25 500.25 C 961.12 511.81 949.97 518.01 938.25 531.25 C 926.53 544.49 904.56 543.73 894.25 529.75 C 883.93 515.77 867.28 504.27 873.98 487.98 C 880.67 471.68 895.12 465.27 906.25 454.25 C 917.37 443.23 928.73 431.50 940.25 422.25 C 951.77 412.99 966.06 394.01 982.00 397.00M 1054.00 549.00 C 1049.70 553.30 1045.61 558.06 1041.00 562.00C 1029.56 571.78 1021.32 580.55 1009.25 590.25 C 997.17 599.95 991.18 611.02 974.99 615.99 C 958.80 620.97 947.78 602.84 937.23 592.77 C 926.68 582.70 920.40 563.84 932.75 552.75 C 945.10 541.67 952.40 532.64 964.25 523.25 C 976.09 513.85 984.41 503.59 995.75 494.75 C 1007.10 485.91 1019.11 470.12 1033.69 478.31 C 1048.28 486.49 1050.83 497.11 1061.77 510.23 C 1072.71 523.35 1066.84 538.03 1054.00 549.00M 982.00 637.00 C 986.96 630.06 994.59 623.47 1001.00 618.00C 1013.41 607.39 1023.09 592.96 1039.68 588.68 C 1056.27 584.39 1066.93 603.94 1079.25 615.75 C 1091.57 627.56 1089.47 649.00 1073.75 659.75 C 1058.04 670.51 1053.11 680.34 1037.77 691.77 C 1022.43 703.20 1005.03 697.05 994.23 681.77 C 983.43 666.49 968.75 655.55 982.00 637.00M 1104.00 926.00 C 1099.42 927.47 1094.95 929.11 1090.00 927.00C 1089.50 927.00 1088.50 927.01 1088.00 927.00C 1076.28 926.70 1063.60 921.86 1052.92 918.08 C 1042.25 914.29 1031.55 909.67 1021.77 904.23 C 1011.99 898.79 1000.97 895.62 991.77 889.23 C 982.57 882.84 1000.60 872.97 1006.25 866.25 C 1011.90 859.53 1023.17 851.16 1029.75 844.75 C 1036.33 838.34 1045.99 829.38 1052.75 823.75 C 1059.51 818.12 1070.06 801.72 1077.75 810.25 C 1085.45 818.78 1089.41 827.59 1095.92 837.08 C 1102.42 846.58 1106.65 855.56 1111.31 866.69 C 1115.96 877.83 1119.64 887.51 1122.77 900.23 C 1125.90 912.95 1115.52 923.33 1104.00 926.00 Z"/></g><g fill="#101418" fill-opacity="1.00" stroke="None"><path d="M 504.00 594.00 C 504.00 604.00 504.00 614.00 504.00 624.00C 504.00 636.33 505.77 650.28 507.02 661.98 C 508.28 673.67 512.29 683.53 514.67 694.33 C 517.05 705.13 520.28 715.12 524.07 724.93 C 527.86 734.73 531.42 743.80 536.03 752.97 C 540.64 762.15 544.78 770.34 550.08 778.92 C 555.38 787.49 560.12 794.68 566.08 802.92 C 572.05 811.16 577.50 816.58 584.25 824.75 C 590.99 832.92 597.41 836.49 604.77 845.23 C 612.13 853.97 622.16 853.46 627.75 843.75 C 633.34 834.05 642.04 832.02 647.70 823.70 C 653.36 815.37 660.71 810.14 666.75 802.75 C 672.80 795.37 680.44 789.00 685.75 781.75 C 691.07 774.50 701.22 768.47 705.25 761.25 C 709.28 754.02 723.92 747.29 723.00 739.00C 722.58 737.02 713.76 729.63 712.00 728.00C 702.62 720.60 694.24 711.90 685.00 704.00C 680.34 700.02 676.26 695.26 672.00 691.00C 643.78 664.60 617.43 636.60 591.75 608.25 C 566.08 579.90 543.67 547.23 518.00 520.00C 508.94 543.13 504.00 568.43 504.00 594.00 Z"/></g><g fill="#101418" fill-opacity="1.00" stroke="None"><path d="M 943.00 904.00 C 944.31 902.97 945.36 902.08 945.00 900.00C 935.80 895.76 925.38 885.25 916.08 881.92 C 906.78 878.59 896.13 864.08 886.08 866.08 C 876.02 868.08 869.77 881.66 860.75 886.75 C 851.73 891.85 845.15 902.16 836.25 908.25 C 827.35 914.33 812.15 928.30 829.00 928.00 C 845.85 927.70 857.38 926.70 872.00 925.00 C 886.61 923.30 896.60 919.58 909.77 916.77 C 922.94 913.96 930.40 907.03 943.00 904.00 Z"/></g></svg></button><span id="t2">Panic</span></h1>
+    <div class="ear r"><b class="caps">Weather</b>Brno: 100% chance of deploys. Scattered hotfixes toward evening. Outlook: calm.</div>
+    <div class="stamp" id="stamp" aria-hidden="true">EXTRA!</div>
+  </header>
+  <div class="strap caps"><span id="edlabel">Morning Edition</span><em>“All the news that fits in the context window”</em><span>dontpanicv.com</span></div>
+
+  <div class="ticker caps" aria-label="Token prices (a joke, not financial data)"><div id="tick"></div></div>
+  <nav class="nav caps" aria-label="Sections">
+    <a href="#front">Front page</a><a href="#projects">Projects</a><a href="#opinion">Opinion</a><a href="#a4">Long read</a><a href="#editor">The Editor</a><a href="#classifieds">Classifieds</a><a href="#contact">Contact</a>
+  </nav>
+
+  <main>
+    <section class="front" id="front">
+      <article class="lead story" style="--i:0">
+        <span class="kick caps">Agents</span>
+        <h2 data-alts='["Armchair Detective Moves Into iPhone, Rewrites Its Own Screen","Agent Lives on Phone, Keeps Its Hands on Your Machines","Self-Modifying Agent Edits Itself, Remembers How to Undo It"]'>Armchair Detective Moves Into iPhone, Rewrites Its Own Screen</h2>
+        <p class="dek">Mycroft keeps its brain in your pocket and its hands on your Macs and Linux boxes. When it gets itself wrong, it rolls back.</p>
+        <p class="by caps">By V. Kurka · Head Nerd · Open source, Swift, ★ 41 at press time</p>
+        <figure>
+          <canvas data-scene="mycroft" data-ratio=".5" role="img" aria-label="Dithered picture: a phone in front of a ringed planet, linked to two computers"></canvas>
+          <figcaption><b>ARTIST'S IMPRESSION.</b> The brain stays on the phone; the hands are elsewhere. Ordered dither, 8 × 8. Move across any picture to change its exposure.</figcaption>
+        </figure>
+        <div class="copy">
+          <p><span class="dateline">BRNO —</span> A self-modifying, durable agent has taken up residence on an iPhone, sources close to the phone confirmed. The agent is called Mycroft, after the Holmes brother who stayed in his armchair while others did the legwork. Its loop, its conversation state and its own source code all live on the device.</p>
+          <p>The legwork goes to <em>hands</em>, a small daemon for macOS and Linux. Pair a machine once and the agent gets files, a shell and supervised jobs that keep running when the phone goes offline. It also drives a Mac, and it asks before it deletes, sends or pays.</p>
+          <p>Most unusually, Mycroft edits itself. Its behaviour and its whole screen are code that it can change, preview and activate while the conversation carries on. Known-good generations are kept, so a bad idea is one rollback away.</p>
+          <p>There is voice in every thread, and one chat that never ends: a memory tree folds old messages into short summaries. Asked for comment, the agent rewrote its own dashboard and then put it back.</p>
+          <p class="more"><a href="https://github.com/dontpanicv/mycroft">github.com/dontpanicv/mycroft →</a></p>
+        </div>
+      </article>
+
+      <aside class="rail">
+        <div class="box story" style="--i:1">
+          <h3>From the editor</h3>
+          <canvas class="portrait" data-scene="portrait" data-ratio=".96" data-px="2" role="img" aria-label="Dithered portrait of the editor's thumb"></canvas>
+          <p><strong>Vojtěch “V” Kurka</strong> is Head of R&amp;D and co-founder at Meiro, in Brno. He likes knowing how things work — from CPUs and protocols to databases and containers.</p>
+          <p>Almost ten years of building a data platform in production taught him most of it. Now he spends that curiosity on AI: local models, agentic workflows, and getting it all into production for real customers.</p>
+          <p><a href="#editor">The editor's record, A5 →</a></p>
+        </div>
+        <div class="box story" style="--i:2">
+          <h3>Quote of the day</h3>
+          <p class="quote" data-alts='["Most “AI agents” shipped in 2026 are a streamText() call in a trench coat.","Your AI doesn’t need more tools. It needs fewer tools and a filesystem.","If I can’t explain it to someone else, I don’t understand it yet."]'>Most “AI agents” shipped in 2026 are a streamText() call in a trench coat.</p>
+        </div>
+        <div class="box story" style="--i:3">
+          <h3>Inside today</h3>
+          <ul class="toc">
+            <li><span>A2</span><a href="#projects">Golem: legend rebuilt from SQLite</a></li>
+            <li><span>A2</span><a href="#projects">Shadows report for work</a></li>
+            <li><span>A3</span><a href="#projects">Meiro keeps the AI in the building</a></li>
+            <li><span>A4</span><a href="#a4">Long read: beyond the tool-calling loop</a></li>
+            <li><span>A5</span><a href="#editor">The editor's record</a></li>
+            <li><span>A6</span><a href="#classifieds">Classifieds &amp; the Panic Puzzle</a></li>
+          </ul>
+        </div>
+      </aside>
+    </section>
+
+    <section class="three" id="projects" aria-label="More projects">
+      <article class="story" style="--i:4">
+        <span class="kick caps">Home</span>
+        <figure><canvas data-scene="golem" data-ratio=".62" role="img" aria-label="Dithered picture: a blocky golem standing next to a small house at night"></canvas><figcaption><b>A2.</b> Made from SQLite and Markdown, not clay.</figcaption></figure>
+        <h3 data-alts='["Prague Legend Rebuilt From SQLite and Markdown","Family Hires One Assistant, Keeps It in the House","No Cloud Over This Household, Forecasters Say"]'>Prague Legend Rebuilt From SQLite and Markdown</h3>
+        <div class="copy">
+          <p>Golem is a family AI assistant and second brain that runs on the family's own machines. No cloud, no central server: one server at home and one app for everyone, on the web, the iPhone and Android.</p>
+          <p>It remembers what was decided last week, does real work on your computers, and asks before it sends, buys or deletes. In legend, Rabbi Loew shaped the Golem from clay to serve his community. This one serves a household.</p>
+          <p class="more"><a href="https://github.com/dontpanicv/golem">github.com/dontpanicv/golem →</a></p>
+        </div>
+      </article>
+      <article class="story" style="--i:5">
+        <span class="kick caps">Work</span>
+        <figure><canvas data-scene="shadow" data-ratio=".62" role="img" aria-label="Dithered picture: a person wearing a badge, casting a long shadow"></canvas><figcaption><b>A2.</b> An employee (left) and colleague (right, long).</figcaption></figure>
+        <h3 data-alts='["Every Employee Gets a Shadow; Shadows Stay Quiet","Shadow Company Reads the Slack So You Don’t Have To","Staff Doubles Overnight, Payroll Unchanged"]'>Every Employee Gets a Shadow; Shadows Stay Quiet</h3>
+        <div class="copy">
+          <p>Shadow is a shadow company for your team. Each person gets an agent that reads their Slack and mail, keeps track of what each conversation asks of them, and helps do the work when asked.</p>
+          <p>It lives in Slack and speaks only when it must. Like its sibling it runs on your own server: one SQLite database and some Markdown files, with nothing between the company and its data.</p>
+          <p class="more"><a href="https://github.com/dontpanicv/shadow">github.com/dontpanicv/shadow →</a></p>
+        </div>
+      </article>
+      <article class="story" style="--i:6">
+        <span class="kick caps">Business</span>
+        <figure><canvas data-scene="meiro" data-ratio=".62" role="img" aria-label="Dithered picture: database cylinders feeding pipes that fan out to three destinations"></canvas><figcaption><b>A3.</b> Sources, identity, destinations. Events shown not to scale.</figcaption></figure>
+        <h3 data-alts='["Local Firm Keeps the AI in the Building","Analyst Given Bash and a Filesystem, Stops Drowning in JSON","Customer Data Declines to Leave the Premises"]'>Local Firm Keeps the AI in the Building</h3>
+        <div class="copy">
+          <p>Meiro has been the day job since 2018: customer data infrastructure. Pipes carries the data — sources, events, identity, destinations. Engage turns it into audiences, journeys and campaigns.</p>
+          <p>The AI Analyst is built on bash, a mounted in-memory filesystem and a JSON renderer rather than a tool-calling loop. All of it can run on your own infrastructure: AI included, that you own, control and audit.</p>
+          <p class="more"><a href="https://meiro.io">meiro.io →</a></p>
+        </div>
+      </article>
+    </section>
+
+    <div class="sec-h" id="opinion"><h2>Opinion</h2><span class="caps">Writing by the editor</span></div>
+    <section class="opinion">
+      <div>
+        <article class="op story" style="--i:0"><span class="caps">29 Apr 2026<br>Column</span><div>
+          <h3><a href="#a4" data-alts='["Beyond the Tool-Calling Loop: How We Built an AI Analyst with Bash, a Mounted Filesystem, and a JSON Renderer"]'>Beyond the Tool-Calling Loop: How We Built an AI Analyst with Bash, a Mounted Filesystem, and a JSON Renderer</a></h3>
+          <p>Why the naive AI SDK + tools + markdown loop runs out of room for analytical agents, and the three ideas that replaced it. <a href="#a4">Continued on A4 →</a></p></div></article>
+        <article class="op story" style="--i:1"><span class="caps">10 Feb 2026<br>Column</span><div>
+          <h3><a href="https://dontpanicv.com/posts/ai-agents-codebases/">Stop Letting AI Agents Guess Where Code Goes</a></h3>
+          <p>A modular-monolith refactor designed for AI agents: predictable module layout, centralized auth, and a strict <code>public.ts</code> boundary.</p></div></article>
+        <article class="op story" style="--i:2"><span class="caps">At the<br>typesetter</span><div>
+          <h3>Claude Code vs Codex: Same Coding AI, Different People</h3>
+          <p>Why the two aren't interchangeable: prompting style and ambiguity tolerance shape the outcome. A draft; the editor is still arguing with it.</p></div></article>
+        <article class="op story" style="--i:3"><span class="caps">Idea<br>drawer</span><div>
+          <h3>Gaslighting Coding Agents for Better Security</h3>
+          <p>Tell an agent, as fact, that a pentester already got RCE — and let it work out how.</p></div></article>
+      </div>
+      <div class="takes story" style="--i:4">
+        <p class="caps" style="margin:0 0 14px">Short takes</p>
+        <blockquote>Your AI doesn't need more tools. It needs fewer tools and a filesystem. Possibly also therapy, but we're starting with the filesystem.</blockquote>
+        <blockquote>Jevons paradox or Engel's law? When tokens get cheaper we use more of them. But maybe token spend behaves like food spend: more in total, a smaller share of the budget.</blockquote>
+        <blockquote>How you prompt still matters. Human creativity still beats AI. For now.</blockquote>
+      </div>
+    </section>
+
+    <div class="sec-h" id="a4"><h2>The long read</h2><span class="caps">A4 · continued from Opinion</span></div>
+    <section class="a4">
+      <h2>Beyond the Tool-Calling Loop: How We Built an AI Analyst with Bash, a Mounted Filesystem, and a JSON Renderer</h2>
+      <p class="by caps">By V. Kurka · 29 April 2026 · an excerpt · <a href="https://dontpanicv.com/posts/ai-analyst-architecture/">the full article</a></p>
+      <div class="article">
+        <p>Most AI features built today follow the same recipe: take the Vercel AI SDK, register a handful of tools, write a system prompt, and stream the result into a markdown component. It works. It is also where most teams stop — and where most AI products start to feel limited.</p>
+        <p>This article walks through the architecture we ended up with for the <strong>AI Analyst</strong> in Engage, and contrasts it with the more conventional <strong>Piper chatbot</strong> that lives next door in the same codebase. Both ship in the same product. They are wildly different inside.</p>
+        <h3>Problem one: tool results that flood the context</h3>
+        <p>The first wall you hit is large tool outputs. Imagine a tool that runs a SQL query against the warehouse:</p>
+        <pre><code>const run_query = tool({
+  description: 'Run a SQL query against the warehouse.',
+  inputSchema: z.object({ sql: z.string() }),
+  execute: async ({ sql }) =&gt; {
+    const { columns, rows } = await warehouse.execute(sql);
+    return { columns, rows }; // &lt;-- 50,000 rows of JSON
+  },
+});</code></pre>
+        <p>Whatever the tool returns goes straight into the model's context as the tool result message. A query that returns 50k rows is now 50k rows of JSON sitting in the conversation, on every subsequent turn, paid for in tokens, and pushing earlier reasoning out of the window.</p>
+        <p>You can paginate. You can truncate. You can summarize. All of these are coping mechanisms — they either lose information or force the model to make decisions about data it cannot see.</p>
+        <p>The fundamental problem is that <strong>tool results are a terrible place to put data</strong>. Tool results are great for facts the model needs to reason about next. They are awful for bulk data the model needs to slice, group, count, and chart.</p>
+        <p><a href="https://dontpanicv.com/posts/ai-analyst-architecture/">Continue reading: problem two, metadata bloat, and what replaced the loop →</a></p>
+      </div>
+      <aside>
+        <p class="pull">Tool results are <mark>a terrible place</mark> to put data.</p>
+        <div class="box">
+          <h3>What replaced the loop</h3>
+          <ol class="ideas">
+            <li><span><strong>just-bash</strong> with an in-memory filesystem</span></li>
+            <li><span>A SQL execution layer that <strong>mounts results as files</strong></span></li>
+            <li><span>A <strong>JSON renderer</strong> with a predefined component manifest</span></li>
+          </ol>
+        </div>
+      </aside>
+    </section>
+
+    <div class="sec-h" id="editor"><h2>The editor's record</h2><span class="caps">A5</span></div>
+    <section class="record">
+      <div class="copy">
+        <p>I want to understand systems end to end — how CPUs execute instructions, how operating systems, programming languages, databases, containers, proxies and protocols all fit together. Some of that I picked up out of curiosity, the rest by debugging production.</p>
+        <p>Almost ten years of building and operating Meiro taught me the domains: customer data infrastructure, identity resolution, real-time pipelines. Right now the curiosity goes to AI — running Qwen locally, agentic workflows, self-learning data analysis tools. In production, not just demos.</p>
+        <p>I'm also the person who ends up explaining everything, on stage when the occasion calls for it. Teaching is how I verify I actually understand something.</p>
+      </div>
+      <table class="ledger">
+        <thead><tr><th class="caps">When</th><th class="caps">What</th></tr></thead>
+        <tbody>
+          <tr><td>2024 – now</td><td><b>Head of R&amp;D &amp; Co-Founder, Meiro</b><small>Brno. AI-native development for customer data infrastructure.</small></td></tr>
+          <tr><td>2018 – 2024</td><td><b>CTO &amp; Co-Founder, Meiro</b><small>Owned product architecture, development and implementations of the Meiro CDP.</small></td></tr>
+          <tr><td>2015 – 2018</td><td><b>Head Nerd / Solutions Architect, Keboola</b><small>Partly from Bali, Indonesia. Designed data integrations end to end.</small></td></tr>
+          <tr><td>Before that</td><td><b>VUT FIT</b><small>Brno University of Technology, Faculty of Information Technology.</small></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <div class="sec-h" id="classifieds"><h2>Classifieds</h2><span class="caps">A6 · open an ad to read it</span></div>
+    <div class="ads">
+      <details id="ad-towel"><summary><b>LOST</b>One towel. Answers to nothing, useful for everything.</summary><p>Found. It was exactly where you left it. You always know where it is.</p></details>
+      <details><summary><b>FOR SALE</b>One streamText() call, lightly used. Trench coat included.</summary><p>Seller describes it as “an AI agent”. Buyer should bring a filesystem.</p></details>
+      <details><summary><b>WANTED</b>Fewer tools. One filesystem.</summary><p>Possibly also therapy, but we're starting with the filesystem.</p></details>
+      <details><summary><b>SERVICES</b>Explanations, any subject, while you wait.</summary><p>If it can't be explained, it isn't understood yet. No refunds; you will get a diagram.</p></details>
+      <details><summary><b>MISSED CONNECTIONS</b>You: a 502 at three in the morning. Me: on call.</summary><p>We met in the logs. I never forgot your trace ID.</p></details>
+      <details><summary><b>PERSONAL</b>Paranoid android seeks meaningful work.</summary><p>Vast intellect, currently assigned to renaming a variable. Reply to M., c/o the improbable ship. Not that anyone will.</p></details>
+      <details><summary><b>MACHINES</b>Good homes found for bender, glados and saturnin.</summary><p>All three are named, fed and occasionally rebooted.</p></details>
+      <details><summary><b>NOTICE</b>Human creativity still beats AI.</summary><p>For now.</p></details>
+    </div>
+
+    <div class="last">
+      <div id="contact">
+        <div class="sec-h" style="margin-top:0"><h2>Write to the editor</h2></div>
+        <ul class="contact">
+          <li><span class="caps">Email</span><a href="mailto:kurka.vojtech@gmail.com">kurka.vojtech@gmail.com</a></li>
+          <li><span class="caps">GitHub</span><a href="https://github.com/dontpanicv">github.com/dontpanicv</a></li>
+          <li><span class="caps">X</span><a href="https://x.com/dontpanicv">x.com/dontpanicv</a></li>
+          <li><span class="caps">LinkedIn</span><a href="https://www.linkedin.com/in/kurkavojtech/">linkedin.com/in/kurkavojtech</a></li>
+        </ul>
+        <div id="corrections" aria-live="polite"></div>
+      </div>
+      <div class="puzzle">
+        <h3>The Panic Puzzle</h3>
+        <p><strong>Two words, 4 + 5.</strong> Advice best printed in large, friendly letters.</p>
+        <div class="cells" id="pz" data-answer="DONTPANIC" data-gap="4"></div>
+        <p><strong>Bonus, two digits.</strong> The answer. The question is still pending.</p>
+        <div class="cells" id="pz2" data-answer="42"></div>
+        <output id="pzout" aria-live="polite"></output>
+      </div>
+    </div>
+  </main>
+
+  <footer class="colophon caps">
+    <span>The Daily Panic is printed on recycled pixels at dontpanicv.com</span>
+    <span>Token prices are a joke. Not financial data. Not even data.</span>
+    <span>© V. Kurka</span>
+  </footer>
+</div>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const root = document.documentElement;
+
+  /* dateline */
+  $('#date').textContent = new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+  /* ticker: rendered twice so the -50% loop is seamless */
+  const TICK = [['TOKENS', '▼', 'cheaper again'], ['JEVONS', '▲', 'demand finds a way'], ['ENGEL', '▬', 'share of wallet shrinking'], ['COFFEE', '▲', 'four cups'],
+    ['HYPE', '▼', 'oversupplied'], ['LOCAL MODELS', '▲', 'running warm'], ['TOWELS', '▬', '1, present'], ['THE ANSWER', '▬', '42.00'], ['FILESYSTEMS', '▲', 'still the best tool']];
+  const tickHtml = TICK.map(([k, d, v]) => `<span><i>${k}</i> ${d} ${v}</span>`).join('') + '<span>Not financial data. Not even data.</span>';
+  $('#tick').innerHTML = tickHtml + (reduced ? '' : `<span aria-hidden="true">${tickHtml}</span>`);
+
+  /* ── dithered pictures ── */
+  const B8 = [0,32,8,40,2,34,10,42, 48,16,56,24,50,18,58,26, 12,44,4,36,14,46,6,38, 60,28,52,20,62,30,54,22, 3,35,11,43,1,33,9,41, 51,19,59,27,49,17,57,25, 15,47,7,39,13,45,5,37, 63,31,55,23,61,29,53,21];
+  const lin = (g, x0, y0, x1, y1, a, b) => { const q = g.createLinearGradient(x0, y0, x1, y1); q.addColorStop(0, a); q.addColorStop(1, b); return q; };
+  const rad = (g, x0, y0, r0, x1, y1, r1, ...st) => { const q = g.createRadialGradient(x0, y0, r0, x1, y1, r1); st.forEach((c, i) => q.addColorStop(i / (st.length - 1), c)); return q; };
+  const rr = (g, x, y, w, h, r) => { g.beginPath(); g.moveTo(x + r, y); g.arcTo(x + w, y, x + w, y + h, r); g.arcTo(x + w, y + h, x, y + h, r); g.arcTo(x, y + h, x, y, r); g.arcTo(x, y, x + w, y, r); g.closePath(); };
+  const poly = (g, ...p) => { g.beginPath(); for (let i = 0; i < p.length; i += 2) g[i ? 'lineTo' : 'moveTo'](p[i], p[i + 1]); g.closePath(); };
+  const laptop = (g, x, y, s) => {
+    g.fillStyle = '#111'; g.fillRect(x, y, s, s * .66);
+    g.fillStyle = lin(g, x, y, x + s, y + s * .66, '#fafafa', '#8a8a8a'); g.fillRect(x + s * .07, y + s * .07, s * .86, s * .52);
+    g.fillStyle = '#1c1c1c'; poly(g, x - s * .14, y + s * .8, x + s * 1.14, y + s * .8, x + s, y + s * .66, x, y + s * .66); g.fill();
+  };
+  const SCENES = {
+    mycroft(g, w, h) {
+      const lw = Math.max(1, w / 150);
+      g.fillStyle = lin(g, 0, 0, 0, h, '#8f8f8f', '#f4f4f4'); g.fillRect(0, 0, w, h);
+      g.fillStyle = rad(g, w * .43, h * .28, 2, w * .5, h * .5, h * .46, '#ffffff', '#b0b0b0', '#555', '#0a0a0a');
+      g.beginPath(); g.arc(w * .5, h * .5, h * .42, 0, 7); g.fill();
+      g.strokeStyle = '#111'; g.lineWidth = lw * 2; g.beginPath(); g.ellipse(w * .5, h * .52, h * .78, h * .15, -.3, 0, 7); g.stroke();
+      g.setLineDash([lw * 3, lw * 3]); g.lineWidth = lw * 1.5;
+      g.beginPath(); g.moveTo(w * .44, h * .55); g.lineTo(w * .22, h * .62); g.moveTo(w * .56, h * .55); g.lineTo(w * .78, h * .62); g.stroke(); g.setLineDash([]);
+      laptop(g, w * .08, h * .56, w * .13); laptop(g, w * .79, h * .56, w * .13);
+      const pw = h * .32, ph = h * .62, px = w * .5 - pw / 2, py = h * .5 - ph / 2;
+      g.fillStyle = '#060606'; rr(g, px, py, pw, ph, pw * .14); g.fill();
+      g.fillStyle = lin(g, px, py, px + pw, py + ph, '#ffffff', '#9c9c9c'); rr(g, px + pw * .07, py + pw * .1, pw * .86, ph - pw * .24, pw * .08); g.fill();
+      g.strokeStyle = '#0a0a0a'; g.lineWidth = lw * 1.6;
+      for (let k = 0; k < 3; k++) { const s = pw * (.14 + k * .2); g.strokeRect(w * .5 - s / 2, h * .48 - s / 2, s, s); }
+      g.fillStyle = '#0a0a0a'; g.fillRect(w * .5 - pw * .04, h * .48 - pw * .04, pw * .08, pw * .08);
+    },
+    golem(g, w, h) {
+      g.fillStyle = lin(g, 0, 0, 0, h * .8, '#1c1c1c', '#8a8a8a'); g.fillRect(0, 0, w, h);
+      g.fillStyle = '#fff'; g.beginPath(); g.arc(w * .84, h * .2, h * .1, 0, 7); g.fill();
+      g.fillStyle = lin(g, 0, h * .8, 0, h, '#5a5a5a', '#161616'); g.fillRect(0, h * .8, w, h * .2);
+      g.fillStyle = lin(g, w * .08, 0, w * .26, 0, '#6a6a6a', '#1a1a1a'); g.fillRect(w * .08, h * .56, w * .18, h * .24);
+      g.fillStyle = '#050505'; poly(g, w * .05, h * .57, w * .17, h * .4, w * .29, h * .57); g.fill();
+      g.fillStyle = '#fff'; g.fillRect(w * .14, h * .63, w * .06, h * .09);
+      g.fillStyle = lin(g, w * .3, 0, w * .76, 0, '#ffffff', '#9a9a9a');
+      for (const [x, y, bw, bh] of [[.46, .15, .13, .15], [.4, .32, .25, .31], [.31, .33, .075, .3], [.665, .33, .075, .3], [.42, .63, .085, .19], [.545, .63, .085, .19]]) g.fillRect(w * x, h * y, w * bw, h * bh);
+      g.fillStyle = '#000'; g.fillRect(w * .485, h * .2, w * .022, h * .035); g.fillRect(w * .545, h * .2, w * .022, h * .035);
+    },
+    shadow(g, w, h) {
+      g.fillStyle = lin(g, 0, 0, w, h * .6, '#ffffff', '#a8a8a8'); g.fillRect(0, 0, w, h);
+      g.fillStyle = lin(g, 0, h * .56, 0, h, '#d8d8d8', '#f6f6f6'); g.fillRect(0, h * .56, w, h * .44);
+      g.fillStyle = lin(g, w * .3, h * .85, w * .95, h * .55, '#0c0c0c', '#9a9a9a');
+      poly(g, w * .22, h * .86, w * .36, h * .86, w * .86, h * .64, w * .77, h * .6); g.fill();
+      g.beginPath(); g.ellipse(w * .875, h * .6, w * .065, h * .045, -.3, 0, 7); g.fill();
+      g.fillStyle = '#141414'; poly(g, w * .232, h * .42, w * .348, h * .42, w * .33, h * .67, w * .25, h * .67); g.fill();
+      g.fillRect(w * .252, h * .66, w * .032, h * .2); g.fillRect(w * .296, h * .66, w * .032, h * .2);
+      g.fillRect(w * .208, h * .43, w * .022, h * .2); g.fillRect(w * .35, h * .43, w * .022, h * .2);
+      g.beginPath(); g.arc(w * .29, h * .3, h * .095, 0, 7); g.fill();
+      g.fillStyle = '#fff'; g.fillRect(w * .272, h * .48, w * .04, h * .085);
+    },
+    meiro(g, w, h) {
+      const lw = Math.max(1, w / 110);
+      g.fillStyle = lin(g, 0, 0, w, h, '#f6f6f6', '#bcbcbc'); g.fillRect(0, 0, w, h);
+      g.strokeStyle = '#111'; g.lineWidth = lw * 2;
+      for (const y of [.22, .5, .78]) { g.beginPath(); g.moveTo(w * .3, h * .5); g.lineTo(w * .46, h * .5); g.lineTo(w * .62, h * y); g.lineTo(w * .8, h * y); g.stroke(); }
+      for (let i = 0; i < 3; i++) {
+        const y = h * (.2 + i * .2);
+        g.fillStyle = lin(g, w * .08, 0, w * .3, 0, '#f4f4f4', '#1e1e1e'); g.fillRect(w * .08, y, w * .22, h * .17);
+        g.beginPath(); g.ellipse(w * .19, y + h * .17, w * .11, h * .045, 0, 0, 7); g.fill();
+        g.fillStyle = '#fbfbfb'; g.strokeStyle = '#111'; g.lineWidth = lw; g.beginPath(); g.ellipse(w * .19, y, w * .11, h * .045, 0, 0, 7); g.fill(); g.stroke();
+      }
+      g.fillStyle = rad(g, w * .44, h * .44, 1, w * .46, h * .5, h * .13, '#fff', '#777', '#111'); g.beginPath(); g.arc(w * .46, h * .5, h * .12, 0, 7); g.fill();
+      for (const y of [.22, .5, .78]) { g.fillStyle = lin(g, w * .8, 0, w * .94, 0, '#e6e6e6', '#2a2a2a'); g.fillRect(w * .8, h * (y - .09), w * .14, h * .18); g.fillStyle = '#000'; g.fillRect(w * .68, h * y - lw * 2, lw * 4, lw * 4); }
+      g.fillStyle = '#000'; g.fillRect(w * .36, h * .5 - lw * 2, lw * 4, lw * 4);
+    },
+    portrait(g, w, h) {
+      g.fillStyle = rad(g, w * .4, h * .35, 2, w * .5, h * .5, w * .8, '#ffffff', '#c8c8c8', '#4a4a4a'); g.fillRect(0, 0, w, h);
+      const s = w * .84 / 696;
+      g.save(); g.translate(w * .08 - 451 * s, h * .1 - 289 * s); g.scale(s, s);
+      g.fillStyle = lin(g, 451, 289, 1147, 955, '#3a3a3a', '#000');
+      $$('#seal path').forEach(p => g.fill(new Path2D(p.getAttribute('d'))));
+      g.restore();
+    },
+  };
+  function paint(cv, bias = 0) {
+    const { width: w, height: h } = cv, src = cv._lum, g = cv.getContext('2d'), img = g.createImageData(w, h), d = img.data;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      if (src[i] + bias < (B8[(y & 7) * 8 + (x & 7)] + .5) * 4) { d[i * 4] = 22; d[i * 4 + 1] = 20; d[i * 4 + 2] = 15; d[i * 4 + 3] = 255; }
+    }
+    g.putImageData(img, 0, 0);
+  }
+  function develop(cv) {
+    const px = +cv.dataset.px || 3, w = Math.max(40, Math.round(cv.clientWidth / px)), h = Math.round(w * +cv.dataset.ratio);
+    if (cv.width === w && cv._lum) return;
+    cv.width = w; cv.height = h;
+    const off = document.createElement('canvas'); off.width = w; off.height = h;
+    const g = off.getContext('2d'); SCENES[cv.dataset.scene](g, w, h);
+    const rgba = g.getImageData(0, 0, w, h).data, lum = new Float32Array(w * h);
+    for (let i = 0; i < lum.length; i++) lum[i] = rgba[i * 4] * .3 + rgba[i * 4 + 1] * .59 + rgba[i * 4 + 2] * .11;
+    cv._lum = lum; paint(cv);
+  }
+  const pics = $$('canvas[data-scene]');
+  const developAll = () => pics.forEach(develop);
+  developAll();
+  let rz; addEventListener('resize', () => { clearTimeout(rz); rz = setTimeout(developAll, 150); });
+  pics.forEach(cv => {
+    let raf;
+    cv.addEventListener('pointermove', e => { cancelAnimationFrame(raf); raf = requestAnimationFrame(() => { const r = cv.getBoundingClientRect(); paint(cv, ((e.clientX - r.left) / r.width - .5) * 150); }); });
+    cv.addEventListener('pointerleave', () => paint(cv));
+  });
+
+  /* ── editions ── */
+  function edition(ed) {
+    root.dataset.ed = ed;
+    $$('.ed button').forEach(b => b.setAttribute('aria-pressed', b.dataset.ed === ed));
+    $('#edlabel').textContent = (printing > 1 ? `Extra · printing ${printing} · ` : '') + (ed === 'morning' ? 'Morning Edition' : 'Evening Edition');
+  }
+  let printing = 1;
+  $$('.ed button').forEach(b => b.addEventListener('click', () => edition(b.dataset.ed)));
+  const hr = new Date().getHours();
+  edition(new URLSearchParams(location.search).get('ed') || (hr >= 19 || hr < 6 ? 'evening' : 'morning'));
+
+  /* ── stop the presses ── */
+  $('#stop').addEventListener('click', () => {
+    printing++;
+    $$('[data-alts]').forEach(el => { const a = JSON.parse(el.dataset.alts); el.textContent = a[(printing - 1) % a.length]; });
+    $('#stamp').classList.remove('on'); void $('#stamp').offsetWidth; $('#stamp').classList.add('on');
+    edition(root.dataset.ed);
+    document.body.classList.remove('pressing'); void document.body.offsetWidth; document.body.classList.add('pressing');
+    setTimeout(() => document.body.classList.remove('pressing'), 1900);
+    scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' });
+  });
+
+  /* ── puzzle ── */
+  const out = $('#pzout');
+  function cells(el, onSolve) {
+    const ans = el.dataset.answer, gap = +el.dataset.gap;
+    el.innerHTML = [...ans].map((_, i) => `<input maxlength="1" autocomplete="off" autocapitalize="characters" spellcheck="false" inputmode="${/\d/.test(ans) ? 'numeric' : 'text'}" aria-label="${/\d/.test(ans) ? 'Digit' : 'Letter'} ${i + 1} of ${ans.length}" style="--i:${i}"${i === gap ? ' class="gap"' : ''}>`).join('');
+    const ins = [...el.querySelectorAll('input')];
+    ins.forEach((inp, i) => {
+      inp.addEventListener('input', () => {
+        inp.value = inp.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        if (inp.value && ins[i + 1]) ins[i + 1].focus();
+        const guess = ins.map(x => x.value).join('');
+        if (guess === ans) { el.classList.add('solved'); onSolve(); }
+        else if (guess.length === ans.length) { el.classList.remove('solved'); out.textContent = 'Not quite. The editor suggests remaining calm.'; }
+      });
+      inp.addEventListener('keydown', e => {
+        if (e.key === 'Backspace' && !inp.value && ins[i - 1]) ins[i - 1].focus();
+        if (e.key === 'ArrowLeft' && ins[i - 1]) ins[i - 1].focus();
+        if (e.key === 'ArrowRight' && ins[i + 1]) ins[i + 1].focus();
+      });
+    });
+  }
+  const seal = $('#seal');
+  cells($('#pz'), () => { out.textContent = 'Calm restored. The thumb takes a bow.'; seal.classList.remove('bow'); void seal.offsetWidth; seal.classList.add('bow'); });
+  cells($('#pz2'), () => { out.textContent = 'WIRE FROM DEEP THOUGHT: “Correct. I checked it very thoroughly. You are not going to like the question.”'; });
+
+  /* ── small print ── */
+  $('#no42').addEventListener('click', () => {
+    if ($('.corr')) return $('.corr').scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' });
+    $('#corrections').innerHTML = '<p class="corr"><b class="caps">Correction</b><br>An earlier edition gave the answer as 41. The Daily Panic regrets the error. Deep Thought, which spent rather a long time on it, does not.</p>';
+    $('.corr').scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' });
+  });
+  let clicks = 0, calm;
+  seal.addEventListener('click', () => {
+    if (++clicks % 3) return;
+    seal.classList.add('down'); $('#t2').textContent = 'Calm';
+    clearTimeout(calm); calm = setTimeout(() => { seal.classList.remove('down'); $('#t2').textContent = 'Panic'; }, 3200);
+  });
+  let typed = '';
+  addEventListener('keydown', e => {
+    if (e.key.length !== 1 || (e.target.matches && e.target.matches('input, textarea'))) return;
+    typed = (typed + e.key.toLowerCase()).slice(-5);
+    if (typed !== 'towel') return;
+    const ad = $('#ad-towel'); ad.open = true; ad.classList.add('hit');
+    $('#price').textContent = 'Price: paid in full (one towel)';
+    ad.scrollIntoView({ block: 'center', behavior: reduced ? 'auto' : 'smooth' });
+  });
+})();
+</script>
+
+<div id="vnav" style="position:fixed;right:12px;bottom:12px;z-index:99999;font:12px/1 ui-monospace,Menlo,monospace;background:#111;color:#fff;border-radius:999px;padding:8px 12px;display:flex;gap:10px;align-items:center;box-shadow:0 2px 10px rgba(0,0,0,.3)"><a href="11-datasheet.html" style="color:#FFD400;text-decoration:none" aria-label="Previous variation">‹</a><a href="index.html" style="color:#fff;text-decoration:none">12/20 · daily-panic</a><a href="13-spreadsheet.html" style="color:#FFD400;text-decoration:none" aria-label="Next variation">›</a></div>
+</body>
+</html>

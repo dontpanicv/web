@@ -1,60 +1,31 @@
 ---
-import BrutalLayout from '../layouts/BrutalLayout.astro';
-import PostActions from '../components/PostActions.astro';
-
-import { formatDate, postHref, postsPageHref } from '../lib/i18n';
-import { getPublishedPosts } from '../lib/posts';
-
-const lang = 'en';
-const pageSize = 10;
-// getPublishedPosts already includes rawMarkdown
-const allPosts = await getPublishedPosts(lang);
-const posts = allPosts.slice(0, pageSize);
-const hasMore = allPosts.length > pageSize;
-
-const langSwitchHref = '/cs/';
+// The homepage. The headline is a prompt box for a language model on the visitor's own device (src/agent/); the
+// answer to the question it shows by default is written out under it, so the page says whose it is before anything
+// is asked. Then come the files the agent reads: about, projects, writing, CV.
+import Answer from '../components/home/Answer.astro';
+import Ask from '../components/home/Ask.astro';
+import Content from '../components/home/Content.astro';
+import Instruments from '../components/home/Instruments.astro';
+import { person } from '../data/profile';
+import TraceLayout from '../layouts/TraceLayout.astro';
 ---
 
-<BrutalLayout
-  title="Dont's Panic, V!"
-  description="Personal site: CV and posts. Dont panic."
-  lang={lang}
-  langSwitchHref={langSwitchHref}
->
-  <div class="space-y-6">
-    {posts.length ? (
-      <ul class="divide-y divide-border">
-        {posts.map((post) => (
-          <li class="py-6 first:pt-0">
-            <div class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-2">
-              <a class="link text-lg font-medium text-text" href={postHref(lang, post.slug)}>
-                {post.data.title}
-              </a>
-              <span class="inline-flex items-center gap-3 text-sm text-muted">
-                <PostActions
-                  body={post.rawMarkdown ?? post.body}
-                  title={post.data.title}
-                  xUrl={post.data.xUrl}
-                  linkedinUrl={post.data.linkedinUrl}
-                  facebookUrl={post.data.facebookUrl}
-                />
-                <span>{formatDate(post.data.date, lang)}</span>
-              </span>
-            </div>
-            {post.data.summary ? <p class="text-muted mt-2 leading-relaxed">{post.data.summary}</p> : null}
-          </li>
-        ))}
-      </ul>
-    ) : (
-      <p class="text-muted">No posts yet.</p>
-    )}
-
-    {hasMore ? (
-      <div class="pt-2 flex justify-end">
-        <a class="link text-sm" href={postsPageHref(lang, 2)}>
-          Older posts →
-        </a>
-      </div>
-    ) : null}
+<TraceLayout layout="layout home" home>
+  <div class="top">
+    <h1 class="whose">{person.name}<span>{person.role} · {person.place}</span></h1>
+    <!-- One numbered run: the conversation so far, then the prompt box as its next step. Before anything is
+         asked the conversation is empty, so the prompt box is step 01 and reads as the headline. -->
+    <div class="trace convo">
+      <div id="followups" aria-live="polite"></div>
+      <div class="headline"><Ask /></div>
+      <div class="modelbar" id="modelbar" hidden></div>
+    </div>
   </div>
-</BrutalLayout>
+  <aside class="rail" aria-label="The agent on this page">
+    <Instruments />
+  </aside>
+  <main id="content" class="rest">
+    <Answer />
+    <Content />
+  </main>
+</TraceLayout>

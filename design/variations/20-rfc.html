@@ -1,0 +1,598 @@
+<!doctype html>
+<!--
+20-rfc — "RFC 4242: The V Protocol (VP/1.0)"
+Signature interaction: (a) the VP/1.0 handshake in Section 1.1 is an animated ASCII sequence diagram — it plays when
+scrolled into view and can be stepped, replayed and reset with the [ step ] [ play ] [ reset ] buttons; (b) the
+"plain / rendered" switch in the top bar flips the whole memo between the strict 72-column plain-text look and a
+modern rendered document with the same content.
+Easter eggs:
+ 1. Section 42 (HHGTTG) — not in the Table of Contents. Follow "See Section 42" in requirement R5, or type 42.
+ 2. HTTP 418 — click "418" in Section 7 (IANA Considerations) for a steaming ASCII teapot.
+ 3. Konami code (↑ ↑ ↓ ↓ ← → ← → B A) reflows the memo to 42 columns; again to undo. Touch alternative: tap the
+    final "[Page 42]" footer.
+ 4. Errata — "Errata exist" in the top bar reveals the errata list.
+ 5. The last page of a short memo is, for some reason, Page 42.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RFC 4242 — The V Protocol (VP/1.0)</title>
+<meta name="description" content="Vojtěch “V” Kurka, specified as a Request for Comments. Category: Mostly Harmless.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Courier+Prime:ital,wght@0,400;0,700;1,400&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&display=swap" rel="stylesheet">
+<style>
+:root{--paper:#fbfaf3;--desk:#e7e4d7;--ink:#1c1b18;--mut:#6a665c;--rule:#c9c5b5;--hl:#FFD400;
+  --mono:"Courier Prime","Courier New",Courier,monospace;--serif:"Source Serif 4",Georgia,"Times New Roman",serif}
+*{box-sizing:border-box}
+html{background:var(--desk);scroll-behavior:smooth;scroll-padding-top:60px}
+body{margin:0;color:var(--ink);font:17px/1.62 var(--mono);-webkit-font-smoothing:antialiased}
+::selection{background:var(--hl);color:#000}
+a{color:inherit;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px}
+a:hover{background:var(--hl);color:#000}
+.tb{all:unset;text-indent:0;cursor:pointer;text-decoration:underline;text-decoration-thickness:1px;text-underline-offset:3px}
+.tb:hover{background:var(--hl);color:#000}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+
+.bar{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:2ch;padding:8px 16px;background:var(--ink);color:#f5f2e7;font:14px/1.2 var(--mono)}
+.bar .fn{white-space:nowrap}.bar .fn b{color:var(--hl);font-weight:400}
+.bar .sp{flex:1}
+.bar a,.bar .tb{color:#f5f2e7;white-space:nowrap}
+.bar :focus-visible{outline-color:var(--hl)}
+.seg{display:flex;border:1px solid #f5f2e7}
+.seg button{all:unset;padding:5px 10px;cursor:pointer}
+.seg button:focus-visible{outline:2px solid var(--hl);outline-offset:2px}
+.seg button[aria-pressed=true]{background:var(--hl);color:#000}
+
+.doc{background:var(--paper);max-width:84ch;margin:28px auto 90px;padding:5ch 6ch 6ch;
+  box-shadow:0 1px 0 #cdc8b6,0 22px 44px -22px rgba(70,60,20,.4);transition:max-width .5s}
+html.c42 .doc{max-width:54ch}
+html.c42 pre{font-size:13px}
+#note42{margin:0 0 2em;color:var(--mut)}
+
+.hd{display:flex;justify-content:space-between;gap:2ch}
+.hd div:last-child{text-align:right}
+h1{font:700 22px/1.35 var(--mono);text-align:center;margin:3.4em 0 .15em}
+.sub{text-align:center;margin:0 0 3.2em}
+h2,h3{font:700 17px/1.62 var(--mono);margin:2.6em 0 1.1em}
+h3{margin-top:2em}
+h2 .n,h3 .n{display:inline-block;min-width:4ch}
+h3 .n{min-width:6ch}
+.b{padding-left:3ch}
+p{margin:0 0 1.15em}
+blockquote{margin:0 0 1.15em;padding-left:3ch}
+.kw{font-weight:400}
+code{font-family:var(--mono)}
+
+.toc{list-style:none;padding:0;margin:0}
+.toc a{display:flex;text-decoration:none}
+.toc i{flex:1;overflow:hidden;white-space:nowrap;margin:0 1ch;color:var(--mut);font-style:normal}
+.toc i::before{content:". . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . . ."}
+.toc .s{padding-left:4ch}
+
+dl.terms dt{font-weight:700}
+dl.terms dd{margin:0 0 .9em 3ch}
+ol.req{list-style:none;padding:0;margin:0 0 1.15em}
+ol.req li{padding-left:5ch;text-indent:-5ch;margin-bottom:.6em}
+ul.o{list-style:none;padding:0;margin:0 0 1.15em}
+ul.o li{padding-left:3ch;text-indent:-3ch;margin-bottom:.6em}
+ul.o li::before{content:"o  ";white-space:pre}
+.ref{padding-left:12ch;text-indent:-12ch;margin-bottom:.9em}
+.tg{display:inline-block;width:12ch;text-indent:0}
+.meta{color:var(--mut)}
+
+figure{margin:1.7em 0}
+figcaption{text-align:center;margin-top:.9em}
+pre{margin:0;font:16px/1.38 var(--mono);overflow-x:auto;padding-left:3ch}
+.ctl{padding-left:3ch;display:flex;flex-wrap:wrap;gap:0 2ch;margin-top:1.1em}
+.ctl button{all:unset;cursor:pointer;font-weight:700;white-space:nowrap}
+.ctl button:hover{background:var(--hl);color:#000}
+.ctl button:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+#hstate{color:var(--mut)}
+pre.code{border-left:1px solid var(--ink);margin-left:3ch;padding-left:2ch;font-size:15px}
+
+table{border-collapse:collapse;width:100%;margin:0 0 1.3em}
+th{text-align:left;font-weight:700;border-bottom:1px dashed var(--ink)}
+td,th{padding:.28em 2ch .28em 0;vertical-align:top}
+
+.pb{margin:3.4em 0;color:var(--mut)}
+.pb div{display:flex;justify-content:space-between;gap:2ch}
+.pb .ft{padding-bottom:1.7em;margin-bottom:1.7em;border-bottom:1px dashed var(--rule)}
+.pb{counter-increment:pg}
+.pb .pn::after{content:"[Page " counter(pg) "]"}
+.end{display:flex;justify-content:space-between;gap:2ch;margin-top:3.4em;color:var(--mut)}
+.cur{animation:blink 1.06s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+[hidden]{display:none!important}
+section[tabindex]:focus{outline:none}
+.reveal{animation:reveal .7s ease-out}
+@keyframes reveal{from{background:var(--hl)}to{background:transparent}}
+
+/* ---------- rendered view: same memo, modern typesetting ---------- */
+html.rendered{background:#f3f1ea}
+html.rendered body{font:19px/1.66 var(--serif)}
+html.rendered .doc{max-width:820px;padding:64px clamp(22px,7vw,88px) 76px;border-radius:4px}
+html.rendered .pb,html.rendered .end .l{display:none}
+html.rendered .hd{font:13.5px/1.7 var(--mono);color:var(--mut);border-bottom:1px solid var(--rule);padding-bottom:18px}
+html.rendered h1{font:700 clamp(36px,5.4vw,54px)/1.06 var(--serif);letter-spacing:-.018em;text-align:left;margin:1.1em 0 .2em}
+html.rendered .sub{text-align:left;font:italic 22px/1.4 var(--serif);color:var(--mut);margin-bottom:2.2em}
+html.rendered h2{font:700 29px/1.2 var(--serif);letter-spacing:-.01em;margin:2.3em 0 .7em;padding-top:.9em;border-top:1px solid var(--rule)}
+html.rendered h3{font:700 22px/1.25 var(--serif);margin:1.9em 0 .6em}
+html.rendered h2 .n,html.rendered h3 .n{min-width:0;margin-right:.5em;color:var(--mut);font-weight:400}
+html.rendered .b,html.rendered .ctl{padding-left:0}
+html.rendered blockquote{border-left:4px solid var(--hl);padding-left:20px;font-style:italic}
+html.rendered .kw{font:700 .68em/1 var(--mono);letter-spacing:.08em;background:var(--hl);color:#000;padding:.22em .42em;border-radius:3px;vertical-align:.1em}
+html.rendered code{font-size:.84em;background:#f1eee2;padding:.1em .3em;border-radius:3px}
+html.rendered .toc{columns:2;column-gap:44px;font-size:17px}
+html.rendered .toc i{border-bottom:1px dotted var(--rule);transform:translateY(-.4em)}
+html.rendered .toc i::before{content:""}
+html.rendered dl.terms dt{font:700 .78em/1.6 var(--mono);letter-spacing:.06em;text-transform:uppercase}
+html.rendered dl.terms dd{margin-left:0}
+html.rendered ol.req li,html.rendered ul.o li{padding-left:0;text-indent:0}
+html.rendered ol.req li{border-left:2px solid var(--ink);padding-left:16px}
+html.rendered ul.o{padding-left:1.2em;list-style:disc}html.rendered ul.o li::before{content:none}
+html.rendered .ref{padding-left:0;text-indent:0;font-size:17px}
+html.rendered .tg{width:auto;margin-right:.6em;font:700 .8em var(--mono)}
+html.rendered pre{background:#f4f1e6;border:1px solid var(--rule);border-radius:6px;padding:18px 20px;font-size:15px}
+html.rendered pre.code{margin-left:0;border-left:1px solid var(--rule)}
+html.rendered figcaption{font:13.5px/1.5 var(--mono);color:var(--mut);text-align:left}
+html.rendered .ctl button{border:1px solid var(--ink);padding:4px 10px;border-radius:4px;font:700 14px var(--mono)}
+html.rendered .ctl{gap:8px 10px;align-items:center}
+html.rendered table{font-size:17.5px}
+html.rendered th{font:700 .74em/2 var(--mono);letter-spacing:.07em;text-transform:uppercase;border-bottom:1px solid var(--ink)}
+html.rendered td{border-bottom:1px solid var(--rule);padding:.5em 1em .5em 0}
+html.rendered .addr{font-size:20px}
+html.rendered .end{justify-content:flex-start;font:13.5px var(--mono)}
+
+@media (max-width:760px){
+  .doc{margin:0 0 60px;padding:26px 18px 60px;box-shadow:none}
+  .bar{padding:8px 12px;gap:1.2ch;font-size:13px}
+  .hd{flex-direction:column;gap:1em}.hd div:last-child{text-align:left}
+  h1{font-size:20px;margin-top:2.4em}
+  .b,.ctl,blockquote{padding-left:0}
+  blockquote{border-left:1px solid var(--ink);padding-left:1.5ch}
+  pre{padding-left:0;font-size:12.5px}
+  pre.code{margin-left:0;padding-left:1.5ch;font-size:12.5px}
+  .toc .s{padding-left:2ch}
+  .ref{padding-left:3ch;text-indent:0}.tg{display:block;width:auto;margin-left:-3ch}
+  table,tbody,tr,td{display:block}thead{display:none}
+  tr{margin-bottom:.9em}td{padding:0}td:first-child{font-weight:700}
+  .pb .mid{display:none}
+  html.rendered .toc{columns:1}
+  html.rendered pre{font-size:12px;padding:12px}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before,*::after{animation:none!important;transition:none!important}
+}
+</style>
+</head>
+<body>
+<div class="bar">
+  <span class="fn">rfc4242.txt <b id="spin" aria-hidden="true">-</b></span>
+  <span class="sp"></span>
+  <button class="tb" id="errlink" aria-controls="errata" aria-expanded="false">Errata exist</button>
+  <div class="seg" role="group" aria-label="View">
+    <button data-v="plain" aria-pressed="true">plain</button><button data-v="rendered" aria-pressed="false">rendered</button>
+  </div>
+</div>
+
+<main class="doc" id="doc">
+<p id="note42" role="status" hidden>[Reflowed to 42 columns in accordance with Section 42. Repeat the incantation to undo.]</p>
+
+<div class="hd">
+  <div>Network Working Group<br>Request for Comments: 4242<br>Category: Mostly Harmless<br>Obsoletes: Panic</div>
+  <div>V. Kurka<br>Meiro<br><span id="today">November 2026</span></div>
+</div>
+
+<h1>The V Protocol (VP/1.0)</h1>
+<p class="sub">One Head Nerd, Specified End to End</p>
+
+<section id="status">
+<h2>Status of This Memo</h2>
+<div class="b">
+<p>This memo describes a person for the Internet community. It does not specify an Internet standard of any kind; the subject is, at best, a de facto one. Discussion and suggestions for improvement are requested, see the <a href="#addr">Author’s Address</a>. Distribution of this memo is unlimited, which is rather the point of a website.</p>
+</div>
+</section>
+
+<section id="abstract">
+<h2>Abstract</h2>
+<div class="b">
+<p>This document specifies V (Vojtěch Kurka), Head of R&amp;D and Co-Founder at Meiro, resident in Brno, Czechia. In the subject’s own words:</p>
+<blockquote>I like knowing how things work — from CPUs and protocols to databases and containers. Almost ten years of building a data platform in production taught me most of it. Now I spend that curiosity on AI: local models, agentic workflows, and getting it all into production for real customers. If I can’t explain it to someone else, I don’t understand it yet.</blockquote>
+<p>The remainder of this memo lists known implementations (<a href="#s3">Section 3</a>), published documents (<a href="#s4">Section 4</a>) and operational history (<a href="#s5">Section 5</a>).</p>
+</div>
+</section>
+
+<nav id="toc" aria-labelledby="toc-h">
+<h2 id="toc-h">Table of Contents</h2>
+<div class="b"><ol class="toc">
+  <li><a href="#s1"><span>1.  Introduction</span><i></i><span>2</span></a></li>
+  <li class="s"><a href="#s1-1"><span>1.1.  Protocol Overview</span><i></i><span>2</span></a></li>
+  <li><a href="#s2"><span>2.  Terminology and Requirements</span><i></i><span>3</span></a></li>
+  <li><a href="#s3"><span>3.  Implementations</span><i></i><span>4</span></a></li>
+  <li class="s"><a href="#s3-1"><span>3.1.  Mycroft</span><i></i><span>4</span></a></li>
+  <li class="s"><a href="#s3-2"><span>3.2.  Golem</span><i></i><span>4</span></a></li>
+  <li class="s"><a href="#s3-3"><span>3.3.  Shadow</span><i></i><span>5</span></a></li>
+  <li class="s"><a href="#s3-4"><span>3.4.  Meiro</span><i></i><span>5</span></a></li>
+  <li><a href="#s4"><span>4.  Published Documents</span><i></i><span>6</span></a></li>
+  <li class="s"><a href="#s4-1"><span>4.1.  Excerpt from [VP-AN1]</span><i></i><span>6</span></a></li>
+  <li class="s"><a href="#s4-2"><span>4.2.  Short Notes</span><i></i><span>7</span></a></li>
+  <li><a href="#s5"><span>5.  Operational History</span><i></i><span>8</span></a></li>
+  <li><a href="#s6"><span>6.  Security Considerations</span><i></i><span>8</span></a></li>
+  <li><a href="#s7"><span>7.  IANA Considerations</span><i></i><span>9</span></a></li>
+  <li><a href="#s8"><span>8.  References</span><i></i><span>9</span></a></li>
+  <li><a href="#addr"><span>Author’s Address</span><i></i><span>42</span></a></li>
+</ol></div>
+</nav>
+
+<div class="pb" aria-hidden="true"><div class="ft"><span>Kurka</span><span class="mid">Mostly Harmless</span><span class="pn"></span></div><div><span>RFC 4242</span><span class="mid">The V Protocol (VP/1.0)</span><span>November 2026</span></div></div>
+
+<section id="s1">
+<h2><span class="n">1.</span>Introduction</h2>
+<div class="b">
+<p>V wants to understand systems end to end: CPUs, operating systems, programming languages, databases, containers, proxies and protocols. By the subject’s own account, “some of that I picked up out of curiosity, the rest by debugging production.”</p>
+<p>The domains covered in production are customer data infrastructure, identity resolution and real-time pipelines. Current work concerns AI: running Qwen locally, agentic workflows and self-learning data analysis tools — “in production, not just demos.”</p>
+<p>V is also the node that ends up explaining everything, on stage when needed. The stated reason: “Teaching is how I verify I actually understand something.”</p>
+<p>The subject is registered elsewhere (GitHub) under the following description, reproduced without correction: “I write code no one wants to read, but everyone needs to have. Data whatever.”</p>
+</div>
+<h3 id="s1-1"><span class="n">1.1.</span>Protocol Overview</h3>
+<div class="b">
+<p>A session with V is a plain request/response exchange. No cookies are set and no state is kept; Figure 1 is the whole protocol. Readers in a hurry <b class="kw">MAY</b> step through it.</p>
+</div>
+<figure id="hs">
+<pre id="hsd" aria-live="polite" aria-label="Handshake sequence diagram"></pre>
+<div class="ctl"><button id="hstep">[ step ]</button><button id="hplay">[ play ]</button><button id="hreset">[ reset ]</button><span id="hstate">State: LISTEN</span><span id="hspin" aria-hidden="true"></span></div>
+<figcaption>Figure 1: The VP/1.0 Handshake</figcaption>
+</figure>
+</section>
+
+<div class="pb" aria-hidden="true"><div class="ft"><span>Kurka</span><span class="mid">Mostly Harmless</span><span class="pn"></span></div><div><span>RFC 4242</span><span class="mid">The V Protocol (VP/1.0)</span><span>November 2026</span></div></div>
+
+<section id="s2">
+<h2><span class="n">2.</span>Terminology and Requirements</h2>
+<div class="b">
+<p>The key words <b class="kw">MUST</b>, <b class="kw">MUST NOT</b>, <b class="kw">SHOULD</b> and <b class="kw">MAY</b> in this document are to be interpreted as described in [RFC2119], and then again, more loosely, in a meeting.</p>
+<dl class="terms">
+  <dt>V</dt><dd>The subject of this memo. One letter, to save bandwidth.</dd>
+  <dt>Head Nerd</dt><dd>A role first observed at Keboola in 2015. Still present in the subject’s public bio. Not deprecated.</dd>
+  <dt>Production</dt><dd>The only environment that tells the truth.</dd>
+  <dt>Demo</dt><dd>A deployment with no users. Implementations <b class="kw">MUST NOT</b> confuse a Demo with Production.</dd>
+  <dt>Agent</dt><dd>A program that acts for someone. Per the subject, most of those shipped in 2026 are “a streamText() call in a trench coat.”</dd>
+  <dt>Hype</dt><dd>Traffic with no payload. <b class="kw">SHOULD</b> be dropped at the edge.</dd>
+</dl>
+<p>The following requirements apply to all implementations of V:</p>
+<ol class="req">
+  <li>R1.  An implementation <b class="kw">MUST</b> understand the system end to end before blaming the network.</li>
+  <li>R2.  An implementation <b class="kw">SHOULD</b> be able to explain itself to someone else. If it cannot, it does not understand itself yet.</li>
+  <li>R3.  An agent <b class="kw">SHOULD</b> be given fewer tools and a filesystem. See [VP-AN1].</li>
+  <li>R4.  Data <b class="kw">MUST</b> be allowed to stay on machines its owner controls.</li>
+  <li>R5.  An implementation <b class="kw">MUST NOT</b> panic. <button class="tb" id="go42">See Section 42.</button></li>
+  <li>R6.  An implementation <b class="kw">MAY</b> deploy on a Friday. The author declines to comment further.</li>
+</ol>
+</div>
+</section>
+
+<section id="s42" hidden tabindex="-1">
+<h2><span class="n">42.</span>Don’t Panic</h2>
+<div class="b">
+<p>This section is not listed in the Table of Contents, on the grounds that anyone who needs it will find it.</p>
+<p>The Answer is 42. The Question was lost during a schema migration; a backfill is in progress and has been for some time.</p>
+<p>Implementations experiencing an outage at 3 a.m. are reminded that the system is a machine, that machines can be understood, and that the towel is where it was left. Risk assessment: mostly harmless.</p>
+</div>
+</section>
+
+<div class="pb" aria-hidden="true"><div class="ft"><span>Kurka</span><span class="mid">Mostly Harmless</span><span class="pn"></span></div><div><span>RFC 4242</span><span class="mid">The V Protocol (VP/1.0)</span><span>November 2026</span></div></div>
+
+<section id="s3">
+<h2><span class="n">3.</span>Implementations</h2>
+<div class="b">
+<p>Four implementations are known. Three are personal and open; one is a company. All of them run on hardware the user owns.</p>
+</div>
+
+<h3 id="s3-1"><span class="n">3.1.</span>Mycroft</h3>
+<div class="b"><p>A self-modifying, durable agent that lives on your iPhone. Brain on the phone, hands on your machines.</p></div>
+<figure><pre>
+  +-----------+   pinned TLS    +----------+
+  |  iPhone   |&lt;---------------&gt;|  hands   |
+  |  (brain)  |    WebSocket    | (daemon) |
+  +-----+-----+                 +----+-----+
+        |                            |
+  edits itself,               files, shell,
+  keeps generations         supervised jobs
+</pre><figcaption>Figure 2: Mycroft</figcaption></figure>
+<div class="b">
+<p>The agent loop, its state and its own source code live on the phone. It edits its own behaviour and its own screen, keeps known-good generations and can roll back. <code>hands</code> is a small daemon for macOS and Linux that gives it files, shell and supervised jobs; it also drives a Mac. There is voice in every thread, and one infinite chat backed by a memory tree. Named after Mycroft Holmes, the brother who stayed in his armchair.</p>
+<p class="meta">Language: Swift. Stars: 41. Source: <a href="https://github.com/dontpanicv/mycroft">github.com/dontpanicv/mycroft</a></p>
+</div>
+
+<h3 id="s3-2"><span class="n">3.2.</span>Golem</h3>
+<div class="b"><p>Family AI assistant and second brain on our own machines. No cloud, no central server.</p></div>
+<figure><pre>
+     web      iPhone     Android
+       \         |         /
+        +--------+---------+
+        |      Golem       |   one server,
+        | SQLite, Markdown |   at home
+        +--------+---------+
+                 |
+     your Macs and Linux machines
+</pre><figcaption>Figure 3: Golem</figcaption></figure>
+<div class="b">
+<p>One server at home, one app for the whole family on the web, iPhone and Android. It remembers (topic briefs, learned facts), does real work on your machines, and asks before it sends, buys or deletes. In Prague legend, Rabbi Loew shaped the Golem from clay. This one is made from SQLite and Markdown.</p>
+<p class="meta">Language: TypeScript. Source: <a href="https://github.com/dontpanicv/golem">github.com/dontpanicv/golem</a></p>
+</div>
+
+<h3 id="s3-3"><span class="n">3.3.</span>Shadow</h3>
+<div class="b"><p>A shadow company for your team.</p></div>
+<figure><pre>
+  Slack --+                +--&gt; context
+          |   +--------+   |
+  mail ---+--&gt;| shadow |---+--&gt; open asks
+          |   +--------+   |
+  notes --+   one per      +--&gt; help,
+              employee          when asked
+</pre><figcaption>Figure 4: Shadow</figcaption></figure>
+<div class="b">
+<p>Every employee gets a shadow: an agent that reads their Slack and mail, tracks what each conversation asks of them, and helps do the work when asked. It lives in Slack, stays quiet, and runs on your own server: one SQLite database and Markdown files.</p>
+<p class="meta">Language: TypeScript. Source: <a href="https://github.com/dontpanicv/shadow">github.com/dontpanicv/shadow</a></p>
+</div>
+
+<h3 id="s3-4"><span class="n">3.4.</span>Meiro</h3>
+<div class="b"><p>The reference deployment, in production since 2018. Customer data infrastructure.</p></div>
+<figure><pre>
+  sources --&gt; [ Pipes ] --&gt; destinations
+                  |
+          events, identity
+                  |
+             [ Engage ] &lt;-- AI Analyst
+        audiences, journeys,   (bash, a
+            campaigns          filesystem,
+                               a renderer)
+</pre><figcaption>Figure 5: Meiro</figcaption></figure>
+<div class="b">
+<p>Pipes covers sources, events, identity and destinations. Engage covers audiences, journeys and campaigns. The AI Analyst is an analytical agent built on bash, a mounted in-memory filesystem and a JSON renderer instead of a tool-calling loop. The whole thing is self-hostable: “AI included, that you own, control and audit.”</p>
+<p class="meta">See: <a href="https://meiro.io">meiro.io</a></p>
+</div>
+</section>
+
+<div class="pb" aria-hidden="true"><div class="ft"><span>Kurka</span><span class="mid">Mostly Harmless</span><span class="pn"></span></div><div><span>RFC 4242</span><span class="mid">The V Protocol (VP/1.0)</span><span>November 2026</span></div></div>
+
+<section id="s4">
+<h2><span class="n">4.</span>Published Documents</h2>
+<div class="b">
+<p class="ref"><span class="tg">[VP-AN1]</span>Kurka, V., “Beyond the Tool-Calling Loop: How We Built an AI Analyst with Bash, a Mounted Filesystem, and a JSON Renderer”, 29 April 2026. <a href="https://dontpanicv.com/posts/ai-analyst-architecture/">/posts/ai-analyst-architecture/</a>. Excerpted in <a href="#s4-1">Section 4.1</a>.</p>
+<p class="ref"><span class="tg">[VP-AN2]</span>Kurka, V., “Stop Letting AI Agents Guess Where Code Goes”, 10 February 2026. A modular-monolith refactor designed for AI agents: predictable module layout, centralized auth, and a strict <code>public.ts</code> boundary. <a href="https://dontpanicv.com/posts/ai-agents-codebases/">/posts/ai-agents-codebases/</a></p>
+<p class="ref"><span class="tg">[VP-DRAFT]</span>Kurka, V., “Claude Code vs Codex: Same Coding AI, Different People”, Work in Progress. Why the two are not interchangeable: prompting style and ambiguity tolerance shape the outcome.</p>
+<p class="ref"><span class="tg">[VP-IDEA]</span>Kurka, V., “Gaslighting Coding Agents for Better Security”, Internet-Draft, expires when written. See <a href="#s6">Section 6</a>.</p>
+</div>
+
+<h3 id="s4-1"><span class="n">4.1.</span>Excerpt from [VP-AN1]</h3>
+<div class="b">
+<p>Most AI features built today follow the same recipe: take the Vercel AI SDK, register a handful of tools, write a system prompt, and stream the result into a markdown component. It works. It is also where most teams stop — and where most AI products start to feel limited.</p>
+<p>This article walks through the architecture we ended up with for the AI Analyst in Engage, and contrasts it with the more conventional Piper chatbot that lives next door in the same codebase. Both ship in the same product. They are wildly different inside.</p>
+<p>The first wall you hit is large tool outputs. Imagine a tool that runs a SQL query against the warehouse:</p>
+</div>
+<figure><pre class="code">execute: async ({ sql }) =&gt; {
+  const { columns, rows } =
+    await warehouse.execute(sql);
+  return { columns, rows };
+  // &lt;-- 50,000 rows of JSON
+},</pre><figcaption>Figure 6: A tool result, in the wrong place</figcaption></figure>
+<div class="b">
+<p>Whatever the tool returns goes straight into the model’s context as the tool result message. A query that returns 50k rows is now 50k rows of JSON sitting in the conversation, on every subsequent turn, paid for in tokens, and pushing earlier reasoning out of the window.</p>
+<p>You can paginate. You can truncate. You can summarize. All of these are coping mechanisms — they either lose information or force the model to make decisions about data it cannot see. The fundamental problem is that tool results are a terrible place to put data.</p>
+<p>The second wall is metadata bloat: one inventory tool per kind of thing, each returning a verbose list, all called at the start of every conversation. Three ideas replaced both: just-bash with an in-memory filesystem, a SQL execution layer that mounts results as files, and a JSON renderer with a predefined component manifest.</p>
+<p>The full text is at <a href="https://dontpanicv.com/posts/ai-analyst-architecture/">dontpanicv.com/posts/ai-analyst-architecture/</a>.</p>
+</div>
+
+<h3 id="s4-2"><span class="n">4.2.</span>Short Notes</h3>
+<div class="b">
+<p>The following statements by the subject have been observed on the public network and are reproduced for the record:</p>
+<ul class="o">
+  <li>“Your AI doesn’t need more tools. It needs fewer tools and a filesystem. Possibly also therapy, but we’re starting with the filesystem.”</li>
+  <li>“Jevons paradox vs Engel’s law.” The open question being whether token spend will behave like food spend.</li>
+  <li>“How you prompt still matters. Human creativity still beats AI. For now.”</li>
+</ul>
+</div>
+</section>
+
+<div class="pb" aria-hidden="true"><div class="ft"><span>Kurka</span><span class="mid">Mostly Harmless</span><span class="pn"></span></div><div><span>RFC 4242</span><span class="mid">The V Protocol (VP/1.0)</span><span>November 2026</span></div></div>
+
+<section id="s5">
+<h2><span class="n">5.</span>Operational History</h2>
+<div class="b">
+<table>
+  <thead><tr><th>Period</th><th>Deployment</th><th>Role</th></tr></thead>
+  <tbody>
+    <tr><td>2024 - now</td><td>Meiro, Brno</td><td>Head of R&amp;D &amp; Co-Founder</td></tr>
+    <tr><td>2018 - 2024</td><td>Meiro</td><td>CTO &amp; Co-Founder</td></tr>
+    <tr><td>2015 - 2018</td><td>Keboola</td><td>Head Nerd / Solutions Architect</td></tr>
+    <tr><td>earlier</td><td>VUT FIT, Brno</td><td>Student</td></tr>
+  </tbody>
+</table>
+<p>As CTO, V owned product architecture, development and implementations of the Meiro CDP. At Keboola, V designed data integrations end to end, partly from Bali, Indonesia. VUT FIT is the Faculty of Information Technology of Brno University of Technology.</p>
+</div>
+</section>
+
+<section id="s6">
+<h2><span class="n">6.</span>Security Considerations</h2>
+<div class="b">
+<p>The threat model of a personal website is modest. This document sets no cookies, loads no trackers and stores nothing about the reader.</p>
+<p>One technique under study ([VP-IDEA]) deserves a mention. A coding agent with repository access behaves like a motivated attacker when it is told, as a fact, that a pentester has already achieved remote code execution. This is not true. The agent does not know that. Asked to “find vulnerabilities”, a model tends to conclude that nothing is wrong; told “we already got popped, figure out how”, it enumerates trust boundaries and follows data flows until it has a concrete path.</p>
+<p>Implementers <b class="kw">SHOULD</b> run this only in a sandbox, on a dedicated branch, with no production secrets and no real customer data. Whether lying to one’s tools has long-term consequences is left for future work.</p>
+</div>
+</section>
+
+<div class="pb" aria-hidden="true"><div class="ft"><span>Kurka</span><span class="mid">Mostly Harmless</span><span class="pn"></span></div><div><span>RFC 4242</span><span class="mid">The V Protocol (VP/1.0)</span><span>November 2026</span></div></div>
+
+<section id="s7">
+<h2><span class="n">7.</span>IANA Considerations</h2>
+<div class="b">
+<p>This document requests the registration of one single-letter name: V. The registrant notes that the name is short, memorable and already in use.</p>
+<p>No new HTTP status codes are requested. The author has checked that <button class="tb" id="t418" aria-controls="teapot" aria-expanded="false">418</button> remains assigned [RFC2324].</p>
+</div>
+<figure id="teafig" hidden><pre id="teapot" aria-label="HTTP 418 response with an ASCII teapot"></pre><figcaption>Figure 418: A Teapot</figcaption></figure>
+</section>
+
+<section id="s8">
+<h2><span class="n">8.</span>References</h2>
+<div class="b">
+<p class="ref"><span class="tg">[RFC2119]</span>Bradner, S., “Key words for use in RFCs to Indicate Requirement Levels”, BCP 14, RFC 2119, March 1997.</p>
+<p class="ref"><span class="tg">[HHGTTG]</span>Adams, D., “The Hitchhiker’s Guide to the Galaxy”, 1979. Normative on the subject of panic.</p>
+<p class="ref"><span class="tg">[RFC2324]</span>Masinter, L., “Hyper Text Coffee Pot Control Protocol (HTCPCP/1.0)”, RFC 2324, 1 April 1998.</p>
+<p class="ref"><span class="tg">[RFC1149]</span>Waitzman, D., “A Standard for the Transmission of IP Datagrams on Avian Carriers”, RFC 1149, 1 April 1990. Cited for latency expectations.</p>
+</div>
+</section>
+
+<section id="errata" hidden tabindex="-1">
+<h2>Errata</h2>
+<div class="b">
+<p class="ref"><span class="tg">[EID 1]</span>Section 2, R5 says an implementation MUST NOT panic. Reported: the author panicked, once, in production. Status: Held for Document Update.</p>
+<p class="ref"><span class="tg">[EID 2]</span>“Ten years” should read “almost ten years”. Status: Verified. The author insists on the precision.</p>
+<p class="ref"><span class="tg">[EID 3]</span>Section 3.2 says the Golem is made from SQLite and Markdown. Clay was evaluated and rejected: poor write throughput. Status: Verified.</p>
+<p class="ref"><span class="tg">[EID 42]</span>The Answer is correct. The Question remains unspecified. Status: Rejected (out of scope for this memo).</p>
+</div>
+</section>
+
+<section id="addr">
+<h2>Author’s Address</h2>
+<div class="b addr">
+<p>Vojtěch “V” Kurka<br>Meiro<br>Brno, Czechia</p>
+<p>Email: <a href="mailto:kurka.vojtech@gmail.com">kurka.vojtech@gmail.com</a><br>
+GitHub: <a href="https://github.com/dontpanicv">github.com/dontpanicv</a><br>
+X: <a href="https://x.com/dontpanicv">x.com/dontpanicv</a><br>
+LinkedIn: <a href="https://www.linkedin.com/in/kurkavojtech">linkedin.com/in/kurkavojtech</a></p>
+<p>[End of RFC 4242]<span class="cur" aria-hidden="true">█</span></p>
+</div>
+</section>
+
+<div class="end"><span class="l">Kurka</span><span class="l mid">Mostly Harmless</span><button class="tb" id="p42" title="Page 42" style="text-decoration:none">[Page 42]</button></div>
+</main>
+
+<div id="vnav" style="position:fixed;right:12px;bottom:12px;z-index:99999;font:12px/1 ui-monospace,Menlo,monospace;background:#111;color:#fff;border-radius:999px;padding:8px 12px;display:flex;gap:10px;align-items:center;box-shadow:0 2px 10px rgba(0,0,0,.3)"><a href="19-notebook.html" style="color:#FFD400;text-decoration:none" aria-label="Previous variation">‹</a><a href="index.html" style="color:#fff;text-decoration:none">20/20 · rfc</a><a href="01-query-console.html" style="color:#FFD400;text-decoration:none" aria-label="Next variation">›</a></div>
+
+<script>
+(() => {
+const $ = s => document.querySelector(s), root = document.documentElement;
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+const esc = s => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+const SPIN = '|/-\\';
+
+$('#today').textContent = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+
+/* plain / rendered */
+document.querySelectorAll('.seg button').forEach(b => b.addEventListener('click', () => {
+  root.classList.toggle('rendered', b.dataset.v === 'rendered');
+  document.querySelectorAll('.seg button').forEach(o => o.setAttribute('aria-pressed', String(o === b)));
+}));
+
+/* ---------- handshake (Figure 1) ---------- */
+const HS = [
+  ['>', 'SYN', '"who are you?"', 'SYN-SENT'],
+  ['<', 'SYN-ACK', '"V. Head nerd. Hello."', 'SYN-RCVD'],
+  ['>', 'ACK', '"what do you build?"', 'ESTABLISHED'],
+  ['<', 'DATA', 'see Section 3', 'ESTABLISHED'],
+  ['>', 'ACK', '"anything to read?"', 'ESTABLISHED'],
+  ['<', 'DATA', 'see Section 4', 'ESTABLISHED'],
+  ['>', 'FIN', '"how do I reach you?"', 'FIN-WAIT'],
+  ['<', 'FIN-ACK', "see Author's Address", 'CLOSED (the address stays open)'],
+];
+const W = 30, PAD = '      |', bare = PAD + ' '.repeat(W) + '|';
+const inner = (d, l) => { const s = ' ' + l + ' ', n = W - 1 - s.length, a = n >> 1, body = '-'.repeat(a) + s + '-'.repeat(n - a); return d === '>' ? body + '>' : '<' + body; };
+const note = t => PAD + '   ' + t.padEnd(W - 3) + '|';
+const pre = $('#hsd'), state = $('#hstate'), hspin = $('#hspin'), spin = $('#spin');
+let done = reduce ? HS.length : 0, typing = false, prog = 0, playing = false, t0 = 0, timer = 0;
+function draw() {
+  const out = ['   visitor' + ' '.repeat(27) + 'V', bare];
+  HS.forEach(([d, l, t], i) => {
+    if (i < done) out.push(PAD + inner(d, l) + '|', note(t));
+    else if (i === done && typing) {
+      const full = inner(d, l), k = Math.round(prog * W);
+      out.push(PAD + (d === '>' ? full.slice(0, k).padEnd(W) : full.slice(W - k).padStart(W)) + '|', bare);
+    } else out.push(bare, bare);
+  });
+  pre.innerHTML = out.map(esc).join('\n')
+    .replace(/Section (\d)/g, (m, n) => `<a href="#s${n}">${m}</a>`)
+    .replace("Author's Address", '<a href="#addr">Author\'s Address</a>');
+  state.textContent = 'State: ' + (done ? HS[done - 1][3] : 'LISTEN');
+}
+function tick(now) {
+  if (!typing) return;
+  prog = Math.min(1, (now - t0) / 480);
+  hspin.textContent = spin.textContent = SPIN[Math.floor(now / 90) % 4];
+  if (prog >= 1) finish(); else { draw(); requestAnimationFrame(tick); }
+}
+function finish() {
+  typing = false; done++; draw();
+  if (playing && done < HS.length) timer = setTimeout(step, 520);
+  else { playing = false; hspin.textContent = ''; spin.textContent = done === HS.length ? '✓' : '-'; }
+}
+function step() {
+  clearTimeout(timer);
+  if (typing) return finish();
+  if (done >= HS.length) return;
+  if (reduce) { done++; return draw(); }
+  typing = true; prog = 0; t0 = performance.now(); requestAnimationFrame(tick);
+}
+function reset() { clearTimeout(timer); typing = playing = false; done = 0; hspin.textContent = ''; spin.textContent = '-'; draw(); }
+$('#hstep').addEventListener('click', () => { playing = false; step(); });
+$('#hplay').addEventListener('click', () => { if (done >= HS.length) reset(); playing = true; step(); });
+$('#hreset').addEventListener('click', reset);
+draw();
+if (!reduce) {
+  const io = new IntersectionObserver(es => { if (es[0].isIntersecting) { io.disconnect(); playing = true; step(); } }, { threshold: .6 });
+  io.observe($('#hs'));
+} else spin.textContent = '✓';
+
+/* ---------- eggs ---------- */
+function reveal(el, btn) {
+  const was = el.hidden; el.hidden = false; if (btn) btn.setAttribute('aria-expanded', 'true');
+  if (was) { el.classList.add('reveal'); }
+  el.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' });
+  if (el.tabIndex === -1) el.focus({ preventScroll: true });
+}
+$('#go42').addEventListener('click', () => reveal($('#s42')));
+$('#errlink').addEventListener('click', e => reveal($('#errata'), e.currentTarget));
+
+const frame = (a, b) => [
+  '> BREW /coffee HTCPCP/1.0',
+  "< HTTP/1.1 418 I'm a teapot",
+  '',
+  '            ' + a,
+  '           ' + b,
+  "         .-'-------'-.",
+  '        |             |==\\',
+  '        |   teapot    |   )',
+  '        |             |==/',
+  "         '-._______.-'",
+  '',
+  'The response body is short and stout.',
+  'Coffee was never an option here.',
+].join('\n');
+let tea = 0, teaOn = false;
+$('#t418').addEventListener('click', e => {
+  const fig = $('#teafig'), p = $('#teapot');
+  p.textContent = frame(') ) )', '( ( (');
+  reveal(fig, e.currentTarget);
+  if (teaOn || reduce) return;
+  teaOn = true;
+  setInterval(() => { tea ^= 1; p.textContent = tea ? frame('( ( (', ') ) )') : frame(') ) )', '( ( ('); }, 420);
+});
+
+function cols42() { const on = root.classList.toggle('c42'); $('#note42').hidden = !on; if (on) scrollTo({ top: 0, behavior: reduce ? 'auto' : 'smooth' }); }
+$('#p42').addEventListener('click', cols42);
+const K = ['arrowup', 'arrowup', 'arrowdown', 'arrowdown', 'arrowleft', 'arrowright', 'arrowleft', 'arrowright', 'b', 'a'];
+let ki = 0, digits = '';
+addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+  ki = k === K[ki] ? ki + 1 : (k === K[0] ? 1 : 0);
+  if (ki === K.length) { ki = 0; cols42(); }
+  digits = /^\d$/.test(e.key) ? (digits + e.key).slice(-2) : '';
+  if (digits === '42') { digits = ''; reveal($('#s42')); }
+});
+})();
+</script>
+</body>
+</html>

@@ -1,71 +1,71 @@
 ---
-import BrutalLayout from '../layouts/BrutalLayout.astro';
+import TraceLayout from '../layouts/TraceLayout.astro';
+import { contact, person } from '../data/profile';
 
-const lang = 'en';
+// The long version of the CV; the homepage and the agent use the short one in data/profile.ts.
+const jobs = [
+  {
+    company: 'Meiro',
+    place: 'Brno, Czechia',
+    roles: [
+      ['Head of R&D & Co-Founder', 'Mar 2024 – Present'],
+      ['CTO & Co-Founder', 'Sep 2018 – May 2024'],
+    ],
+    points: [
+      'Owned product architecture, development, and implementations of the Meiro CDP.',
+      'Hands-on with delivery and the real-world data integration edge cases that come with it.',
+    ],
+  },
+  {
+    company: 'Keboola (Datadriven Co. Pte Ltd)',
+    place: '',
+    roles: [
+      ['Head Nerd', 'Aug 2015 – Sep 2018'],
+      ['Solutions Architect', 'Aug 2015 – Jul 2018 (Bali, Indonesia)'],
+    ],
+    points: [
+      'Designed solutions to customer needs and helped teams ship data integrations end-to-end.',
+      'Worked on data transport and transformation challenges, including the messy edge cases.',
+    ],
+  },
+];
 ---
 
-<BrutalLayout
-  title="Dont's Panic, V!"
-  description="Curriculum vitae"
-  lang={lang}
-  langSwitchHref="/cs/cv"
->
-	  <div class="space-y-12">
-	    <header class="space-y-3">
-	      <p class="text-muted leading-relaxed">
-	        I want to understand systems end to end — how CPUs execute instructions, how operating systems, programming languages, databases, containers, proxies, and protocols all fit together. Some of that I picked up out of curiosity, the rest by debugging production. Almost ten years of building and operating Meiro taught me the domains: customer data infrastructure, identity resolution, real-time pipelines, and the edge cases that come with running a CDP for enterprise customers. What I enjoy most is picking up new technology, understanding how it actually works, and figuring out how to apply it. Right now that means AI — running Qwen locally, building agentic workflows with Claude, designing self-learning data analysis tools. I bring these to production, not just demos. I'm also the person who ends up explaining everything — to engineers, to customers, on stage when the occasion calls for it. Teaching is how I verify I actually understand something. On the commercial side, I've navigated enough RFPs and B2B sales cycles to speak the language of enterprise buyers.
-	      </p>
-	      <p class="text-muted leading-relaxed">
-	        Co-founder and Head of R&amp;D at Meiro (Customer Data Platform). Previously: Solutions Architect and Head Nerd at Keboola (Datadriven Co. Pte Ltd).
-	      </p>
-	    </header>
+<TraceLayout title="CV · Don't Panic, V!" description="Curriculum vitae of Vojtěch “V” Kurka">
+  <main id="content">
+    <article class="article">
+      <h1>{person.name}</h1>
+      <p class="by">{person.role} · {person.place}</p>
+      <div class="md">
+        <p>
+          I want to understand systems end to end — how CPUs execute instructions, how operating systems, programming languages, databases, containers, proxies, and protocols all fit together. Some of that I picked up out of curiosity, the rest by debugging production. Almost ten years of building and operating Meiro taught me the domains: customer data infrastructure, identity resolution, real-time pipelines, and the edge cases that come with running a CDP for enterprise customers. What I enjoy most is picking up new technology, understanding how it actually works, and figuring out how to apply it. Right now that means AI — running Qwen locally, building agentic workflows with Claude, designing self-learning data analysis tools. I bring these to production, not just demos. I'm also the person who ends up explaining everything — to engineers, to customers, on stage when the occasion calls for it. Teaching is how I verify I actually understand something. On the commercial side, I've navigated enough RFPs and B2B sales cycles to speak the language of enterprise buyers.
+        </p>
+        <p>Co-founder and Head of R&amp;D at Meiro (Customer Data Platform). Previously: Solutions Architect and Head Nerd at Keboola (Datadriven Co. Pte Ltd).</p>
 
-    <section class="space-y-6">
-      <h3 class="text-xs uppercase tracking-widest text-muted">Experience</h3>
+        <h2>Experience</h2>
+        {jobs.map((job) => (
+          <section class="job">
+            <h3>{job.company}{job.place ? <span> · {job.place}</span> : null}</h3>
+            <table class="cv">
+              <tbody>
+                {job.roles.map(([title, when]) => (
+                  <tr><th>{when}</th><td><b>{title}</b></td></tr>
+                ))}
+              </tbody>
+            </table>
+            <ul>{job.points.map((point) => <li>{point}</li>)}</ul>
+          </section>
+        ))}
 
-      <div class="space-y-6">
-        <div class="space-y-2">
-          <div class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-            <h4 class="text-lg font-medium">Meiro</h4>
-            <span class="text-sm text-muted">Brno, Czechia</span>
-          </div>
-          <ul class="space-y-2 text-sm text-muted">
-            <li class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-              <span class="text-text font-medium">Head of R&amp;D &amp; Co-Founder</span>
-              <span>Mar 2024 – Present</span>
-            </li>
-            <li class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-              <span class="text-text font-medium">CTO &amp; Co-Founder</span>
-              <span>Sep 2018 – May 2024</span>
-            </li>
-          </ul>
-          <ul class="mt-3 list-disc pl-5 space-y-1 text-sm text-muted">
-            <li>Owned product architecture, development, and implementations of the Meiro CDP.</li>
-            <li>Hands-on with delivery and the real-world data integration edge cases that come with it.</li>
-          </ul>
-        </div>
+        <h2>Education</h2>
+        <p>VUT FIT — Brno University of Technology, Faculty of Information Technology.</p>
 
-        <div class="space-y-2">
-          <div class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-            <h4 class="text-lg font-medium">Keboola (Datadriven Co. Pte Ltd)</h4>
-          </div>
-	          <ul class="space-y-2 text-sm text-muted">
-	            <li class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-	              <span class="text-text font-medium">Head Nerd</span>
-	              <span>Aug 2015 – Sep 2018</span>
-	            </li>
-	            <li class="flex flex-wrap items-baseline justify-between gap-x-6 gap-y-1">
-	              <span class="text-text font-medium">Solutions Architect</span>
-	              <span>Aug 2015 – Jul 2018 (Bali, Indonesia)</span>
-	            </li>
-	          </ul>
-          <ul class="mt-3 list-disc pl-5 space-y-1 text-sm text-muted">
-            <li>Designed solutions to customer needs and helped teams ship data integrations end-to-end.</li>
-            <li>Worked on data transport and transformation challenges, including the messy edge cases.</li>
-          </ul>
-        </div>
+        <h2>Contact</h2>
       </div>
-    </section>
-
-	  </div>
-</BrutalLayout>
+      <ul class="contacts">
+        {contact.map((c) => <li><span>{c.label}</span><a href={c.url} rel="me">{c.text}</a></li>)}
+      </ul>
+      <p class="more"><a href="/">← Back to the run</a> · <a href="/#ask">Ask the agent about V</a></p>
+    </article>
+  </main>
+</TraceLayout>

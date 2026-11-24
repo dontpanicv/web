@@ -19,32 +19,32 @@ const { body, title, xUrl, linkedinUrl, facebookUrl } = Astro.props;
 const id = `md-${Math.random().toString(36).slice(2, 9)}`;
 ---
 
-<span class="post-actions inline-flex items-center gap-2">
+<span class="post-actions">
   <button
     type="button"
     class="post-action-btn llm-copy-btn"
     data-md-id={id}
     aria-label="Copy post as LLM friendly markdown"
+    title="Copy post as LLM friendly markdown"
   >
-    <Icon name="lucide:clipboard-copy" class="size-4 llm-icon" />
-    <span class="tooltip">Copy post as LLM friendly markdown</span>
+    <Icon name="lucide:clipboard-copy" />
   </button>
 
   {xUrl && (
     <a href={xUrl} target="_blank" rel="noopener noreferrer" class="post-action-btn" aria-label="Discuss on X">
-      <Icon name="simple-icons:x" class="size-4" />
+      <Icon name="simple-icons:x" />
     </a>
   )}
 
   {linkedinUrl && (
     <a href={linkedinUrl} target="_blank" rel="noopener noreferrer" class="post-action-btn" aria-label="Discuss on LinkedIn">
-      <Icon name="simple-icons:linkedin" class="size-4" />
+      <Icon name="simple-icons:linkedin" />
     </a>
   )}
 
   {facebookUrl && (
     <a href={facebookUrl} target="_blank" rel="noopener noreferrer" class="post-action-btn" aria-label="Discuss on Facebook">
-      <Icon name="simple-icons:facebook" class="size-4" />
+      <Icon name="simple-icons:facebook" />
     </a>
   )}
 
@@ -77,36 +77,43 @@ const id = `md-${Math.random().toString(36).slice(2, 9)}`;
       ta.remove();
     }
 
-    // Animation feedback
-    btn.classList.add('animate-pulse', 'copied');
-    setTimeout(() => {
-      btn.classList.remove('animate-pulse', 'copied');
-    }, 1500);
+    btn.classList.add('copied');
+    setTimeout(() => btn.classList.remove('copied'), 1500);
   });
 </script>
 
 <style>
-  .post-action-btn {
+  .post-actions {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
-    padding: 0.25rem;
-    border-radius: var(--r-sm);
-    color: var(--c-muted);
-    transition: color 0.15s, background-color 0.15s;
+    gap: 6px;
+    vertical-align: middle;
+  }
+
+  .post-actions :global(svg) {
+    width: 16px;
+    height: 16px;
+    display: block;
+  }
+
+  .post-action-btn {
+    display: inline-flex;
+    padding: 5px;
+    border: 0;
+    border-radius: 4px;
+    background: none;
+    color: var(--muted);
+    cursor: pointer;
   }
 
   .post-action-btn:hover {
-    color: var(--c-text);
-    background-color: var(--c-border);
-  }
-
-  .post-action-btn:focus-visible {
-    outline: 2px solid var(--c-accent);
-    outline-offset: 2px;
+    color: var(--ink);
+    background: var(--accent);
   }
 
   .post-action-btn.copied {
-    color: #16a34a;
+    color: var(--ink);
+    background: var(--accent);
+    outline: 1px solid var(--ink);
   }
 </style>

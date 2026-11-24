@@ -1,46 +1,33 @@
-# Style guide (Don’t Panic, V)
+# Style guide (Don't Panic, V)
+
+The design is "Agent Trace": the homepage reads as an agent run, and every page uses the same paper, ink and one yellow accent.
 
 ## Principles
-- **Static-first** (Astro pages, minimal JS)
-- **Readable** typography and spacing
-- **HHGTTG vibe**, subtle (yellow accent + calm microcopy)
-- **Accessible** (focus styles, contrast, underline links)
+- **Readable first**: body text is a serif at 19–20px, at most about 66 characters wide. Mono type is for labels, never paragraphs.
+- **The gimmick lives in the chrome**: the headline prompt, tool cards and the rail sit around normal content, and the content is in the HTML without JavaScript.
+- **No decoration that reads as information**: no run ids, fake statuses or invented reasoning. A label on the page means something.
+- **Real, not simulated**: what looks like a tool call or a token count on the live part of the page is one.
+- **Accessible**: focus outlines, underlined links, `prefers-reduced-motion` respected.
 
 ## Tokens
-Tokens live in `src/styles/global.css`.
+Tokens live in `src/styles/trace.css` (plain CSS, no Tailwind):
+- colours: `--paper`, `--card`, `--ink`, `--muted`, `--line`, `--soft`, `--accent` (`#FFD400`)
+- type: `--serif` (Newsreader), `--sans` (Instrument Sans), `--mono` (JetBrains Mono), loaded from Google Fonts
 
-- Colors are expressed as RGB triplets:
-  - `--c-bg`, `--c-panel`, `--c-text`, `--c-muted`, `--c-border`, `--c-accent`, `--c-link`
-
-Tailwind is configured to expose these as semantic colors:
-- `bg-bg`, `bg-panel`, `text-text`, `text-muted`, `border-border`, `bg-accent`, `text-link`
-
-## Components
-Located in `src/components/`:
-- `Header.astro` (site title, minimal nav, language switch)
-- `Footer.astro`
-- `Button.astro` (`primary`, `secondary`, `ghost`)
-- `Card.astro`
-- `Container.astro`
-
-## Layout
-- `src/layouts/BaseLayout.astro`:
-  - includes meta tags
-  - favicon links
-  - imports global Tailwind stylesheet
+## Building blocks
+- `src/layouts/TraceLayout.astro`: head, fonts, header with the nav. `layout="layout home"` is the homepage grid (content plus rail); the default is a single reading column.
+- `src/components/home/`: the homepage's parts (`Ask`, `Answer`, `Content`, `Instruments`).
+- `src/components/Px.astro`: 1-bit pixel glyphs for the project marks.
+- `src/components/PostActions.astro`: copy-as-markdown and discussion links on a post.
+- The conversation is a numbered run with a dashed leading line (`.convo`, CSS counters), so it reads apart from the page's own content; the prompt box is always its next step.
+- Classes worth reusing: `.step` (one step of a conversation), `details.tool` (a tool card), `.article` + `.md` (long-form text), `.cv`, `.contacts`, `.shell`, `.btn`.
 
 ## Brand assets
-- `public/brand/thumb.svg` (source-of-truth icon)
-- `public/favicon.svg` (points to thumb)
-- `public/favicon.ico` (existing ICO for broad compatibility)
+- `public/brand/logo.svg`: the original mark, a thumb in a ringed planet (vector, the source of truth)
+- `public/brand/mark.svg` and `public/favicon.svg`: that mark redrawn on a 32 × 32 pixel grid, for the header and the browser tab. Regenerate with `node scripts/pixel-mark.mjs [grid]`; add `--preview out.png` to look first.
+- `public/brand/thumb.svg`: the older plain yellow thumb, unused
 
 ## Pages
-- `/` Home (posts list, newest first)
-- `/page/<n>` Posts pagination
-- `/posts/<slug>` Post detail
-- `/cv` CV
-- `/cs/` Czech home
-- `/cs/page/<n>` Czech posts pagination
-- `/cs/posts/<slug>` Czech post detail
-- `/cs/cv` Czech CV
-- `/404` Not found
+- `/` Home: name, the headline prompt, the written answer about V, then about, projects, writing and CV as cards; context window and model in the rail
+- `/posts/<slug>/` Post
+- `/cv/` CV

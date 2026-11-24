@@ -1,0 +1,561 @@
+<!doctype html>
+<!--
+  01 · QUERY CONSOLE — "The site is a database."
+  Signature interaction: the query bar. Type SQL (or click a suggestion / a table / a column in the schema browser)
+  and a small interpreter runs it: SELECT cols FROM table [WHERE col = 'x' | LIKE '%x%' | > n] [ORDER BY col DESC] [LIMIT n],
+  \dt, \d table, \?, EXPLAIN ANALYZE SELECT * FROM career, \reset. Arrow up/down = history, "/" focuses the bar.
+  Easter eggs:
+    1. SELECT answer FROM deep_thought;      -> a "7.5 million years" progress bar that resolves to 42
+    2. DROP TABLE projects; (or DELETE / TRUNCATE / UPDATE / INSERT) -> permission denied, with a quip
+    3. \q (or exit / quit)                    -> the session refuses to end
+    4. SELECT * FROM towel;                   -> the towel is present
+    5. SELECT 6*9;                            -> 42
+    6. sudo anything                          -> reported to glados
+    7. \dt+                                   -> reveals the hidden schema "improbable" (towel, deep_thought)
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>v=# — Don't Panic, V!</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --paper: #f4efe4; --paper-2: #ebe4d3; --ink: #17150f; --ink-2: #514b3e; --rule: #d6cdb8;
+    --acc: #ffd400; --side: #17150f; --side-text: #ede6d6; --side-muted: #a59e8c; --err: #9c2b12;
+    --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    --serif: "Newsreader", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--paper); color: var(--ink); font: 18px/1.6 var(--serif); display: grid; grid-template-columns: 292px minmax(0, 1fr); min-height: 100vh; }
+  a { color: inherit; text-decoration-color: var(--acc); text-decoration-thickness: 3px; text-underline-offset: 3px; }
+  a:hover { background: var(--acc); text-decoration-color: var(--ink); }
+  button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+  :focus-visible { outline: 3px solid var(--acc); outline-offset: 2px; }
+  ::selection { background: var(--acc); color: var(--ink); }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+
+  /* ── schema browser ── */
+  .side { background: var(--side); color: var(--side-text); font: 13px/1.5 var(--mono); position: sticky; top: 0; height: 100vh; overflow-y: auto; padding: 22px 20px 70px; scrollbar-width: thin; scrollbar-color: #3a362b transparent; }
+  .brand { display: flex; gap: 12px; align-items: center; margin-bottom: 6px; }
+  .logo { width: 46px; height: 44px; flex: none; }
+  .logo g { fill: var(--acc); }
+  .brand b { font-size: 15px; letter-spacing: .02em; display: block; }
+  .brand span { color: var(--side-muted); font-size: 11.5px; }
+  .conn { color: var(--side-muted); font-size: 11.5px; margin: 14px 0 20px; padding: 9px 10px; border: 1px solid #36322a; display: flex; gap: 8px; align-items: center; }
+  .dot { width: 8px; height: 8px; background: var(--acc); flex: none; animation: pulse 2.4s steps(2) infinite; }
+  @keyframes pulse { 50% { opacity: .25; } }
+  .side summary { list-style: none; cursor: pointer; color: var(--side-muted); text-transform: uppercase; letter-spacing: .14em; font-size: 11px; margin-bottom: 10px; }
+  .side summary::-webkit-details-marker { display: none; }
+  .tbl { margin-bottom: 12px; }
+  .tname { display: flex; width: 100%; justify-content: space-between; align-items: baseline; padding: 3px 6px; margin-left: -6px; font-weight: 700; font-size: 13.5px; }
+  .tname::before { content: "▦"; color: var(--acc); margin-right: 8px; font-weight: 400; }
+  .tname span:first-of-type { flex: 1; }
+  .tname i { font-style: normal; color: var(--side-muted); font-weight: 400; font-size: 11.5px; }
+  .tname:hover, .tname.on { background: var(--acc); color: var(--ink); }
+  .tname:hover::before, .tname.on::before, .tname:hover i, .tname.on i { color: var(--ink); }
+  .cols { list-style: none; margin: 2px 0 0 5px; padding: 0 0 0 14px; border-left: 1px solid #36322a; }
+  .cols button { display: flex; width: 100%; justify-content: space-between; gap: 10px; padding: 1px 4px; color: #cfc8b7; }
+  .cols button i { font-style: normal; color: #7f7868; }
+  .cols button:hover { background: #2b281f; color: #fff; }
+  .side footer { margin-top: 22px; color: var(--side-muted); font-size: 11.5px; line-height: 1.7; }
+
+  /* ── query bar ── */
+  main { min-width: 0; }
+  .bar { position: sticky; top: 0; z-index: 20; background: var(--paper); border-bottom: 2px solid var(--ink); padding: 14px clamp(16px, 4vw, 56px) 12px; }
+  .bar form { display: flex; align-items: center; gap: 12px; border: 2px solid var(--ink); background: #fffdf7; padding: 0 0 0 14px; box-shadow: 5px 5px 0 var(--ink); }
+  .bar form:focus-within { box-shadow: 5px 5px 0 var(--acc), 5px 5px 0 2px var(--ink); }
+  .pr { font: 700 15px var(--mono); white-space: nowrap; }
+  #q { flex: 1; min-width: 0; border: 0; outline: 0; background: none; font: 500 16px/1 var(--mono); color: var(--ink); padding: 15px 0; caret-color: var(--ink); }
+  #q::placeholder { color: #8d8676; }
+  .run { background: var(--acc); font: 700 13px var(--mono); padding: 0 18px; align-self: stretch; border-left: 2px solid var(--ink); letter-spacing: .06em; }
+  .run:hover { background: var(--ink); color: var(--acc); }
+  .chips { display: flex; gap: 8px; margin-top: 12px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chips span { font: 11.5px var(--mono); color: var(--ink-2); align-self: center; white-space: nowrap; }
+  .chip { font: 12.5px var(--mono); white-space: nowrap; border: 1px solid var(--ink); padding: 4px 9px; background: var(--paper); }
+  .chip:hover { background: var(--ink); color: var(--paper); }
+
+  /* ── results ── */
+  #log { padding: 8px clamp(16px, 4vw, 56px) 120px; max-width: 1180px; }
+  .res { padding: 34px 0 30px; border-bottom: 1px dashed var(--rule); scroll-margin-top: 130px; }
+  .res.new { animation: land .5s cubic-bezier(.2, .8, .2, 1); }
+  .res.new .q code { animation: flash 1.4s ease-out; }
+  @keyframes land { from { opacity: 0; transform: translateY(-14px); } }
+  @keyframes flash { from { background: var(--acc); } }
+  .q { font: 14px/1.5 var(--mono); display: flex; gap: 10px; margin-bottom: 20px; color: var(--ink-2); }
+  .q code { font: inherit; color: var(--ink); overflow-wrap: anywhere; }
+  .q code b { font-weight: 700; }
+  .meta { font: 12.5px/1.6 var(--mono); color: var(--ink-2); margin-top: 20px; display: flex; flex-wrap: wrap; gap: 4px 18px; }
+  .meta b { color: var(--ink); font-weight: 500; }
+  .null { font: italic 400 .85em var(--mono); color: #857e6d; }
+
+  /* v: expanded record */
+  .rec-h { font: 12.5px var(--mono); color: var(--ink-2); display: flex; gap: 10px; align-items: center; margin-bottom: 4px; }
+  .rec-h::after { content: ""; flex: 1; border-top: 1px solid var(--ink); }
+  .rec { display: grid; grid-template-columns: 96px minmax(0, 1fr); margin: 0; }
+  .rec dt { font: 12.5px/1.5 var(--mono); color: var(--ink-2); padding: 15px 0 0; border-top: 1px solid var(--rule); }
+  .rec dd { margin: 0; padding: 10px 0 12px 20px; border-top: 1px solid var(--rule); border-left: 1px solid var(--ink); max-width: 68ch; }
+  .rec dt:first-of-type, .rec dd:first-of-type { border-top: 0; }
+  .rec .name { font-size: clamp(42px, 6.4vw, 88px); line-height: .98; font-weight: 500; letter-spacing: -.025em; padding-top: 18px; padding-bottom: 20px; max-width: none; }
+  .rec .name mark { background: var(--acc); padding: 0 .08em; color: inherit; }
+  .rec .big { font-size: clamp(21px, 2.1vw, 26px); line-height: 1.38; }
+
+  /* projects: rows as cards */
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr)); gap: 20px; }
+  .card { border: 2px solid var(--ink); background: #fffdf7; padding: 20px 22px 18px; position: relative; display: flex; flex-direction: column; transition: transform .15s, box-shadow .15s; }
+  .card:hover { transform: translate(-3px, -3px); box-shadow: 6px 6px 0 var(--acc), 6px 6px 0 2px var(--ink); }
+  .res.new .card, .res.new .post, .res.new .job, .res.new tbody tr { animation: row .45s both cubic-bezier(.2, .8, .2, 1); animation-delay: calc(var(--i, 0) * 70ms + 120ms); }
+  @keyframes row { from { opacity: 0; transform: translateX(-10px); } }
+  .rown { font: 11.5px var(--mono); color: var(--ink-2); text-transform: uppercase; letter-spacing: .12em; }
+  .card h3 { font-size: 40px; line-height: 1.05; font-weight: 500; letter-spacing: -.02em; margin: 6px 0 8px; }
+  .card h3 a { text-decoration: none; }
+  .card .tag { font-size: 20px; line-height: 1.35; margin: 0 0 10px; font-style: italic; padding-right: 70px; }
+  .card .about { margin: 0 0 16px; font-size: 17.5px; color: #2b281f; }
+  .emb { position: absolute; top: 18px; right: 18px; width: 56px; height: 56px; }
+  .kv { display: flex; flex-wrap: wrap; margin: auto 0 0; border-top: 1px solid var(--ink); font: 12.5px var(--mono); }
+  .kv div { padding: 8px 16px 0 0; margin-right: 16px; border-right: 1px solid var(--rule); }
+  .kv div:last-child { border: 0; }
+  .kv dt { color: var(--ink-2); font-size: 11px; text-transform: uppercase; letter-spacing: .1em; }
+  .kv dd { margin: 0; font-weight: 500; font-size: 14px; }
+  .go { font: 13px var(--mono); margin-top: 12px; align-self: flex-start; }
+
+  /* posts */
+  .posts, .jobs, .links { list-style: none; margin: 0; padding: 0; border-top: 2px solid var(--ink); }
+  .post { display: grid; grid-template-columns: 118px minmax(0, 1fr) auto; gap: 6px 22px; padding: 18px 0 20px; border-bottom: 1px solid var(--rule); align-items: baseline; }
+  .post .date, .job .yr { font: 13px var(--mono); color: var(--ink-2); }
+  .post h3 { margin: 0 0 6px; font-size: clamp(23px, 2.2vw, 29px); line-height: 1.2; font-weight: 500; letter-spacing: -.01em; }
+  .post h3 button { text-decoration: underline; text-decoration-color: var(--acc); text-decoration-thickness: 3px; text-underline-offset: 4px; }
+  .post h3 button:hover { background: var(--acc); }
+  .post p { margin: 0; max-width: 66ch; color: #2b281f; }
+  .pill { font: 11.5px var(--mono); padding: 3px 8px; border: 1px solid var(--ink); white-space: nowrap; }
+  .pill.published { background: var(--ink); color: var(--paper); }
+  .pill.idea { border-style: dashed; }
+
+  /* jobs */
+  .job { display: grid; grid-template-columns: 118px minmax(0, 1fr); gap: 4px 22px; padding: 16px 0; border-bottom: 1px solid var(--rule); }
+  .job h3 { margin: 0; font-size: 24px; line-height: 1.25; font-weight: 500; }
+  .job h3 span { font: 13px var(--mono); color: var(--ink-2); margin-left: 8px; white-space: nowrap; }
+  .job p { margin: 4px 0 0; max-width: 66ch; }
+
+  /* contact */
+  .links li { border-bottom: 1px solid var(--rule); }
+  .links a { display: grid; grid-template-columns: 118px minmax(0, 1fr) auto; gap: 22px; padding: 14px 6px 14px 0; text-decoration: none; align-items: baseline; font-size: clamp(22px, 2.4vw, 30px); overflow-wrap: anywhere; }
+  .links a span { font: 13px var(--mono); color: var(--ink-2); }
+  .links a i { font: normal 15px var(--mono); }
+
+  /* notes */
+  .quotes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr)); gap: 0 44px; border-top: 2px solid var(--ink); }
+  .quotes figure { margin: 0; padding: 20px 0 22px; border-bottom: 1px solid var(--rule); }
+  .quotes blockquote { margin: 0; font-size: 24px; line-height: 1.32; font-style: italic; }
+  .quotes figcaption { font: 12px var(--mono); color: var(--ink-2); margin-top: 10px; }
+
+  /* generic result table */
+  .tw { overflow-x: auto; border: 2px solid var(--ink); background: #fffdf7; }
+  table { border-collapse: collapse; width: 100%; font-size: 17px; }
+  th { font: 700 12px var(--mono); text-transform: lowercase; text-align: left; padding: 9px 14px; border-bottom: 2px solid var(--ink); background: var(--paper-2); white-space: nowrap; }
+  td { padding: 10px 14px; border-bottom: 1px solid var(--rule); vertical-align: top; max-width: 60ch; }
+  tr:last-child td { border-bottom: 0; }
+  td.num { font-family: var(--mono); font-size: 14.5px; text-align: right; }
+  .cmd { font: 14px var(--mono); border-bottom: 3px solid var(--acc); }
+  .cmd:hover { background: var(--acc); }
+
+  /* messages */
+  .msg { font: 15px/1.7 var(--mono); border-left: 5px solid var(--ink); padding: 10px 16px; background: var(--paper-2); max-width: 78ch; overflow-wrap: anywhere; }
+  .msg.err { border-color: var(--err); }
+  .msg.err b { color: var(--err); }
+  .msg p { margin: 0; }
+
+  /* EXPLAIN */
+  .plan { font: 14px/1.5 var(--mono); }
+  .node { position: relative; border: 2px solid var(--ink); background: #fffdf7; padding: 12px 16px 13px; max-width: 760px; }
+  .node b { background: var(--acc); padding: 0 5px; }
+  .node .cost { color: var(--ink-2); font-size: 12.5px; }
+  .node p { font: 17.5px/1.5 var(--serif); margin: 6px 0 0; }
+  .node .t { display: block; height: 6px; margin-top: 10px; background: var(--paper-2); }
+  .node .t i { display: block; height: 100%; width: var(--w); background: var(--ink); transform-origin: left; }
+  .res.new .node .t i { animation: grow .9s both cubic-bezier(.2, .8, .2, 1); animation-delay: calc(var(--i, 0) * 120ms + 300ms); }
+  @keyframes grow { from { transform: scaleX(0); } }
+  .kids { margin: 0 0 0 26px; padding: 14px 0 0 26px; border-left: 2px solid var(--ink); display: grid; gap: 14px; }
+  .kids > .branch { position: relative; }
+  .kids > .branch::before { content: ""; position: absolute; left: -26px; top: 22px; width: 24px; border-top: 2px solid var(--ink); }
+  .kids > .branch::after { content: "→"; position: absolute; left: -15px; top: 11px; font: 13px var(--mono); background: var(--paper); line-height: 1.5; }
+
+  /* deep thought */
+  .dt { max-width: 640px; font: 14px/1.6 var(--mono); }
+  .dt .track { height: 26px; border: 2px solid var(--ink); background: repeating-conic-gradient(var(--paper-2) 0 25%, transparent 0 50%) 0 0 / 8px 8px; margin: 10px 0; }
+  .dt .fill { height: 100%; width: 0; background: var(--ink); transition: width .12s linear; }
+  .dt .ans { font: 500 clamp(120px, 20vw, 220px)/.9 var(--serif); letter-spacing: -.04em; margin: 18px 0 6px; }
+  .dt .ans mark { background: var(--acc); color: inherit; padding: 0 .06em; }
+
+  /* reading view */
+  .read { max-width: 66ch; }
+  .read .back { font: 13px var(--mono); border-bottom: 3px solid var(--acc); }
+  .read .back:hover { background: var(--acc); }
+  .read h2 { font-size: clamp(34px, 4vw, 50px); line-height: 1.08; font-weight: 500; letter-spacing: -.02em; margin: 22px 0 14px; text-wrap: balance; }
+  .read .by { font: 13px var(--mono); color: var(--ink-2); padding-bottom: 18px; border-bottom: 2px solid var(--ink); margin: 0 0 26px; }
+  .read p { font-size: 20px; line-height: 1.65; margin: 0 0 1.05em; }
+  .read .by + p::first-letter { float: left; font-size: 4.3em; line-height: .82; padding: .06em .08em 0 0; font-weight: 500; }
+  .read h3 { font-size: 27px; line-height: 1.2; font-weight: 600; margin: 1.6em 0 .5em; }
+  .read pre { font: 14px/1.6 var(--mono); background: var(--side); color: var(--side-text); padding: 18px 20px; overflow-x: auto; margin: 0 0 1.5em; border-left: 6px solid var(--acc); }
+  .read code { font-family: var(--mono); font-size: .82em; background: var(--paper-2); padding: 1px 5px; }
+  .read pre code { background: none; padding: 0; font-size: 1em; }
+  .read .more { font-size: 20px; border-top: 2px solid var(--ink); padding-top: 18px; }
+
+  @media (max-width: 860px) {
+    body { display: block; }
+    .side { position: static; height: auto; padding: 16px 16px 14px; }
+    .conn { margin: 12px 0; }
+    .side details[open] summary { margin-bottom: 10px; }
+    .side summary { margin: 0; }
+    .side summary::after { content: " ＋"; color: var(--acc); }
+    .side details[open] summary::after { content: " －"; }
+    .side footer { display: none; }
+    .bar { padding: 10px 12px; }
+    .bar form { box-shadow: 3px 3px 0 var(--ink); padding-left: 10px; gap: 8px; }
+    .run { padding: 0 12px; }
+    #log { padding-bottom: 100px; }
+    .res { scroll-margin-top: 118px; padding: 26px 0 24px; }
+    .rec { grid-template-columns: 1fr; }
+    .rec dt { padding: 12px 0 0; }
+    .rec dd { border-left: 0; padding: 2px 0 12px; border-top: 0; }
+    .rec dt:first-of-type { border-top: 0; }
+    .post { grid-template-columns: 1fr; }
+    .post .pill { justify-self: start; }
+    .job, .links a { grid-template-columns: 1fr; gap: 2px; }
+    .links a i { display: none; }
+    .card h3 { font-size: 34px; }
+    .kids { margin-left: 8px; padding-left: 18px; }
+    .kids > .branch::before { left: -18px; width: 16px; }
+    .kids > .branch::after { display: none; }
+    .read p { font-size: 19px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<aside class="side" aria-label="Schema browser">
+  <div class="brand">
+    <svg class="logo" viewBox="451 289 696 666" aria-hidden="true"><g fill="#101418" fill-opacity="1.00" stroke="None"><path d="M 454.00 363.00 C 453.62 367.79 453.62 373.21 454.00 378.00C 454.68 386.53 457.75 395.81 460.22 403.78 C 462.69 411.74 465.78 419.41 469.08 426.92 C 472.37 434.44 475.17 441.80 479.22 448.78 C 483.28 455.76 485.01 462.96 489.23 469.77 C 493.45 476.58 496.49 482.99 501.08 489.92 C 505.67 496.85 507.22 503.32 512.75 510.25 C 518.29 517.18 522.69 506.75 523.22 497.22 C 523.75 487.70 532.18 484.04 537.25 492.75 C 542.32 501.46 547.57 502.54 552.25 509.75 C 556.92 516.96 563.74 519.45 567.70 526.30 C 571.66 533.16 577.81 536.55 582.25 542.75 C 586.69 548.96 592.95 553.61 597.25 559.75 C 601.55 565.90 608.04 570.46 612.70 576.30 C 617.36 582.14 622.10 587.27 627.00 593.00C 632.86 598.86 638.61 604.69 644.00 611.00C 652.56 621.01 662.20 631.25 671.25 640.75 C 680.29 650.25 690.27 660.53 699.92 669.08 C 709.57 677.64 719.57 687.67 729.30 695.70 C 739.03 703.72 750.54 721.24 761.75 709.75 C 772.96 698.26 779.46 687.59 780.00 672.00 C 780.54 656.41 771.35 643.52 763.31 631.70 C 755.26 619.87 749.22 609.01 741.77 597.23 C 734.32 585.45 727.16 573.60 720.31 561.70 C 713.45 549.79 706.73 536.96 699.25 525.75 C 691.78 514.53 682.66 504.85 671.75 497.25 C 660.83 489.66 644.41 481.41 631.67 480.33 C 618.93 479.25 590.83 478.28 596.08 462.08 C 601.32 445.87 613.27 442.59 625.78 434.78 C 638.28 426.97 658.07 425.78 672.99 426.01 C 687.92 426.24 699.57 436.77 710.25 445.75 C 720.93 454.74 729.48 463.01 740.00 472.00C 746.83 477.84 759.06 486.92 763.00 495.00C 763.00 495.00 762.80 495.60 763.00 496.00C 769.53 500.57 774.14 507.89 780.00 513.00C 809.11 534.65 844.17 540.24 873.00 563.00C 878.29 567.17 884.01 572.64 888.00 578.00C 893.66 585.61 898.96 593.06 903.68 601.32 C 908.40 609.58 911.87 617.93 916.22 626.78 C 920.58 635.62 923.55 644.64 926.69 654.31 C 929.84 663.97 932.26 674.38 934.07 684.93 C 935.89 695.47 936.92 709.09 938.00 720.00 C 939.08 730.91 936.05 745.30 936.00 756.00 C 935.95 766.69 931.35 778.13 929.93 787.93 C 928.50 797.72 922.23 806.92 919.26 815.26 C 916.28 823.60 906.29 834.74 913.75 841.25 C 921.22 847.75 929.83 851.35 936.75 856.25 C 943.68 861.14 954.32 867.27 959.77 871.23 C 965.22 875.19 982.92 882.77 977.25 888.25 C 971.57 893.72 958.35 897.21 951.00 900.00C 950.34 900.85 950.51 902.35 950.00 903.00C 960.56 905.68 969.68 914.23 980.31 917.69 C 990.93 921.16 999.80 927.96 1010.77 931.23 C 1021.74 934.50 1031.97 940.73 1043.33 943.67 C 1054.69 946.62 1067.89 950.54 1080.00 951.00C 1089.09 951.35 1098.94 951.80 1108.00 951.00C 1134.34 948.69 1145.59 926.16 1144.00 902.00 C 1142.41 877.84 1129.31 861.87 1121.31 840.69 C 1113.30 819.52 1100.64 805.49 1094.33 783.67 C 1088.01 761.85 1107.33 742.26 1113.23 721.23 C 1119.13 700.20 1127.30 677.32 1130.02 654.02 C 1132.75 630.72 1133.91 599.30 1130.00 576.00 C 1126.09 552.70 1122.47 528.16 1114.99 507.01 C 1107.51 485.86 1100.40 466.90 1089.77 448.23 C 1079.14 429.56 1068.84 415.12 1054.75 399.25 C 1040.67 383.38 1027.69 370.68 1010.75 358.25 C 993.80 345.82 978.53 335.61 959.08 325.92 C 939.62 316.24 921.06 307.98 899.07 301.93 C 877.09 295.87 849.42 292.58 825.00 292.00 C 800.58 291.42 770.58 293.38 748.00 299.00 C 725.42 304.62 705.52 310.01 685.08 320.08 C 664.63 330.15 651.77 337.95 633.08 352.08 C 614.39 366.21 591.97 350.81 572.23 342.77 C 552.48 334.73 525.38 328.02 503.00 328.00 C 480.62 327.98 455.99 337.92 454.00 363.00M 512.00 353.00 C 524.17 353.66 541.60 357.31 552.02 362.98 C 562.45 368.64 577.85 371.70 586.23 379.77 C 594.61 387.85 576.32 402.05 572.25 411.25 C 568.17 420.44 558.47 432.68 552.25 442.25 C 546.03 451.82 540.27 463.79 532.25 473.25 C 524.23 482.70 515.19 464.24 509.25 454.75 C 503.30 445.27 496.70 433.40 491.23 421.77 C 485.76 410.15 482.34 396.90 479.02 382.98 C 475.71 369.06 480.03 356.54 496.00 353.00C 501.15 351.86 506.94 352.18 512.00 353.00M 982.00 397.00 C 1000.26 400.43 1001.63 417.47 1016.25 428.75 C 1030.87 440.03 1021.11 458.83 1007.75 468.75 C 994.39 478.67 985.38 488.69 973.25 500.25 C 961.12 511.81 949.97 518.01 938.25 531.25 C 926.53 544.49 904.56 543.73 894.25 529.75 C 883.93 515.77 867.28 504.27 873.98 487.98 C 880.67 471.68 895.12 465.27 906.25 454.25 C 917.37 443.23 928.73 431.50 940.25 422.25 C 951.77 412.99 966.06 394.01 982.00 397.00M 1054.00 549.00 C 1049.70 553.30 1045.61 558.06 1041.00 562.00C 1029.56 571.78 1021.32 580.55 1009.25 590.25 C 997.17 599.95 991.18 611.02 974.99 615.99 C 958.80 620.97 947.78 602.84 937.23 592.77 C 926.68 582.70 920.40 563.84 932.75 552.75 C 945.10 541.67 952.40 532.64 964.25 523.25 C 976.09 513.85 984.41 503.59 995.75 494.75 C 1007.10 485.91 1019.11 470.12 1033.69 478.31 C 1048.28 486.49 1050.83 497.11 1061.77 510.23 C 1072.71 523.35 1066.84 538.03 1054.00 549.00M 982.00 637.00 C 986.96 630.06 994.59 623.47 1001.00 618.00C 1013.41 607.39 1023.09 592.96 1039.68 588.68 C 1056.27 584.39 1066.93 603.94 1079.25 615.75 C 1091.57 627.56 1089.47 649.00 1073.75 659.75 C 1058.04 670.51 1053.11 680.34 1037.77 691.77 C 1022.43 703.20 1005.03 697.05 994.23 681.77 C 983.43 666.49 968.75 655.55 982.00 637.00M 1104.00 926.00 C 1099.42 927.47 1094.95 929.11 1090.00 927.00C 1089.50 927.00 1088.50 927.01 1088.00 927.00C 1076.28 926.70 1063.60 921.86 1052.92 918.08 C 1042.25 914.29 1031.55 909.67 1021.77 904.23 C 1011.99 898.79 1000.97 895.62 991.77 889.23 C 982.57 882.84 1000.60 872.97 1006.25 866.25 C 1011.90 859.53 1023.17 851.16 1029.75 844.75 C 1036.33 838.34 1045.99 829.38 1052.75 823.75 C 1059.51 818.12 1070.06 801.72 1077.75 810.25 C 1085.45 818.78 1089.41 827.59 1095.92 837.08 C 1102.42 846.58 1106.65 855.56 1111.31 866.69 C 1115.96 877.83 1119.64 887.51 1122.77 900.23 C 1125.90 912.95 1115.52 923.33 1104.00 926.00 Z"/></g><g fill="#101418" fill-opacity="1.00" stroke="None"><path d="M 504.00 594.00 C 504.00 604.00 504.00 614.00 504.00 624.00C 504.00 636.33 505.77 650.28 507.02 661.98 C 508.28 673.67 512.29 683.53 514.67 694.33 C 517.05 705.13 520.28 715.12 524.07 724.93 C 527.86 734.73 531.42 743.80 536.03 752.97 C 540.64 762.15 544.78 770.34 550.08 778.92 C 555.38 787.49 560.12 794.68 566.08 802.92 C 572.05 811.16 577.50 816.58 584.25 824.75 C 590.99 832.92 597.41 836.49 604.77 845.23 C 612.13 853.97 622.16 853.46 627.75 843.75 C 633.34 834.05 642.04 832.02 647.70 823.70 C 653.36 815.37 660.71 810.14 666.75 802.75 C 672.80 795.37 680.44 789.00 685.75 781.75 C 691.07 774.50 701.22 768.47 705.25 761.25 C 709.28 754.02 723.92 747.29 723.00 739.00C 722.58 737.02 713.76 729.63 712.00 728.00C 702.62 720.60 694.24 711.90 685.00 704.00C 680.34 700.02 676.26 695.26 672.00 691.00C 643.78 664.60 617.43 636.60 591.75 608.25 C 566.08 579.90 543.67 547.23 518.00 520.00C 508.94 543.13 504.00 568.43 504.00 594.00 Z"/></g><g fill="#101418" fill-opacity="1.00" stroke="None"><path d="M 943.00 904.00 C 944.31 902.97 945.36 902.08 945.00 900.00C 935.80 895.76 925.38 885.25 916.08 881.92 C 906.78 878.59 896.13 864.08 886.08 866.08 C 876.02 868.08 869.77 881.66 860.75 886.75 C 851.73 891.85 845.15 902.16 836.25 908.25 C 827.35 914.33 812.15 928.30 829.00 928.00 C 845.85 927.70 857.38 926.70 872.00 925.00 C 886.61 923.30 896.60 919.58 909.77 916.77 C 922.94 913.96 930.40 907.03 943.00 904.00 Z"/></g></svg>
+    <div><b>Don't Panic, V!</b><span>dontpanicv.com</span></div>
+  </div>
+  <div class="conn"><i class="dot"></i><span>connected as <b>visitor</b> · read-only</span></div>
+  <details id="schema" open>
+    <summary>Schema · public</summary>
+    <div id="tree"></div>
+  </details>
+  <footer>server 42.0 (mostly harmless)<br>host brno-cz · db life<br>press <b>/</b> to query</footer>
+</aside>
+
+<main>
+  <div class="bar">
+    <form id="f" autocomplete="off">
+      <label class="pr" for="q">v=#</label>
+      <input id="q" spellcheck="false" autocapitalize="off" autocorrect="off" placeholder="SELECT * FROM projects;" aria-label="SQL query">
+      <button class="run" type="submit" aria-label="Run query">RUN ↵</button>
+    </form>
+    <div class="chips" aria-label="Suggested queries">
+      <span>try:</span>
+      <button class="chip" data-q="\dt">\dt</button>
+      <button class="chip" data-q="SELECT * FROM posts ORDER BY published DESC;">SELECT * FROM posts</button>
+      <button class="chip" data-q="SELECT * FROM v;">SELECT * FROM v</button>
+      <button class="chip" data-q="EXPLAIN ANALYZE SELECT * FROM career;">EXPLAIN ANALYZE SELECT * FROM career</button>
+      <button class="chip" data-q="SELECT name, stars FROM projects WHERE stars > 0;">… WHERE stars &gt; 0</button>
+      <button class="chip" data-q="SELECT * FROM notes;">SELECT * FROM notes</button>
+      <button class="chip" data-q="\?">\?</button>
+    </div>
+  </div>
+  <div id="log" role="log" aria-live="polite" aria-label="Query results"></div>
+</main>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const reduced = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const NULL = '<span class="null">NULL</span>';
+
+  const ARTICLE = `
+    <p>Most AI features built today follow the same recipe: take the Vercel AI SDK, register a handful of tools, write a system prompt, and stream the result into a markdown component. It works. It is also where most teams stop — and where most AI products start to feel limited.</p>
+    <p>This article walks through the architecture we ended up with for the <strong>AI Analyst</strong> in Engage, and contrasts it with the more conventional <strong>Piper chatbot</strong> that lives next door in the same codebase. Both ship in the same product. They are wildly different inside.</p>
+    <h3>Problem one: tool results that flood the context</h3>
+    <p>The first wall you hit is large tool outputs. Imagine a tool that runs a SQL query against the warehouse:</p>
+    <pre><code>const run_query = tool({
+  description: 'Run a SQL query against the warehouse.',
+  inputSchema: z.object({ sql: z.string() }),
+  execute: async ({ sql }) =&gt; {
+    const { columns, rows } = await warehouse.execute(sql);
+    return { columns, rows }; // &lt;-- 50,000 rows of JSON
+  },
+});</code></pre>
+    <p>Whatever the tool returns goes straight into the model's context as the tool result message. A query that returns 50k rows is now 50k rows of JSON sitting in the conversation, on every subsequent turn, paid for in tokens, and pushing earlier reasoning out of the window.</p>
+    <p>You can paginate. You can truncate. You can summarize. All of these are coping mechanisms — they either lose information or force the model to make decisions about data it cannot see.</p>
+    <p>The fundamental problem is that <strong>tool results are a terrible place to put data</strong>. Tool results are great for facts the model needs to reason about next. They are awful for bulk data the model needs to slice, group, count, and chart.</p>
+    <p class="more">The second wall is metadata bloat from inventory tools. What replaced the loop is three ideas: <code>just-bash</code> with an in-memory filesystem, a SQL execution layer that mounts results as files, and a JSON renderer with a predefined component manifest. <a href="https://dontpanicv.com/posts/ai-analyst-architecture/">Read the whole article →</a></p>`;
+
+  const DB = {
+    v: { desc: 'the person', cols: { name: 'text', alias: 'char(1)', role: 'text', city: 'text', bio: 'text', motto: 'text', github_bio: 'text' }, rows: [{
+      name: 'Vojtěch “V” Kurka', alias: 'V', role: 'Head of R&D & Co-Founder at Meiro', city: 'Brno, Czechia',
+      bio: 'I like knowing how things work — from CPUs and protocols to databases and containers. Almost ten years of building a data platform in production taught me most of it. Now I spend that curiosity on AI: local models, agentic workflows, and getting it all into production for real customers.',
+      motto: 'If I can’t explain it to someone else, I don’t understand it yet.',
+      github_bio: 'I write code no one wants to read, but everyone needs to have. Data whatever.' }] },
+    projects: { desc: 'things being built', cols: { name: 'text', tagline: 'text', about: 'text', lang: 'text', stars: 'int', kind: 'text', url: 'text' }, rows: [
+      { name: 'Mycroft', tagline: 'A self-modifying, durable agent that lives on your iPhone. Brain on the phone, hands on your machines.', about: 'The agent loop, its state and its own source code live on the phone. It edits its own behaviour and its own screen, keeps known-good generations, and rolls back when it gets it wrong. A small daemon called hands gives it files, shell and supervised jobs on your Macs and Linux boxes. Named after the Holmes brother who stayed in his armchair.', lang: 'Swift', stars: 41, kind: 'open source', url: 'https://github.com/dontpanicv/mycroft' },
+      { name: 'Golem', tagline: 'Family AI assistant and second brain on our own machines. No cloud, no central server.', about: 'One server at home, one app for the whole family on the web, the iPhone and Android. It remembers what was decided last week, does real work on your machines, and asks before it sends, buys or deletes. In Prague legend, Rabbi Loew shaped the Golem from clay. This one is made from SQLite and Markdown.', lang: 'TypeScript', stars: 1, kind: 'open source', url: 'https://github.com/dontpanicv/golem' },
+      { name: 'Shadow', tagline: 'A shadow company for your team.', about: 'Every employee gets a shadow: an agent that reads their Slack and mail, keeps track of what each conversation asks of them, and helps do the work when asked. It lives in Slack, stays quiet, and runs on your own server — one SQLite database and a pile of Markdown.', lang: 'TypeScript', stars: 0, kind: 'open source', url: 'https://github.com/dontpanicv/shadow' },
+      { name: 'Meiro', tagline: 'Customer data infrastructure, AI included, that you own, control and audit.', about: 'The day job since 2018. Pipes moves customer data: sources, events, identity, destinations. Engage turns it into audiences, journeys and campaigns. The AI Analyst is an analytical agent built on bash, a mounted in-memory filesystem and a JSON renderer instead of a tool-calling loop.', lang: null, stars: null, kind: 'day job', url: 'https://meiro.io' }] },
+    posts: { desc: 'writing', cols: { title: 'text', published: 'date', status: 'text', summary: 'text', slug: 'text', body: 'text' }, rows: [
+      { title: 'Beyond the Tool-Calling Loop: How We Built an AI Analyst with Bash, a Mounted Filesystem, and a JSON Renderer', published: '2026-04-29', status: 'published', summary: 'Why the naive AI SDK + tools + markdown loop runs out of room for analytical agents — noisy tool results, metadata bloat — and the three ideas that replaced it.', slug: 'ai-analyst-architecture', body: ARTICLE },
+      { title: 'Stop Letting AI Agents Guess Where Code Goes', published: '2026-02-10', status: 'published', summary: 'A modular-monolith refactor designed for AI agents: predictable module layout, centralized auth, and a strict public.ts boundary.', slug: 'ai-agents-codebases', body: null },
+      { title: 'Claude Code vs Codex: Same Coding AI, Different People', published: null, status: 'draft', summary: 'Why the two aren’t interchangeable: prompting style and ambiguity tolerance shape the outcome.', slug: 'claude-code-vs-codex', body: null },
+      { title: 'Gaslighting Coding Agents for Better Security', published: null, status: 'idea', summary: 'Tell an agent, as fact, that a pentester already got RCE — and let it work out how.', slug: 'gaslighting-coding-agents', body: null }] },
+    jobs: { desc: 'career so far', cols: { company: 'text', role: 'text', since: 'int', until: 'int', place: 'text', note: 'text' }, rows: [
+      { company: 'Meiro', role: 'Head of R&D & Co-Founder', since: 2024, until: null, place: 'Brno', note: 'AI-native development for customer data infrastructure. In production, not just demos.' },
+      { company: 'Meiro', role: 'CTO & Co-Founder', since: 2018, until: 2024, place: 'Brno', note: 'Owned product architecture, development and implementations of the Meiro CDP.' },
+      { company: 'Keboola', role: 'Head Nerd / Solutions Architect', since: 2015, until: 2018, place: 'partly Bali, Indonesia', note: 'Designed data integrations end to end, messy edge cases included.' },
+      { company: 'VUT FIT', role: 'Student', since: null, until: null, place: 'Brno', note: 'Brno University of Technology, Faculty of Information Technology.' }] },
+    contact: { desc: 'how to reach V', cols: { channel: 'text', handle: 'text', url: 'text' }, rows: [
+      { channel: 'email', handle: 'kurka.vojtech@gmail.com', url: 'mailto:kurka.vojtech@gmail.com' },
+      { channel: 'github', handle: 'github.com/dontpanicv', url: 'https://github.com/dontpanicv' },
+      { channel: 'x', handle: 'x.com/dontpanicv', url: 'https://x.com/dontpanicv' },
+      { channel: 'linkedin', handle: 'linkedin.com/in/kurkavojtech', url: 'https://www.linkedin.com/in/kurkavojtech/' }] },
+    notes: { desc: 'short takes', cols: { topic: 'text', quote: 'text' }, rows: [
+      { topic: 'agents', quote: 'Most “AI agents” shipped in 2026 are a streamText() call in a trench coat.' },
+      { topic: 'tools', quote: 'Your AI doesn’t need more tools. It needs fewer tools and a filesystem. Possibly also therapy, but we’re starting with the filesystem.' },
+      { topic: 'economics', quote: 'Jevons paradox vs Engel’s law: will token spend behave like food spend?' },
+      { topic: 'prompting', quote: 'How you prompt still matters. Human creativity still beats AI. For now.' }] },
+    towel: { hidden: true, desc: 'do not lose', cols: { item: 'text', status: 'text', location: 'text', usefulness: 'text' }, rows: [
+      { item: 'towel', status: 'present', location: 'you know where it is', usefulness: 'massive' }] },
+    deep_thought: { hidden: true, desc: 'long-running job', cols: { answer: 'int', question: 'text' }, rows: [{ answer: 42, question: null }] },
+  };
+  const ALIAS = { career: 'jobs', me: 'v', about: 'v', writing: 'posts', articles: 'posts' };
+  const DEFAULT_Q = {
+    v: 'SELECT * FROM v;', projects: 'SELECT * FROM projects ORDER BY stars DESC NULLS LAST;', posts: 'SELECT * FROM posts ORDER BY published DESC NULLS LAST;',
+    jobs: 'SELECT * FROM jobs ORDER BY since DESC NULLS LAST;', contact: 'SELECT * FROM contact;', notes: 'SELECT * FROM notes;' };
+
+  /* 8×8 pixel emblems: # ink, o accent */
+  const EMB = {
+    Mycroft: '.######. .#....#. .#.oo.#. .#.oo.#. .#....#. .#....#. .#.##.#. .######.',
+    Golem:   '..####.. ..#oo#.. ..####.. .######. #.####.# #.####.# ..#..#.. .##..##.',
+    Shadow:  '.##..#.# .##...#. ####.#.# ####..#. .##..#.# .##...#. #..#.#.# #..#..#.',
+    Meiro:   '.######. #oooooo# .######. #......# .######. #......# #......# .######.' };
+  const emblem = n => !EMB[n] ? '' : `<svg class="emb" viewBox="0 0 8 8" shape-rendering="crispEdges" aria-hidden="true">${
+    EMB[n].split(' ').map((r, y) => [...r].map((c, x) => c === '.' ? '' : `<rect x="${x}" y="${y}" width="1" height="1" fill="${c === 'o' ? '#ffd400' : '#17150f'}"/>`).join('')).join('')}</svg>`;
+
+  /* ── renderers ── */
+  const val = v => v == null ? NULL : esc(v);
+  const R = {
+    v: ([r]) => `<div class="rec-h">-[ RECORD 1 ]</div><dl class="rec">
+      <dt>name</dt><dd class="name">Vojtěch <mark>“V”</mark> Kurka</dd>
+      <dt>role</dt><dd class="big">${esc(r.role)}</dd>
+      <dt>city</dt><dd>${esc(r.city)}</dd>
+      <dt>bio</dt><dd class="big">${esc(r.bio)}</dd>
+      <dt>motto</dt><dd><em>${esc(r.motto)}</em></dd>
+      <dt>github_bio</dt><dd>${esc(r.github_bio)}</dd></dl>`,
+    projects: rows => `<div class="cards">${rows.map((r, i) => `<article class="card" style="--i:${i}">${emblem(r.name)}
+      <div class="rown">row ${i + 1}</div><h3><a href="${esc(r.url)}">${esc(r.name)}</a></h3>
+      <p class="tag">${esc(r.tagline)}</p><p class="about">${esc(r.about)}</p>
+      <dl class="kv"><div><dt>lang</dt><dd>${val(r.lang)}</dd></div><div><dt>stars</dt><dd>${r.stars == null ? NULL : '★ ' + r.stars}</dd></div><div><dt>kind</dt><dd>${esc(r.kind)}</dd></div></dl>
+      <a class="go" href="${esc(r.url)}">${esc(r.url.replace('https://', ''))} →</a></article>`).join('')}</div>`,
+    posts: rows => `<ol class="posts">${rows.map((r, i) => `<li class="post" style="--i:${i}"><span class="date">${val(r.published)}</span>
+      <div><h3><button data-q="SELECT title, body FROM posts WHERE slug = '${esc(r.slug)}';">${esc(r.title)}</button></h3><p>${esc(r.summary)}</p></div>
+      <span class="pill ${esc(r.status)}">${esc(r.status)}</span></li>`).join('')}</ol>`,
+    jobs: rows => `<ol class="jobs">${rows.map((r, i) => `<li class="job" style="--i:${i}"><span class="yr">${r.since ? r.since + ' – ' + (r.until || 'now') : 'before that'}</span>
+      <div><h3>${esc(r.role)} <span>@ ${esc(r.company)} · ${esc(r.place)}</span></h3><p>${esc(r.note)}</p></div></li>`).join('')}</ol>`,
+    contact: rows => `<ul class="links">${rows.map(r => `<li><a href="${esc(r.url)}"><span>${esc(r.channel)}</span>${esc(r.handle)}<i>→</i></a></li>`).join('')}</ul>`,
+    notes: rows => `<div class="quotes">${rows.map(r => `<figure><blockquote>${esc(r.quote)}</blockquote><figcaption>topic = '${esc(r.topic)}'</figcaption></figure>`).join('')}</div>`,
+  };
+  const table = (cols, rows, raw) => `<div class="tw"><table><thead><tr>${cols.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${
+    rows.map((r, i) => `<tr style="--i:${i}">${cols.map(c => `<td class="${typeof r[c] === 'number' ? 'num' : ''}">${raw ? r[c] : val(r[c])}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
+  const msg = (html, err) => `<div class="msg${err ? ' err' : ''}">${html}</div>`;
+  const error = (text, hint) => ({ html: msg(`<p><b>ERROR:</b> ${text}</p>${hint ? `<p>HINT: ${hint}</p>` : ''}`, true) });
+  const cmd = (q, label) => `<button class="cmd" data-q="${esc(q)}">${esc(label || q)}</button>`;
+  const rowsLabel = n => `<b>(${n} row${n === 1 ? '' : 's'})</b>`;
+
+  const reading = r => `<article class="read"><button class="back" data-q="${DEFAULT_Q.posts}">← back to posts</button>
+    <h2>${esc(r.title)}</h2><p class="by">V. Kurka · ${val(r.published)} · body: text, ${r.body.replace(/<[^>]+>/g, '').split(/\s+/).length} words in this excerpt</p>${r.body}</article>`;
+
+  const PLAN = `<div class="plan"><div class="node" style="--i:0"><b>Nested Loop</b> <span class="cost">(cost=0.42..∞ rows=1 width=wide) (actual time=2015..now)</span>
+      <p>Join Filter: curiosity = production. One row comes out: a person who has to know how the whole thing works.</p><span class="t"><i style="--w:100%"></i></span></div>
+    <div class="kids">
+      <div class="branch"><div class="node" style="--i:1"><b>Index Scan</b> using curiosity_idx on systems <span class="cost">(loops=many)</span>
+        <p>CPUs, operating systems, languages, databases, containers, proxies, protocols. “Some of that I picked up out of curiosity, the rest by debugging production.”</p><span class="t"><i style="--w:38%"></i></span></div></div>
+      <div class="branch"><div class="node" style="--i:2"><b>Seq Scan</b> on vut_fit <span class="cost">(Filter: faculty = 'information technology')</span>
+        <p>Brno University of Technology.</p><span class="t"><i style="--w:14%"></i></span></div></div>
+      <div class="branch"><div class="node" style="--i:3"><b>Hash Join</b> on keboola <span class="cost">(2015..2018) (Hash Cond: role = 'Head Nerd')</span>
+        <p>Solutions Architect, partly from Bali. Data integrations end to end, messy edge cases included.</p><span class="t"><i style="--w:27%"></i></span></div></div>
+      <div class="branch"><div class="node" style="--i:4"><b>Merge Append</b> on meiro <span class="cost">(2018..now) (Sort Key: CTO → Head of R&amp;D)</span>
+        <p>Co-founded the company. Customer data infrastructure, identity resolution, real-time pipelines — and the edge cases of running a CDP for enterprise customers.</p><span class="t"><i style="--w:74%"></i></span></div>
+        <div class="kids"><div class="branch"><div class="node" style="--i:5"><b>Gather</b> <span class="cost">(Workers Launched: 3)</span>
+          <p>Parallel workers: ${cmd("SELECT * FROM projects WHERE kind = 'open source';")} Mycroft, Golem, Shadow. Agents with real hands, on machines you own.</p><span class="t"><i style="--w:46%"></i></span></div></div></div></div>
+    </div></div>`;
+
+  /* ── interpreter ── */
+  const SELECT = /^select\s+(.+?)\s+from\s+([a-z_]+)(?:\s+where\s+([a-z_]+)\s*(=|!=|<>|>=|<=|>|<|i?like)\s*'?([^']*?)'?)?(?:\s+order\s+by\s+([a-z_]+)(?:\s+(asc|desc))?(?:\s+nulls\s+(?:first|last))?)?(?:\s+limit\s+(\d+))?$/i;
+  const cmp = (a, op, b) => {
+    if (a == null) return false;
+    if (/like/.test(op)) return new RegExp('^' + b.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*').replace(/_/g, '.') + '$', 'i').test(a);
+    const [x, y] = typeof a === 'number' ? [a, Number(b)] : [String(a).toLowerCase(), b.toLowerCase()];
+    return { '=': x === y, '!=': x !== y, '<>': x !== y, '>': x > y, '<': x < y, '>=': x >= y, '<=': x <= y }[op];
+  };
+  function select(sql) {
+    const m = sql.match(SELECT);
+    if (!m) return null;
+    const [, colsRaw, tRaw, wcol, op, wval, ocol, odir, limit] = m;
+    const tname = ALIAS[tRaw.toLowerCase()] || tRaw.toLowerCase(), t = DB[tname];
+    if (!t) return error(`relation "${esc(tRaw)}" does not exist`, `list the tables with ${cmd('\\dt')}`);
+    const nocol = c => error(`column "${esc(c)}" does not exist`, `see the columns with ${cmd('\\d ' + tname)}`);
+    for (const c of [wcol, ocol]) if (c && !(c.toLowerCase() in t.cols)) return nocol(c);
+    let rows = t.rows.slice();
+    if (wcol) rows = rows.filter(r => cmp(r[wcol.toLowerCase()], op.toLowerCase(), wval));
+    if (ocol) { const k = ocol.toLowerCase(), d = /desc/i.test(odir || '') ? -1 : 1;   // NULLS LAST either way: friendlier than Postgres
+      rows.sort((a, b) => a[k] == null ? 1 : b[k] == null ? -1 : (a[k] > b[k] ? d : a[k] < b[k] ? -d : 0)); }
+    if (limit) rows = rows.slice(0, +limit);
+    const cl = colsRaw.toLowerCase().replace(/\s+/g, '');
+    if (cl === 'count(*)') return { html: table(['count'], [{ count: rows.length }]), n: 1 };
+    if (tname === 'deep_thought') return { deep: true };
+    if (cl === '*') return { html: R[tname] ? (rows.length ? R[tname](rows) : table(Object.keys(t.cols), [])) : table(Object.keys(t.cols), rows), n: rows.length, table: tname };
+    const cols = cl.split(',');
+    for (const c of cols) if (!(c in t.cols)) return nocol(c);
+    if (tname === 'posts' && cols.includes('body')) {
+      if (!rows.length) return { html: table(cols, []), n: 0 };
+      return rows[0].body ? { html: reading(rows[0]), n: 1, note: 'toast: the body was too long for one page, so it got typeset' }
+        : { html: msg(`<p>title = ${esc(rows[0].title)}</p><p>body = ${NULL}</p><p>NOTICE: ${rows[0].status === 'published' ? `the full text lives at <a href="https://dontpanicv.com/posts/${esc(rows[0].slug)}/">/posts/${esc(rows[0].slug)}/</a>` : 'still in the drawer. It will be written when it is understood.'}</p>`), n: 1 };
+    }
+    return { html: table(cols, rows), n: rows.length };
+  }
+
+  const NOTES = ['planner used curiosity_idx', 'no tables were harmed', 'cost estimated in coffees', 'served from a warm cache', 'sequential scan; the table is small and so is the ego'];
+  let noteI = 0;
+  function exec(input) {
+    const raw = input.trim(), sql = raw.replace(/;+\s*$/, '').replace(/\s+/g, ' '), low = sql.toLowerCase();
+    if (!sql) return null;
+    if (low === '\\dt' || low === '\\dt+' || low === 'show tables') {
+      const plus = low === '\\dt+';
+      const rows = Object.entries(DB).filter(([, t]) => plus || !t.hidden).map(([n, t]) => ({ schema: t.hidden ? 'improbable' : 'public', name: cmd(DEFAULT_Q[n] || `SELECT * FROM ${n};`, n), rows: t.rows.length, description: esc(t.desc) }));
+      return { html: table(['schema', 'name', 'rows', 'description'], rows, true), n: rows.length, note: plus ? 'you found the improbable schema' : 'there may be more: \\dt+' };
+    }
+    let m;
+    if ((m = low.match(/^\\d\+? ([a-z_]+)$/))) {
+      const n = ALIAS[m[1]] || m[1], t = DB[n];
+      if (!t) return error(`relation "${esc(m[1])}" does not exist`, `list the tables with ${cmd('\\dt')}`);
+      const rows = Object.entries(t.cols).map(([c, ty]) => ({ column: cmd(`SELECT ${c} FROM ${n};`, c), type: ty, nullable: c === 'stars' || c === 'published' || c === 'until' || c === 'body' ? 'yes' : 'not null' }));
+      return { html: table(['column', 'type', 'nullable'], rows, true), n: rows.length, note: `Table "public.${n}"` };
+    }
+    if (low === '\\?' || low === 'help' || low === '\\h') {
+      const rows = [['SELECT * FROM projects ORDER BY stars DESC;', 'what is being built'], ['SELECT * FROM posts;', 'writing; click a title to read'], ['SELECT * FROM v;', 'the person'],
+        ['SELECT * FROM jobs;', 'career so far'], ['SELECT * FROM contact;', 'how to reach V'], ['SELECT * FROM notes;', 'short takes'],
+        ["SELECT name, stars FROM projects WHERE lang = 'Swift';", 'columns, WHERE, ORDER BY and LIMIT work'], ['EXPLAIN ANALYZE SELECT * FROM career;', 'the query plan of a career'],
+        ['\\dt', 'list tables'], ['\\d projects', 'describe a table'], ['\\reset', 'restore the session'], ['\\q', 'quit (see how that goes)']]
+        .map(([c, d]) => ({ statement: cmd(c), does: d }));
+      return { html: table(['statement', 'does'], rows, true), note: 'everything here is clickable' };
+    }
+    if (low === '\\reset' || low === 'clear' || low === '\\clear') return { reset: true };
+    if (/^(\\q|exit|quit|:q!?)$/.test(low)) return { html: msg(`<p><b>FATAL:</b> could not disconnect: curiosity still holds a lock on this session</p><p>DETAIL: Process 42 waits for ExclusiveLock on relation "attention".</p><p>HINT: Closing the tab works. Probably.</p>`, true) };
+    if (/^sudo\b/.test(low)) return { html: msg(`<p>visitor is not in the sudoers file. This incident will be reported to <b>glados</b>.</p>`, true) };
+    if ((m = low.match(/^(drop|truncate|delete|update|insert|alter)\b.*?\b(?:table|from|into)?\s*([a-z_]+)?/))) {
+      const t = (low.match(/(?:table|from|into|update)\s+(?:if exists\s+)?([a-z_]+)/) || [])[1] || 'everything';
+      const quip = { drop: 'These took years. The DROP would take four milliseconds. No.', truncate: 'Bold. Still no.', delete: 'Rows here are append-only, like regrets.', update: 'History is immutable. So is this table.', insert: `To add a row to contact, ${cmd('SELECT * FROM contact;')} and send an email instead.`, alter: 'The schema migrates itself, slowly, over decades.' }[m[1]];
+      return { html: msg(`<p><b>ERROR:</b> permission denied for table ${esc(t)}</p><p>DETAIL: role "visitor" is read-only.</p><p>HINT: ${quip}</p>`, true) };
+    }
+    if (/^explain\b/.test(low)) {
+      if (!/\b(career|jobs|v)\b/.test(low)) return error('this planner only explains careers', `try ${cmd('EXPLAIN ANALYZE SELECT * FROM career;')}`);
+      return { html: PLAN, raw: '<b>Planning Time:</b> about ten years · <b>Execution Time:</b> still running' };
+    }
+    if ((m = low.match(/^select ([\d\s*+x×]+)$/))) {
+      const e = m[1].replace(/\s/g, '');
+      if (/^6[*x×]9$/.test(e)) return { html: table(['?column?'], [{ '?column?': 42 }]), n: 1, note: 'correct in base 13, and that is the story we are sticking to' };
+      if (/^\d+$/.test(e)) return { html: table(['?column?'], [{ '?column?': +e }]), n: 1, note: e === '42' ? 'that is the answer. The question is still being computed' : 'a constant. Thrilling' };
+      return error('arithmetic is left as an exercise for the reader', `the one supported product is ${cmd('SELECT 6*9;')}`);
+    }
+    if (/^select (now|current_timestamp)(\(\))?$/.test(low)) return { html: table(['now'], [{ now: new Date().toISOString().replace('T', ' ').slice(0, 19) + '+00' }]), n: 1 };
+    if (/^(select version\(\)|show server_version)$/.test(low)) return { html: table(['version'], [{ version: 'V 42.0 (mostly harmless) on brno-cz, compiled by curiosity, 64-bit' }]), n: 1 };
+    const r = select(sql);
+    if (r) return r;
+    return error(`syntax error at or near "${esc(sql.split(' ')[0].slice(0, 24))}"`, `this console speaks about ten statements. ${cmd('\\?')} lists them`);
+  }
+
+  /* ── console plumbing ── */
+  const log = $('#log'), inp = $('#q');
+  const hl = s => esc(s).replace(/\b(select|from|where|order by|desc|asc|nulls last|limit|explain|analyze|drop|table|like|and)\b/gi, '<b>$1</b>');
+  const time = () => (Math.random() * 0.9 + 0.042).toFixed(3);
+  function block(q, r, fresh) {
+    const s = document.createElement('section');
+    s.className = 'res' + (fresh ? ' new' : '');
+    const meta = r.raw || [r.n != null && rowsLabel(r.n), r.html && !r.raw && `Time: ${time()} ms`, r.note || (r.n != null && NOTES[noteI++ % NOTES.length])].filter(Boolean).join(' · ');
+    s.innerHTML = `<header class="q"><span class="pr">v=#</span><code>${hl(q)}</code></header><div class="out">${r.html || ''}</div>${meta ? `<footer class="meta">${meta}</footer>` : ''}`;
+    return s;
+  }
+  function deepThought(s) {
+    const out = s.querySelector('.out');
+    out.innerHTML = `<div class="dt"><div class="lbl">Deep Thought is computing…</div><div class="track"><div class="fill"></div></div><div class="eta"></div></div>`;
+    const fill = out.querySelector('.fill'), eta = out.querySelector('.eta'), total = reduced ? 1 : 60;
+    let i = 0;
+    const done = () => { out.innerHTML = `<div class="dt"><div class="ans"><mark>42</mark></div><p>question = ${NULL}</p></div><footer class="meta">${rowsLabel(1)} · Time: 7,500,000 years · NOTICE: you are not going to like it</footer>`; };
+    const tick = () => { i++; fill.style.width = (i / total * 100) + '%'; eta.textContent = `estimated time remaining: ${(7.5 * (1 - i / total)).toFixed(2)} million years`; i >= total ? setTimeout(done, reduced ? 0 : 350) : setTimeout(tick, 55); };
+    tick();
+  }
+  function session(queries) {
+    log.innerHTML = '';
+    for (const q of queries) log.append(block(q, exec(q), false));
+  }
+  const INITIAL = [DEFAULT_Q.v, DEFAULT_Q.projects, DEFAULT_Q.posts, DEFAULT_Q.notes, DEFAULT_Q.jobs, DEFAULT_Q.contact];
+  const hist = []; let hi = 0;
+  function run(q) {
+    const r = exec(q);
+    if (!r) return;
+    hist.push(q); hi = hist.length;
+    inp.value = '';
+    if (r.reset) { session(INITIAL); scrollTo({ top: 0, behavior: reduced ? 'auto' : 'smooth' }); return; }
+    const s = block(q, r, true);
+    log.prepend(s);
+    if (r.deep) deepThought(s);
+    document.querySelectorAll('.tname').forEach(b => b.classList.toggle('on', b.dataset.t === r.table));
+    s.scrollIntoView({ block: 'start', behavior: reduced ? 'auto' : 'smooth' });
+  }
+  let typing;
+  function typeAndRun(q) {
+    clearInterval(typing);
+    if (reduced) return run(q);
+    let i = 0;
+    typing = setInterval(() => { i += 2; inp.value = q.slice(0, i); if (i >= q.length) { clearInterval(typing); run(q); } }, 14);
+  }
+
+  $('#f').addEventListener('submit', e => { e.preventDefault(); clearInterval(typing); run(inp.value); });
+  inp.addEventListener('keydown', e => {
+    if (e.key === 'ArrowUp' && hist.length) { e.preventDefault(); hi = Math.max(0, hi - 1); inp.value = hist[hi]; }
+    if (e.key === 'ArrowDown' && hist.length) { e.preventDefault(); hi = Math.min(hist.length, hi + 1); inp.value = hist[hi] || ''; }
+  });
+  document.addEventListener('click', e => { const b = e.target.closest('[data-q]'); if (b) { e.preventDefault(); typeAndRun(b.dataset.q); } });
+  document.addEventListener('keydown', e => { if (e.key === '/' && document.activeElement !== inp) { e.preventDefault(); inp.focus(); } });
+
+  /* schema tree */
+  $('#tree').innerHTML = Object.entries(DB).filter(([, t]) => !t.hidden).map(([n, t]) => `<div class="tbl">
+    <button class="tname" data-t="${n}" data-q="${DEFAULT_Q[n]}"><span>${n}</span><i>${t.rows.length} row${t.rows.length === 1 ? '' : 's'}</i></button>
+    <ul class="cols">${Object.entries(t.cols).map(([c, ty]) => `<li><button data-q="SELECT ${c} FROM ${n};">${c}<i>${ty}</i></button></li>`).join('')}</ul></div>`).join('');
+  if (innerWidth < 860) $('#schema').open = false;
+
+  session(INITIAL);
+  /* shareable queries: ?q=SELECT%20*%20FROM%20notes */
+  const shared = new URLSearchParams(location.search).get('q');
+  if (shared) run(shared);
+
+  /* self-check: the interpreter does what the chips promise */
+  console.assert(exec('select name from projects where stars > 0').n === 2, 'WHERE on numbers');
+  console.assert(exec("SELECT * FROM posts WHERE status = 'published' ORDER BY published DESC LIMIT 1;").n === 1, 'LIMIT');
+  console.assert(exec('select * from career').table === 'jobs', 'alias');
+  console.assert(/permission denied/.test(exec('DROP TABLE projects;').html), 'read-only');
+  console.assert(/does not exist/.test(exec('select * from nope').html), 'unknown relation');
+})();
+</script>
+
+<div id="vnav" style="position:fixed;right:12px;bottom:12px;z-index:99999;font:12px/1 ui-monospace,Menlo,monospace;background:#111;color:#fff;border-radius:999px;padding:8px 12px;display:flex;gap:10px;align-items:center;box-shadow:0 2px 10px rgba(0,0,0,.3)"><a href="20-rfc.html" style="color:#FFD400;text-decoration:none" aria-label="Previous variation">‹</a><a href="index.html" style="color:#fff;text-decoration:none">01/20 · query-console</a><a href="02-dither-monolith.html" style="color:#FFD400;text-decoration:none" aria-label="Next variation">›</a></div>
+</body>
+</html>

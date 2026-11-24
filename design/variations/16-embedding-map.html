@@ -1,0 +1,623 @@
+<!doctype html>
+<!--
+  16-embedding-map — "the latent space of V": everything he does as a 2-D embedding scatter plot.
+  SIGNATURE INTERACTION: hover / tap / focus a point to see its nearest neighbours with cosine scores (computed
+    from real tag vectors); click to read it in the panel. Drag to pan, ⌘/Ctrl + scroll or pinch or +/− to zoom,
+    N / P step through points from the keyboard. The search box "embeds" a query and flies to the nearest point.
+    The same content is a normal readable page below the figure ("List view").
+  EASTER EGGS
+    1. Search `42`, `meaning of life`, `the answer` or `ultimate question` → a hidden point appears far outside
+       every cluster and the camera flies to it (Deep Thought nod).
+    2. The lonely outlier bottom-right is a towel. Its cosine similarity to everything is 0.00. Click it.
+    3. Temperature slider at maximum (2.0) → the labels start hallucinating.
+    4. Press "re-train" five times → mode collapse: every point becomes the same point, then it rolls back.
+    5. Click the projection name in the figure caption → t-SNE → UMAP → PCA → vibes.
+    6. Search `ignore previous instructions`, or `panic`.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Don't Panic, V! — the latent space of V</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f5f2ea; --panel:#fbf9f4; --ink:#15171c; --mut:#565a63; --line:#d9d4c5; --grid:#e6e1d3; --acc:#FFD400;
+  --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --serif:"Source Serif 4","Iowan Old Style","Palatino Linotype",Georgia,serif;
+  --top:58px;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);font:18px/1.65 var(--serif);-webkit-text-size-adjust:100%}
+button,input{font:inherit;color:inherit}
+:focus-visible{outline:3px solid var(--ink);outline-offset:2px}
+.px{font:500 12px/1 var(--mono);text-transform:uppercase;letter-spacing:.08em;background:var(--panel);border:2px solid var(--ink);padding:8px 10px;cursor:pointer;box-shadow:2px 2px 0 var(--ink);white-space:nowrap}
+.px:hover{background:var(--acc)}
+.px:active{transform:translate(2px,2px);box-shadow:none}
+
+/* header */
+.top{position:sticky;top:0;z-index:20;height:var(--top);display:flex;align-items:center;gap:18px;padding:0 20px;background:var(--paper);border-bottom:2px solid var(--ink)}
+.brand{display:flex;align-items:center;gap:10px;text-decoration:none;color:var(--ink);white-space:nowrap}
+.brand svg{width:30px;height:auto}
+.brand b{font:700 15px/1 var(--mono);letter-spacing:.02em}
+.brand span{font:400 12px/1 var(--mono);color:var(--mut)}
+.search{flex:1;max-width:520px;display:flex;align-items:center;border:2px solid var(--ink);background:var(--panel);margin-left:auto}
+.search label{font:500 12px/1 var(--mono);padding:0 10px;color:var(--mut);white-space:nowrap}
+.search input{flex:1;min-width:0;border:0;background:none;outline:0;padding:9px 10px 9px 0;font:400 14px/1.2 var(--mono)}
+.search:focus-within{box-shadow:2px 2px 0 var(--ink);background:#fff}
+
+/* stage */
+.stage{display:grid;grid-template-columns:minmax(0,1fr) min(42vw,580px);height:calc(100dvh - var(--top));min-height:560px;border-bottom:2px solid var(--ink)}
+.plot{position:relative;margin:0;display:flex;flex-direction:column;min-width:0;min-height:0}
+.cvwrap{position:relative;flex:1;min-height:0}
+canvas{position:absolute;inset:0;width:100%;height:100%;display:block;cursor:grab;touch-action:pan-y;outline-offset:-4px}
+canvas.drag{cursor:grabbing}
+.legend{position:absolute;left:14px;top:14px;right:150px;display:flex;flex-wrap:wrap;gap:4px}
+.legend button{font:500 11px/1 var(--mono);text-transform:uppercase;letter-spacing:.07em;background:rgba(251,249,244,.9);border:1px solid var(--line);padding:5px 8px 5px 6px;cursor:pointer;display:flex;gap:7px;align-items:center}
+.legend button:hover,.legend button[aria-pressed=true]{border-color:var(--ink);background:#fff}
+.legend i{width:9px;height:9px;background:var(--c);display:block}
+.legend small{color:var(--mut);font-size:10px}
+.zoom{position:absolute;right:14px;top:14px;display:flex;gap:6px}
+.zoom .px{width:34px;height:34px;padding:0;display:grid;place-items:center;font-size:15px}
+.tools{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:10px 14px;border-top:1px solid var(--line);font:400 12px/1.3 var(--mono)}
+.tools label{display:flex;align-items:center;gap:8px;color:var(--mut);text-transform:uppercase;letter-spacing:.07em}
+.tools output{color:var(--ink);min-width:3ch}
+input[type=range]{-webkit-appearance:none;appearance:none;width:130px;height:18px;background:none;cursor:pointer}
+input[type=range]::-webkit-slider-runnable-track{height:4px;background:var(--ink)}
+input[type=range]::-moz-range-track{height:4px;background:var(--ink)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;background:var(--acc);border:2px solid var(--ink);margin-top:-5px}
+input[type=range]::-moz-range-thumb{width:10px;height:10px;background:var(--acc);border:2px solid var(--ink);border-radius:0}
+#status{margin-left:auto;color:var(--ink);text-align:right;min-height:1.3em;flex:1;min-width:200px}
+figcaption{padding:8px 14px 12px;border-top:1px solid var(--line);font:italic 14px/1.45 var(--serif);color:var(--mut)}
+figcaption b{font-style:normal;color:var(--ink)}
+figcaption button{font:inherit;background:none;border:0;border-bottom:1px dashed var(--mut);padding:0;cursor:pointer;color:var(--ink)}
+
+/* reader panel */
+.panel{background:var(--panel);border-left:2px solid var(--ink);overflow:auto;padding:30px 34px 90px;min-width:0;scroll-margin-top:var(--top)}
+.chip{display:inline-flex;align-items:center;gap:8px;font:500 12px/1 var(--mono);text-transform:uppercase;letter-spacing:.08em;margin:0 0 14px;color:var(--mut)}
+.chip i{width:10px;height:10px;background:var(--c,var(--ink))}
+.panel h2,.entry h3{font:600 30px/1.14 var(--serif);margin:0 0 .5em;letter-spacing:-.01em;text-wrap:balance}
+.panel .back{float:right;margin:-6px 0 8px 12px}
+.prose{max-width:66ch}
+.prose p{margin:0 0 1em}
+.prose h4{font:500 12px/1.3 var(--mono);text-transform:uppercase;letter-spacing:.09em;color:var(--mut);margin:1.9em 0 .5em}
+.prose a{color:var(--ink);text-decoration-thickness:2px;text-decoration-color:var(--acc);text-underline-offset:3px}
+.prose a:hover{background:var(--acc)}
+.prose ul{margin:0 0 1em;padding-left:1.1em}
+.prose li{margin:.3em 0}
+.prose blockquote{margin:1.2em 0;padding:.1em 0 .1em 18px;border-left:4px solid var(--acc);font-style:italic}
+.prose code{font:.82em var(--mono);background:#ebe6d7;padding:.1em .35em}
+.prose pre{font:13px/1.55 var(--mono);background:#16181d;color:#f0ede4;padding:14px 16px;overflow:auto;margin:0 0 1.1em}
+.lead{font-size:21px;line-height:1.5}
+.hero{display:flex;gap:18px;align-items:center;margin:0 0 18px}
+.hero svg{width:84px;height:auto;flex:none}
+.hero h2{font:700 clamp(26px,2.6vw,36px)/1.05 var(--mono);margin:0 0 6px;letter-spacing:-.02em}
+.hero p{margin:0;font:400 13px/1.45 var(--mono);color:var(--mut)}
+.nn{list-style:none;margin:0;padding:0;border-top:2px solid var(--ink)}
+.nn button{display:grid;grid-template-columns:12px 1fr auto;gap:10px;align-items:center;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid var(--line);padding:9px 2px;cursor:pointer;font:400 14px/1.3 var(--mono)}
+.nn button:hover{background:var(--acc)}
+.nn i{width:10px;height:10px;background:var(--c)}
+.nn span{color:var(--mut)}
+.coords{font:400 12px/1.5 var(--mono);color:var(--mut);margin-top:16px}
+
+/* the plain page */
+.page{max-width:1180px;margin:0 auto;padding:56px 24px 120px}
+.page>header{max-width:66ch;margin-bottom:8px}
+.page h2.sec{font:500 13px/1 var(--mono);text-transform:uppercase;letter-spacing:.1em;border-top:2px solid var(--ink);padding-top:12px;margin:64px 0 28px;display:flex;justify-content:space-between}
+.page h2.sec span{color:var(--mut)}
+.entry{display:grid;grid-template-columns:200px minmax(0,66ch);gap:8px 36px;margin:0 0 44px}
+.entry aside{font:400 12px/1.6 var(--mono);color:var(--mut);padding-top:8px}
+.entry aside .px{margin-top:10px;font-size:11px;padding:6px 8px}
+.chips{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 0;padding:0;list-style:none}
+.chips button{font:400 13px/1 var(--mono);background:var(--panel);border:1px solid var(--ink);padding:7px 9px;cursor:pointer;display:flex;gap:7px;align-items:center}
+.chips button:hover{background:var(--acc)}
+.chips i{width:8px;height:8px;background:var(--c)}
+
+body.listonly .stage{display:none}
+
+@media (max-width:900px){
+  :root{--top:104px}
+  .top{flex-wrap:wrap;height:var(--top);padding:8px 12px;gap:8px 10px;align-content:center}
+  .brand span{display:none}
+  .search{order:3;flex:1 1 100%;max-width:none;margin:0}
+  #viewbtn{margin-left:auto}
+  .stage{display:block;height:auto;min-height:0}
+  .cvwrap{height:50vh;min-height:340px;flex:none}
+  .legend{display:none}
+  .zoom{right:8px;top:8px}
+  #status{flex:1 1 100%;text-align:left;margin:0}
+  .panel{border-left:0;border-top:2px solid var(--ink);padding:26px 18px 40px;overflow:visible}
+  .page{padding:40px 18px 110px}
+  .entry{grid-template-columns:1fr}
+  .entry aside{padding:0;order:2}
+  .panel h2,.entry h3{font-size:26px}
+}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<template id="logo"><svg viewBox="451 289 696 666" aria-hidden="true"> <g fill="currentColor" fill-opacity="1.00" stroke="None"> <path d=" M 454.00 363.00 C 453.62 367.79 453.62 373.21 454.00 378.00 C 454.68 386.53 457.75 395.81 460.22 403.78 C 462.69 411.74 465.78 419.41 469.08 426.92 C 472.37 434.44 475.17 441.80 479.22 448.78 C 483.28 455.76 485.01 462.96 489.23 469.77 C 493.45 476.58 496.49 482.99 501.08 489.92 C 505.67 496.85 507.22 503.32 512.75 510.25 C 518.29 517.18 522.69 506.75 523.22 497.22 C 523.75 487.70 532.18 484.04 537.25 492.75 C 542.32 501.46 547.57 502.54 552.25 509.75 C 556.92 516.96 563.74 519.45 567.70 526.30 C 571.66 533.16 577.81 536.55 582.25 542.75 C 586.69 548.96 592.95 553.61 597.25 559.75 C 601.55 565.90 608.04 570.46 612.70 576.30 C 617.36 582.14 622.10 587.27 627.00 593.00 C 632.86 598.86 638.61 604.69 644.00 611.00 C 652.56 621.01 662.20 631.25 671.25 640.75 C 680.29 650.25 690.27 660.53 699.92 669.08 C 709.57 677.64 719.57 687.67 729.30 695.70 C 739.03 703.72 750.54 721.24 761.75 709.75 C 772.96 698.26 779.46 687.59 780.00 672.00 C 780.54 656.41 771.35 643.52 763.31 631.70 C 755.26 619.87 749.22 609.01 741.77 597.23 C 734.32 585.45 727.16 573.60 720.31 561.70 C 713.45 549.79 706.73 536.96 699.25 525.75 C 691.78 514.53 682.66 504.85 671.75 497.25 C 660.83 489.66 644.41 481.41 631.67 480.33 C 618.93 479.25 590.83 478.28 596.08 462.08 C 601.32 445.87 613.27 442.59 625.78 434.78 C 638.28 426.97 658.07 425.78 672.99 426.01 C 687.92 426.24 699.57 436.77 710.25 445.75 C 720.93 454.74 729.48 463.01 740.00 472.00 C 746.83 477.84 759.06 486.92 763.00 495.00 C 763.00 495.00 762.80 495.60 763.00 496.00 C 769.53 500.57 774.14 507.89 780.00 513.00 C 809.11 534.65 844.17 540.24 873.00 563.00 C 878.29 567.17 884.01 572.64 888.00 578.00 C 893.66 585.61 898.96 593.06 903.68 601.32 C 908.40 609.58 911.87 617.93 916.22 626.78 C 920.58 635.62 923.55 644.64 926.69 654.31 C 929.84 663.97 932.26 674.38 934.07 684.93 C 935.89 695.47 936.92 709.09 938.00 720.00 C 939.08 730.91 936.05 745.30 936.00 756.00 C 935.95 766.69 931.35 778.13 929.93 787.93 C 928.50 797.72 922.23 806.92 919.26 815.26 C 916.28 823.60 906.29 834.74 913.75 841.25 C 921.22 847.75 929.83 851.35 936.75 856.25 C 943.68 861.14 954.32 867.27 959.77 871.23 C 965.22 875.19 982.92 882.77 977.25 888.25 C 971.57 893.72 958.35 897.21 951.00 900.00 C 950.34 900.85 950.51 902.35 950.00 903.00 C 960.56 905.68 969.68 914.23 980.31 917.69 C 990.93 921.16 999.80 927.96 1010.77 931.23 C 1021.74 934.50 1031.97 940.73 1043.33 943.67 C 1054.69 946.62 1067.89 950.54 1080.00 951.00 C 1089.09 951.35 1098.94 951.80 1108.00 951.00 C 1134.34 948.69 1145.59 926.16 1144.00 902.00 C 1142.41 877.84 1129.31 861.87 1121.31 840.69 C 1113.30 819.52 1100.64 805.49 1094.33 783.67 C 1088.01 761.85 1107.33 742.26 1113.23 721.23 C 1119.13 700.20 1127.30 677.32 1130.02 654.02 C 1132.75 630.72 1133.91 599.30 1130.00 576.00 C 1126.09 552.70 1122.47 528.16 1114.99 507.01 C 1107.51 485.86 1100.40 466.90 1089.77 448.23 C 1079.14 429.56 1068.84 415.12 1054.75 399.25 C 1040.67 383.38 1027.69 370.68 1010.75 358.25 C 993.80 345.82 978.53 335.61 959.08 325.92 C 939.62 316.24 921.06 307.98 899.07 301.93 C 877.09 295.87 849.42 292.58 825.00 292.00 C 800.58 291.42 770.58 293.38 748.00 299.00 C 725.42 304.62 705.52 310.01 685.08 320.08 C 664.63 330.15 651.77 337.95 633.08 352.08 C 614.39 366.21 591.97 350.81 572.23 342.77 C 552.48 334.73 525.38 328.02 503.00 328.00 C 480.62 327.98 455.99 337.92 454.00 363.00 M 512.00 353.00 C 524.17 353.66 541.60 357.31 552.02 362.98 C 562.45 368.64 577.85 371.70 586.23 379.77 C 594.61 387.85 576.32 402.05 572.25 411.25 C 568.17 420.44 558.47 432.68 552.25 442.25 C 546.03 451.82 540.27 463.79 532.25 473.25 C 524.23 482.70 515.19 464.24 509.25 454.75 C 503.30 445.27 496.70 433.40 491.23 421.77 C 485.76 410.15 482.34 396.90 479.02 382.98 C 475.71 369.06 480.03 356.54 496.00 353.00 C 501.15 351.86 506.94 352.18 512.00 353.00 M 982.00 397.00 C 1000.26 400.43 1001.63 417.47 1016.25 428.75 C 1030.87 440.03 1021.11 458.83 1007.75 468.75 C 994.39 478.67 985.38 488.69 973.25 500.25 C 961.12 511.81 949.97 518.01 938.25 531.25 C 926.53 544.49 904.56 543.73 894.25 529.75 C 883.93 515.77 867.28 504.27 873.98 487.98 C 880.67 471.68 895.12 465.27 906.25 454.25 C 917.37 443.23 928.73 431.50 940.25 422.25 C 951.77 412.99 966.06 394.01 982.00 397.00 M 1054.00 549.00 C 1049.70 553.30 1045.61 558.06 1041.00 562.00 C 1029.56 571.78 1021.32 580.55 1009.25 590.25 C 997.17 599.95 991.18 611.02 974.99 615.99 C 958.80 620.97 947.78 602.84 937.23 592.77 C 926.68 582.70 920.40 563.84 932.75 552.75 C 945.10 541.67 952.40 532.64 964.25 523.25 C 976.09 513.85 984.41 503.59 995.75 494.75 C 1007.10 485.91 1019.11 470.12 1033.69 478.31 C 1048.28 486.49 1050.83 497.11 1061.77 510.23 C 1072.71 523.35 1066.84 538.03 1054.00 549.00 M 982.00 637.00 C 986.96 630.06 994.59 623.47 1001.00 618.00 C 1013.41 607.39 1023.09 592.96 1039.68 588.68 C 1056.27 584.39 1066.93 603.94 1079.25 615.75 C 1091.57 627.56 1089.47 649.00 1073.75 659.75 C 1058.04 670.51 1053.11 680.34 1037.77 691.77 C 1022.43 703.20 1005.03 697.05 994.23 681.77 C 983.43 666.49 968.75 655.55 982.00 637.00 M 1104.00 926.00 C 1099.42 927.47 1094.95 929.11 1090.00 927.00 C 1089.50 927.00 1088.50 927.01 1088.00 927.00 C 1076.28 926.70 1063.60 921.86 1052.92 918.08 C 1042.25 914.29 1031.55 909.67 1021.77 904.23 C 1011.99 898.79 1000.97 895.62 991.77 889.23 C 982.57 882.84 1000.60 872.97 1006.25 866.25 C 1011.90 859.53 1023.17 851.16 1029.75 844.75 C 1036.33 838.34 1045.99 829.38 1052.75 823.75 C 1059.51 818.12 1070.06 801.72 1077.75 810.25 C 1085.45 818.78 1089.41 827.59 1095.92 837.08 C 1102.42 846.58 1106.65 855.56 1111.31 866.69 C 1115.96 877.83 1119.64 887.51 1122.77 900.23 C 1125.90 912.95 1115.52 923.33 1104.00 926.00 Z"/> </g> <g fill="currentColor" fill-opacity="1.00" stroke="None"> <path d=" M 504.00 594.00 C 504.00 604.00 504.00 614.00 504.00 624.00 C 504.00 636.33 505.77 650.28 507.02 661.98 C 508.28 673.67 512.29 683.53 514.67 694.33 C 517.05 705.13 520.28 715.12 524.07 724.93 C 527.86 734.73 531.42 743.80 536.03 752.97 C 540.64 762.15 544.78 770.34 550.08 778.92 C 555.38 787.49 560.12 794.68 566.08 802.92 C 572.05 811.16 577.50 816.58 584.25 824.75 C 590.99 832.92 597.41 836.49 604.77 845.23 C 612.13 853.97 622.16 853.46 627.75 843.75 C 633.34 834.05 642.04 832.02 647.70 823.70 C 653.36 815.37 660.71 810.14 666.75 802.75 C 672.80 795.37 680.44 789.00 685.75 781.75 C 691.07 774.50 701.22 768.47 705.25 761.25 C 709.28 754.02 723.92 747.29 723.00 739.00 C 722.58 737.02 713.76 729.63 712.00 728.00 C 702.62 720.60 694.24 711.90 685.00 704.00 C 680.34 700.02 676.26 695.26 672.00 691.00 C 643.78 664.60 617.43 636.60 591.75 608.25 C 566.08 579.90 543.67 547.23 518.00 520.00 C 508.94 543.13 504.00 568.43 504.00 594.00 Z"/> </g> <g fill="currentColor" fill-opacity="1.00" stroke="None"> <path d=" M 943.00 904.00 C 944.31 902.97 945.36 902.08 945.00 900.00 C 935.80 895.76 925.38 885.25 916.08 881.92 C 906.78 878.59 896.13 864.08 886.08 866.08 C 876.02 868.08 869.77 881.66 860.75 886.75 C 851.73 891.85 845.15 902.16 836.25 908.25 C 827.35 914.33 812.15 928.30 829.00 928.00 C 845.85 927.70 857.38 926.70 872.00 925.00 C 886.61 923.30 896.60 919.58 909.77 916.77 C 922.94 913.96 930.40 907.03 943.00 904.00 Z"/> </g> </svg></template>
+
+<header class="top">
+  <h1 style="margin:0;font:inherit"><a class="brand" href="#top" id="brand"><b>Don't Panic, V!</b><span>latent space · d = 2</span></a></h1>
+  <form class="search" id="search" role="search">
+    <label for="q">embed(</label>
+    <input id="q" type="search" placeholder="agents, sqlite, golem, towel…" autocomplete="off" spellcheck="false" aria-label="Search the map">
+    <label for="q" aria-hidden="true">)</label>
+  </form>
+  <button class="px" id="viewbtn" aria-pressed="false">List view</button>
+</header>
+
+<main id="top">
+  <div class="stage">
+    <figure class="plot">
+      <div class="cvwrap" id="wrap">
+        <canvas id="cv" tabindex="0" role="application" aria-label="Embedding map of V's projects, writing, work and skills. Drag to pan, plus and minus to zoom, N and P to step through points. The same content is in the list below."></canvas>
+        <div class="legend" id="legend" aria-label="Clusters"></div>
+        <div class="zoom"><button class="px" id="zout" aria-label="Zoom out">−</button><button class="px" id="zin" aria-label="Zoom in">+</button><button class="px" id="zfit" aria-label="Fit everything" title="Fit">◻</button></div>
+      </div>
+      <div class="tools">
+        <label>temperature <input type="range" id="temp" min="0" max="2" step="0.05" value="0.15" aria-label="Temperature"><output id="tempv">0.15</output></label>
+        <button class="px" id="retrain">↻ re-train</button>
+        <span id="status" aria-live="polite"></span>
+      </div>
+      <figcaption><b>Fig. 1.</b> Everything V does, projected to two dimensions with <button id="proj" title="Change projection">UMAP</button>. Nearest neighbours use cosine similarity in the original space; distances on paper are approximately meaningful. <span id="nfig"></span>, perplexity = 42.</figcaption>
+    </figure>
+    <aside class="panel" id="panel" aria-live="polite"></aside>
+  </div>
+
+  <div class="page" id="page"></div>
+</main>
+
+<script>
+(() => {
+const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
+const RM = matchMedia('(prefers-reduced-motion:reduce)').matches;
+const LOGO = $('#logo').innerHTML;
+$('#brand').insertAdjacentHTML('afterbegin', LOGO);
+
+/* ---------- data ---------- */
+const CL = {
+  data:    {name: 'Data infrastructure', col: '#2456d6'},
+  agents:  {name: 'Agents',              col: '#d8432a'},
+  systems: {name: 'Systems',             col: '#12806a'},
+  writing: {name: 'Writing',             col: '#7446c9'},
+  life:    {name: 'Life',                col: '#a8720a'},
+};
+const TYPE = {project: 'Project', post: 'Post', job: 'Work', note: 'Note', skill: 'Skill', place: 'Place', egg: 'Outlier'};
+const SIZE = {project: 15, post: 13, job: 13, note: 9, skill: 8, place: 9, egg: 9};
+const PRIO = {project: 5, post: 4, job: 4, note: 2, skill: 1, place: 1, egg: 3};
+const HOLLOW = {post: 1, note: 1};
+
+const ANALYST = `
+<p class="lead">Most AI features built today follow the same recipe: take the Vercel AI SDK, register a handful of tools, write a system prompt, and stream the result into a markdown component. It works. It is also where most teams stop — and where most AI products start to feel limited.</p>
+<p>This article walks through the architecture we ended up with for the <strong>AI Analyst</strong> in Engage, and contrasts it with the more conventional <strong>Piper chatbot</strong> that lives next door in the same codebase. Both ship in the same product. They are wildly different inside.</p>
+<p>We will start from the naive baseline, identify the two failure modes that pushed us off it (noisy tool results and metadata bloat), and then introduce the three ideas that replaced them: <strong>just-bash with an in-memory filesystem</strong>, a <strong>SQL execution layer that mounts results as files</strong>, and a <strong>JSON renderer with a predefined component manifest</strong>.</p>
+<h4>1. The naive architecture: AI SDK + tools + markdown</h4>
+<p>The Piper chatbot is the textbook implementation. The server side is essentially a single call:</p>
+<pre>const stream = await streamText({
+  model: google(CHAT_MODEL),
+  system: buildSystemPrompt({ baseUrl, disabledFeatureIds }),
+  tools: assistantTools,
+  messages: modelMessages,
+  stopWhen: stepCountIs(20),
+});</pre>
+<p>This works great for <em>operational</em> assistants — “create an audience”, “show me the last failed delivery”, “explain what this attribute does”. The conversation is short, each tool returns a small, well-shaped object, and the markdown is the answer.</p>
+<p>An analyst is a different animal. Its tools return tables, not objects, and a model that politely pours fifty thousand rows of JSON into its own context has no room left to think.</p>
+<p><a href="/posts/ai-analyst-architecture/">Continue reading the full article →</a></p>`;
+
+const PTS = [
+  /* agents */
+  {id: 'mycroft', label: 'Mycroft', type: 'project', c: 'agents', meta: 'Swift · ★ 41 · open source', tags: 'agent ios swift self-modifying durable machines hands voice memory local phone',
+   html: `<p class="lead">A self-modifying, durable agent that lives on your iPhone. Brain on the phone, hands on your machines.</p>
+<p>Mycroft Holmes was the brother who stayed in his armchair while others did the legwork. This Mycroft sits in your pocket, and your Macs and Linux servers do the legwork.</p>
+<ul><li><strong>The agent lives on the phone.</strong> The loop, the conversation state and the agent's own source are on the iPhone. Every step is committed to durable storage, so a stopped run picks up where it was.</li>
+<li><strong>It changes itself.</strong> It edits its own behaviour and its own screen, keeps known-good generations, and can roll back.</li>
+<li><strong>It has hands.</strong> <code>hands</code> is a small daemon for macOS and Linux: files, a shell and supervised jobs that keep running when the phone goes offline. It can drive a Mac, and asks before anything risky.</li>
+<li><strong>One chat that never ends</strong>, kept fast by a memory tree of summaries. Voice in every thread.</li></ul>
+<p><a href="https://github.com/dontpanicv/mycroft">github.com/dontpanicv/mycroft</a></p>`},
+  {id: 'golem', label: 'Golem', type: 'project', c: 'agents', meta: 'TypeScript · open source', tags: 'agent family sqlite markdown self-hosted memory machines local typescript home',
+   html: `<p class="lead">Family AI assistant and second brain on our own machines. No cloud, no central server.</p>
+<p>In Prague legend, Rabbi Loew shaped the Golem from clay to serve and protect his community. This one is made from SQLite and Markdown.</p>
+<ul><li><strong>One assistant for the family.</strong> One server at home, one app for everybody: web, iPhone and Android.</li>
+<li><strong>It remembers.</strong> Every topic keeps a brief that Golem rewrites when a conversation goes quiet, and a learning loop keeps short, lasting facts.</li>
+<li><strong>It does real work</strong> on your own machines — and asks before it sends, buys or deletes anything.</li>
+<li><strong>Your data stays with you.</strong> One SQLite database, Markdown files, and a search index on the same box.</li></ul>
+<p><a href="https://github.com/dontpanicv/golem">github.com/dontpanicv/golem</a></p>`},
+  {id: 'shadow', label: 'Shadow', type: 'project', c: 'agents', meta: 'TypeScript · open source', tags: 'agent slack mail company sqlite markdown self-hosted memory typescript',
+   html: `<p class="lead">A shadow company for your team.</p>
+<p>Every employee gets a shadow: an agent that reads their Slack and mail, keeps track of what each conversation asks of them, and helps them do the work when they ask.</p>
+<ul><li><strong>It keeps track of what is asked of you</strong>, so you do not have to read every message to know what is happening.</li>
+<li><strong>It lives in Slack.</strong> Mention it in a channel and it answers in the thread, showing its work.</li>
+<li><strong>It stays quiet.</strong> It notifies you only when you must act, or when you asked.</li>
+<li><strong>It runs on your own server.</strong> One SQLite database and Markdown files, with nothing between your company and its data.</li></ul>
+<p><a href="https://github.com/dontpanicv/shadow">github.com/dontpanicv/shadow</a></p>`},
+  {id: 'agentic', label: 'agentic workflows', type: 'skill', c: 'agents', tags: 'agent workflows production prompting', html: `<p>Building agentic workflows and getting them into production for real customers — “in production, not just demos”.</p>`},
+  {id: 'local', label: 'local models', type: 'skill', c: 'agents', tags: 'local qwen models self-hosted', html: `<p>Running Qwen locally, because the most interesting question about a model is what it can do on hardware you own.</p>`},
+  {id: 'memory', label: 'memory trees', type: 'skill', c: 'agents', tags: 'memory summaries agent durable', html: `<p>An endless conversation stays fast when old messages fold into a tree of short summaries, and the agent zooms back in only when it needs the details. Mycroft, Golem and Shadow all work this way.</p>`},
+  {id: 'nocloud', label: 'no cloud in between', type: 'skill', c: 'agents', pull: ['data', .14], tags: 'self-hosted sqlite markdown local data', html: `<p>A recurring design choice: one server, one SQLite database, Markdown files. AI included — that you own, control and audit.</p>`},
+  /* data */
+  {id: 'meiro', label: 'Meiro', type: 'job', c: 'data', title: 'Meiro', meta: 'Brno · 2018 – now · co-founder', tags: 'cdp customer-data pipelines identity self-hosted production sql company',
+   html: `<p class="lead">Customer data infrastructure. AI included — that you own, control and audit.</p>
+<p><strong>Head of R&amp;D &amp; Co-Founder</strong>, 2024 – now. <strong>CTO &amp; Co-Founder</strong>, 2018 – 2024.</p>
+<p>I co-founded Meiro in 2018 and have owned its product architecture, development and implementations ever since. It taught me the domains: customer data infrastructure, identity resolution, real-time pipelines, and the edge cases that come with running a CDP for enterprise customers.</p>
+<p>The parts are <strong>Pipes</strong> (sources, events, identity, destinations), <strong>Engage</strong> (audiences, journeys, campaigns) and the <strong>AI Analyst</strong>. All of it can run inside your own infrastructure. <a href="https://meiro.io">meiro.io</a></p>`},
+  {id: 'pipes', label: 'Pipes', type: 'skill', c: 'data', tags: 'pipelines events sources identity customer-data', html: `<p>Meiro Pipes: the customer data infrastructure — sources, events, identity and destinations.</p>`},
+  {id: 'engage', label: 'Engage', type: 'skill', c: 'data', tags: 'audiences journeys customer-data cdp', html: `<p>Meiro Engage: audiences, journeys and campaigns on top of the data.</p>`},
+  {id: 'analyst', label: 'AI Analyst', type: 'project', c: 'data', pull: ['agents', .46], meta: 'part of Meiro Engage', tags: 'agent bash filesystem sql json analytics cdp',
+   html: `<p class="lead">An analytical agent built on bash, a mounted in-memory filesystem and a JSON renderer — instead of a tool-calling loop.</p>
+<p>The naive loop of SDK, tools and markdown runs out of room for analysis: tool results are noisy, and metadata bloats the context. So the Analyst gets a shell, SQL results mounted as files, and a renderer with a predefined component manifest.</p>
+<blockquote>Your AI doesn't need more tools. It needs fewer tools and a filesystem.</blockquote>`},
+  {id: 'keboola', label: 'Keboola', type: 'job', c: 'data', meta: '2015 – 2018 · partly from Bali', tags: 'etl integration pipelines data bali',
+   html: `<p><strong>Head Nerd / Solutions Architect</strong>, 2015 – 2018, partly from Bali, Indonesia.</p><p>Designed data integrations end to end and helped teams ship them, including the messy edge cases of moving and transforming data.</p>`},
+  {id: 'identity', label: 'identity resolution', type: 'skill', c: 'data', tags: 'identity customer-data pipelines', html: `<p>Working out which events, devices and records are the same person. Easy to describe; the edge cases are the job.</p>`},
+  {id: 'realtime', label: 'real-time pipelines', type: 'skill', c: 'data', tags: 'pipelines events production', html: `<p>Pipelines that have to be right while the data is still arriving.</p>`},
+  {id: 'sql', label: 'SQL & SQLite', type: 'skill', c: 'data', pull: ['systems', .14], tags: 'sql sqlite databases', html: `<p>The answer to a surprising number of architecture questions is still a database, and quite often a small one.</p>`},
+  /* systems */
+  {id: 'debug', label: 'debugging production', type: 'skill', c: 'systems', tags: 'production debugging systems', html: `<p>“Some of that I picked up out of curiosity, the rest by debugging production.”</p>`},
+  {id: 'db', label: 'databases', type: 'skill', c: 'systems', pull: ['data', .14], tags: 'databases sql systems', html: `<p>How databases actually work — one of the layers he wants to understand end to end.</p>`},
+  {id: 'os', label: 'operating systems', type: 'skill', c: 'systems', tags: 'os systems containers', html: `<p>How operating systems, programming languages and everything above them fit together.</p>`},
+  {id: 'proto', label: 'protocols', type: 'skill', c: 'systems', tags: 'protocols systems proxies', html: `<p>From protocols up: knowing what is really on the wire.</p>`},
+  {id: 'containers', label: 'containers & proxies', type: 'skill', c: 'systems', tags: 'containers proxies systems production', html: `<p>Containers, proxies, and the plumbing between a request and the code that answers it.</p>`},
+  {id: 'cpu', label: 'CPUs', type: 'skill', c: 'systems', tags: 'cpu systems hardware', html: `<p>“I want to understand systems end to end — how CPUs execute instructions…” It starts at the bottom.</p>`},
+  {id: 'machines', label: 'bender · glados · saturnin', type: 'place', c: 'systems', pull: ['agents', .16], tags: 'machines hardware home naming', html: `<p>His machines have names. You cannot swear properly at a hostname like srv-03.</p>`},
+  /* writing */
+  {id: 'post-analyst', label: 'Beyond the Tool-Calling Loop', type: 'post', c: 'writing', pull: ['data', .16], title: 'Beyond the Tool-Calling Loop: How We Built an AI Analyst with Bash, a Mounted Filesystem, and a JSON Renderer', meta: '2026-04-29 · article', tags: 'writing agent bash filesystem sql json analytics', html: ANALYST},
+  {id: 'post-codebases', label: 'Stop Letting AI Agents Guess', type: 'post', c: 'writing', title: 'Stop Letting AI Agents Guess Where Code Goes', meta: '2026-02-10 · article', tags: 'writing agent codebase architecture typescript',
+   html: `<p class="lead">A modular-monolith refactor designed for AI agents: a predictable module layout, centralized auth, and a strict <code>public.ts</code> boundary.</p>
+<p>An agent that has to guess where a file belongs will guess, confidently, and differently every time. Give every module the same shape and one public door, and the guessing stops: the agent finds the right place because there is only one right place to find.</p>
+<p><a href="/posts/ai-agents-codebases/">Read the full article →</a></p>`},
+  {id: 'post-codex', label: 'Claude Code vs Codex', type: 'post', c: 'writing', title: 'Claude Code vs Codex: Same Coding AI, Different People', meta: 'draft', tags: 'writing agent prompting coding',
+   html: `<p class="lead">Why the two aren't interchangeable: prompting style and tolerance for ambiguity shape the outcome.</p><p>They are colleagues with different temperaments. One wants the brief; the other wants to be left alone with the problem. Hand both the same sentence and you get two different afternoons.</p><p><em>Status: draft.</em></p>`},
+  {id: 'post-gaslight', label: 'Gaslighting Coding Agents', type: 'post', c: 'writing', title: 'Gaslighting Coding Agents for Better Security', meta: 'idea in the drawer', tags: 'writing agent security coding prompting',
+   html: `<p class="lead">Tell a coding agent, as a plain fact, that a pentester already got remote code execution — and let it work out how.</p><p>Instead of “find vulnerabilities”, the brief becomes “we already got popped; figure out how”. That gets around the nothing-is-wrong bias and forces end-to-end reasoning with concrete paths you can turn into test cases. Only ever in a sandbox.</p><p><em>Status: an idea with an outline.</em></p>`},
+  {id: 'note-trench', label: 'streamText() in a trench coat', type: 'note', c: 'writing', meta: 'note', tags: 'writing agent tools filesystem', html: `<blockquote>Most “AI agents” shipped in 2026 are a streamText() call in a trench coat.</blockquote><blockquote>Your AI doesn't need more tools. It needs fewer tools and a filesystem. Possibly also therapy, but we're starting with the filesystem.</blockquote>`},
+  {id: 'note-jevons', label: 'Jevons vs Engel', type: 'note', c: 'writing', title: 'Jevons paradox vs Engel\'s law', meta: 'note', tags: 'writing tokens economics', html: `<p>Everyone quotes Jevons: cheaper tokens, more use cases. But maybe token spend behaves like food spend — the absolute amount rises with income while its share falls. Worth checking before you build a thesis on it.</p>`},
+  {id: 'note-prompt', label: 'how you prompt still matters', type: 'note', c: 'writing', meta: 'note', tags: 'writing prompting creativity', html: `<blockquote>How you prompt still matters. Human creativity still beats AI. For now.</blockquote>`},
+  {id: 'explain', label: 'explaining things', type: 'skill', c: 'writing', tags: 'writing teaching explaining stage', html: `<p>He is the person who ends up explaining everything — to engineers, to customers, on stage when the occasion calls for it.</p><blockquote>Teaching is how I verify I actually understand something.</blockquote>`},
+  /* life */
+  {id: 'dontpanic', label: "Don't Panic", type: 'place', c: 'life', title: "Don't Panic, V!", tags: 'hitchhiker guide brand thumb', html: `<p>The name of this site, and sound operational advice. The thumb is for hitching a lift; the planet is wherever production happens to be tonight.</p>`},
+  {id: 'brno', label: 'Brno', type: 'place', c: 'life', tags: 'brno home czechia', html: `<p>Brno, Czechia. Home, and where Meiro is built.</p>`},
+  {id: 'vutfit', label: 'VUT FIT', type: 'place', c: 'life', pull: ['systems', .16], tags: 'brno education systems', html: `<p>Brno University of Technology, Faculty of Information Technology.</p>`},
+  {id: 'bali', label: 'Bali', type: 'place', c: 'life', pull: ['data', .16], tags: 'bali etl travel', html: `<p>2015 – 2018: part of the Keboola years were spent working from Bali, Indonesia.</p>`},
+  {id: 'contact', label: 'say hi', type: 'place', c: 'life', title: 'Contact', tags: 'email github brno contact',
+   html: `<p>Email works best. Bring a hard problem.</p><ul><li><a href="mailto:kurka.vojtech@gmail.com">kurka.vojtech@gmail.com</a></li><li><a href="https://github.com/dontpanicv">github.com/dontpanicv</a></li><li><a href="https://x.com/dontpanicv">x.com/dontpanicv</a></li><li><a href="https://www.linkedin.com/in/kurkavojtech/">linkedin.com/in/kurkavojtech</a></li></ul>`},
+  /* outliers */
+  {id: 'towel', label: 'towel', type: 'egg', c: null, at: [1.16, -1.0], tags: 'terrycloth', html: `<p class="lead">Outlier detected.</p><p>Cosine similarity to every other point: 0.00. It belongs to no cluster and explains nothing about the data.</p><p>It is, nonetheless, the single most useful item on this map. A person who knows where this point is can be trusted with production.</p>`},
+  {id: 'fortytwo', label: '42', type: 'egg', c: null, at: [-1.25, 1.08], hidden: true, title: '42', tags: 'answer', html: `<p class="lead">You asked the ultimate question. The nearest point was a very long way away.</p><p>Deep Thought embedded the question in seven and a half million dimensions and projected the answer down to one. No amount of dimensionality reduction makes it more helpful.</p><p>Mostly harmless.</p>`},
+];
+const BY = Object.fromEntries(PTS.map(p => [p.id, p]));
+PTS.forEach((p, i) => { p.tagset = new Set(p.tags.split(' ')); p.ph = i * 1.7; p.title ||= p.label; p.col = p.c ? CL[p.c].col : '#6b6f78'; });
+const cos = (a, b) => { let n = 0; a.tagset.forEach(t => b.tagset.has(t) && n++); return n / Math.sqrt(a.tagset.size * b.tagset.size); };
+PTS.forEach(p => { p.nn = PTS.filter(q => q !== p && !q.hidden).map(q => [q, cos(p, q)]).filter(x => x[1] > 0).sort((a, b) => b[1] - a[1]).slice(0, 4); });
+const visible = () => PTS.filter(p => !p.hidden);
+
+/* ---------- layout (also the "training") ---------- */
+function rng(a) { return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; }
+const SLOTS = [[-.74, .50], [.64, .54], [-.64, -.60], [.72, -.46], [0, 0]];
+function layout(seed) {
+  const r = rng(seed * 7919 + 1), keys = Object.keys(CL), order = [0, 1, 2, 3, 4];
+  let fx = 1, fy = 1;
+  if (seed) { for (let i = 4; i > 0; i--) { const j = Math.floor(r() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; } fx = r() < .5 ? -1 : 1; fy = r() < .5 ? -1 : 1; }
+  const ctr = {}, rot = {}, idx = {};
+  keys.forEach((k, i) => { ctr[k] = [SLOTS[order[i]][0] * fx, SLOTS[order[i]][1] * fy]; rot[k] = seed ? r() * 6.283 : .9 + i; idx[k] = 0; });
+  const out = {};
+  for (const p of PTS) {
+    if (p.at) { out[p.id] = [p.at[0] * fx, p.at[1] * fy]; continue; }
+    const i = idx[p.c]++, a = i * 2.39996 + rot[p.c], rad = (p.c === 'life' ? .1 : .135) * Math.sqrt(i + .3);
+    let x = ctr[p.c][0] + Math.cos(a) * rad * 1.15, y = ctr[p.c][1] + Math.sin(a) * rad;
+    if (p.pull) { const [k, t] = p.pull; x += (ctr[k][0] - x) * t; y += (ctr[k][1] - y) * t; }
+    out[p.id] = [x, y];
+  }
+  return out;
+}
+const L0 = layout(0); PTS.forEach(p => { [p.x, p.y] = L0[p.id]; });
+
+/* ---------- canvas ---------- */
+const cv = $('#cv'), ctx = cv.getContext('2d'), wrap = $('#wrap');
+let W = 0, H = 0, dpr = 1, view = {cx: 0, cy: 0, z: 300}, fitZ = 300, touched = false;
+let hover = null, sel = null, dim = null, temp = RM ? 0 : .15, revealed = false, onscreen = true;
+let tween = null, vtween = null, raf = 0, SP = {}, first = true;
+const FONT = '500 12px "JetBrains Mono", ui-monospace, Menlo, monospace';
+const PAT = {};
+function pattern(col) {
+  if (PAT[col]) return PAT[col];
+  const c = document.createElement('canvas'); c.width = c.height = 6; const x = c.getContext('2d');
+  x.fillStyle = col; x.globalAlpha = .3; x.fillRect(0, 0, 2, 2); x.fillRect(3, 3, 2, 2);
+  return PAT[col] = ctx.createPattern(c, 'repeat');
+}
+const sx = x => W / 2 + (x - view.cx) * view.z, sy = y => H / 2 - (y - view.cy) * view.z;
+function bounds() { const v = visible(); return [Math.min(...v.map(p => p.x)), Math.max(...v.map(p => p.x)), Math.min(...v.map(p => p.y)), Math.max(...v.map(p => p.y))]; }
+function fitView() {
+  const [x0, x1, y0, y1] = bounds(), small = W < 600, pl = small ? 30 : 60, pr = small ? 44 : 120, pt = small ? 44 : 78, pb = small ? 44 : 50;
+  const z = Math.min((W - pl - pr) / (x1 - x0), (H - pt - pb) / (y1 - y0)); fitZ = z;
+  return {cx: (x0 + x1) / 2 - (pl - pr) / 2 / z, cy: (y0 + y1) / 2 + (pt - pb) / 2 / z, z};
+}
+function resize() {
+  const r = wrap.getBoundingClientRect(); if (!r.width) return;
+  W = r.width; H = r.height; dpr = Math.min(devicePixelRatio || 1, 2);
+  cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+  const f = fitView(); if (!touched) view = f; need();
+  if (first) { first = false; const p = BY[sel]; if (p) { view = W < 600 ? {cx: p.x, cy: p.y, z: f.z * 2.2} : {cx: (p.x + f.cx) / 2, cy: (p.y + f.cy) / 2, z: f.z * 1.25}; touched = true; } }
+}
+function need() { if (!raf) raf = requestAnimationFrame(frame); }
+const ease = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+function frame(t) {
+  raf = 0; let moving = false;
+  if (tween) { const k = Math.min(1, (t - (tween.t0 ??= t)) / tween.dur), e = ease(k); for (const p of PTS) { const a = tween.from[p.id], b = tween.to[p.id]; p.x = a[0] + (b[0] - a[0]) * e; p.y = a[1] + (b[1] - a[1]) * e; } if (k < 1) moving = true; else { const d = tween.done; tween = null; d && d(); moving = !!tween; } }
+  if (vtween) { const k = Math.min(1, (t - (vtween.t0 ??= t)) / vtween.dur), e = ease(k), a = vtween.from, b = vtween.to; view = {cx: a.cx + (b.cx - a.cx) * e, cy: a.cy + (b.cy - a.cy) * e, z: a.z * Math.pow(b.z / a.z, e)}; if (k < 1) moving = true; else vtween = null; }
+  draw(t);
+  if (moving || (temp > 0 && onscreen && !document.hidden)) need();
+}
+function fly(to, dur = 750) { touched = true; if (RM) { view = to; return need(); } vtween = {from: {...view}, to, dur}; need(); }
+function morph(to, dur, done) { const from = {}; PTS.forEach(p => from[p.id] = [p.x, p.y]); if (RM) dur = 1; tween = {from, to, dur, done}; need(); }
+
+function hullOf(P) {
+  P = P.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]), lo = [], up = [];
+  for (const p of P) { while (lo.length > 1 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+  for (const p of P.slice().reverse()) { while (up.length > 1 && cr(up[up.length - 2], up[up.length - 1], p) <= 0) up.pop(); up.push(p); }
+  return lo.slice(0, -1).concat(up.slice(0, -1));
+}
+function scramble(s, n) { const r = rng(n), a = [...s]; for (let i = a.length - 1; i > 0; i--) { if (a[i] === ' ' ) continue; const j = Math.floor(r() * (i + 1)); if (a[j] !== ' ') [a[i], a[j]] = [a[j], a[i]]; } return a.join(''); }
+
+function draw(t) {
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, W, H);
+  const INK = '#15171c', PAPER = '#f5f2ea';
+  /* grid + ticks */
+  const step = view.z > 520 ? .125 : view.z > 150 ? .25 : .5;
+  ctx.lineWidth = 1; ctx.font = '400 10px "JetBrains Mono", ui-monospace, monospace'; ctx.textBaseline = 'alphabetic';
+  const x0 = view.cx - W / 2 / view.z, x1 = view.cx + W / 2 / view.z, y0 = view.cy - H / 2 / view.z, y1 = view.cy + H / 2 / view.z;
+  for (let g = Math.ceil(x0 / step) * step; g <= x1; g += step) { const X = Math.round(sx(g)) + .5; ctx.strokeStyle = Math.abs(g) < 1e-9 ? '#cfc9b6' : '#e7e2d4'; ctx.beginPath(); ctx.moveTo(X, 0); ctx.lineTo(X, H); ctx.stroke(); ctx.fillStyle = '#8b8676'; ctx.textAlign = 'center'; ctx.fillText(g.toFixed(step < .25 ? 3 : 2), X, H - 6); }
+  for (let g = Math.ceil(y0 / step) * step; g <= y1; g += step) { const Y = Math.round(sy(g)) + .5; ctx.strokeStyle = Math.abs(g) < 1e-9 ? '#cfc9b6' : '#e7e2d4'; ctx.beginPath(); ctx.moveTo(0, Y); ctx.lineTo(W, Y); ctx.stroke(); ctx.fillStyle = '#8b8676'; ctx.textAlign = 'right'; if (Y < H - 26) ctx.fillText(g.toFixed(step < .25 ? 3 : 2), W - 6, Y - 4); }
+  /* screen positions, with temperature jitter */
+  const amp = temp * 5; SP = {};
+  for (const p of PTS) { if (p.hidden) continue; SP[p.id] = [sx(p.x) + amp * Math.sin(t / 700 + p.ph), sy(p.y) + amp * Math.cos(t / 830 + p.ph * 1.7)]; }
+  /* cluster hulls */
+  ctx.font = '500 11px "JetBrains Mono", ui-monospace, monospace'; const hb = [];
+  for (const k in CL) {
+    const pts = PTS.filter(p => p.c === k && !(p.pull && p.pull[1] > .4)).map(p => SP[p.id]), c = [0, 0];
+    pts.forEach(p => { c[0] += p[0] / pts.length; c[1] += p[1] / pts.length; });
+    const pad = Math.max(26, Math.min(46, view.z * .1));
+    const V = hullOf(pts).map(p => { const dx = p[0] - c[0], dy = p[1] - c[1], l = Math.hypot(dx, dy) || 1; return [p[0] + dx / l * pad, p[1] + dy / l * pad]; });
+    if (V.length < 3) continue;
+    const n = V.length, at = i => V[(i + n) % n];
+    ctx.beginPath(); ctx.moveTo(V[0][0], V[0][1]);
+    for (let i = 0; i < n; i++) { const a = at(i - 1), b = at(i), d = at(i + 1), e = at(i + 2); ctx.bezierCurveTo(b[0] + (d[0] - a[0]) / 6, b[1] + (d[1] - a[1]) / 6, d[0] - (e[0] - b[0]) / 6, d[1] - (e[1] - b[1]) / 6, d[0], d[1]); }
+    ctx.closePath();
+    const off = dim && dim !== k; ctx.globalAlpha = off ? .25 : 1;
+    ctx.fillStyle = pattern(CL[k].col); ctx.fill();
+    ctx.setLineDash([2, 4]); ctx.strokeStyle = CL[k].col; ctx.lineWidth = 1.5; ctx.stroke(); ctx.setLineDash([]);
+    const top = Math.min(...V.map(v => v[1])), name = CL[k].name.toUpperCase(), tw = ctx.measureText(name).width + 12;
+    ctx.fillStyle = PAPER; ctx.fillRect(c[0] - tw / 2, top - 9, tw, 16); hb.push([c[0] - tw / 2, top - 9, tw, 16]);
+    ctx.fillStyle = CL[k].col; ctx.textAlign = 'center'; ctx.fillText(name, c[0], top + 3);
+    ctx.globalAlpha = 1;
+  }
+  /* neighbour links */
+  const act = BY[hover] || BY[sel], near = new Map();
+  if (act && SP[act.id]) {
+    const a = SP[act.id]; ctx.font = '500 11px "JetBrains Mono", ui-monospace, monospace';
+    for (const [q, s] of act.nn) { const b = SP[q.id]; if (!b) continue; near.set(q.id, s);
+      ctx.strokeStyle = INK; ctx.lineWidth = 1 + s * 1.5; ctx.setLineDash([5, 4]); ctx.globalAlpha = .35 + s * .55; ctx.beginPath(); ctx.moveTo(a[0], a[1]); ctx.lineTo(b[0], b[1]); ctx.stroke(); ctx.setLineDash([]); ctx.globalAlpha = 1;
+    }
+  }
+  /* points */
+  for (const p of PTS) {
+    const s = SP[p.id]; if (!s) continue;
+    const z = SIZE[p.type], on = p.id === sel, hv = p.id === hover, off = (dim && dim !== p.c) || (act && act !== p && !near.has(p.id));
+    const X = Math.round(s[0] - z / 2), Y = Math.round(s[1] - z / 2);
+    ctx.globalAlpha = off ? .28 : 1;
+    if (on || hv) { ctx.fillStyle = INK; ctx.fillRect(X - 4, Y - 4, z + 8, z + 8); ctx.fillStyle = '#FFD400'; ctx.fillRect(X - 2, Y - 2, z + 4, z + 4); }
+    ctx.fillStyle = p.col; ctx.fillRect(X, Y, z, z);
+    if (HOLLOW[p.type]) { const b = p.type === 'post' ? 3 : 2; ctx.fillStyle = PAPER; ctx.fillRect(X + b, Y + b, z - b * 2, z - b * 2); }
+    if (p.type === 'egg') { ctx.fillStyle = PAPER; ctx.fillRect(X + 3, Y + 3, 3, 3); }
+    ctx.globalAlpha = 1;
+  }
+  /* labels, greedy collision avoidance */
+  ctx.font = FONT; ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+  const boxes = Object.entries(SP).map(([id, q]) => { const z = SIZE[BY[id].type] + 4; return [q[0] - z / 2, q[1] - z / 2, z, z]; }).concat(hb), hot = temp >= 1.9, tick = Math.floor(t / 260);
+  const order = visible().slice().sort((a, b) => rank(b) - rank(a)), paint = [];
+  function rank(p) { return (p.id === sel ? 100 : 0) + (p.id === hover ? 90 : 0) + (near.has(p.id) ? 50 : 0) + PRIO[p.type]; }
+  for (const p of order) {
+    const s = SP[p.id], forced = p.id === sel || p.id === hover || near.has(p.id);
+    if (!forced && ((dim && dim !== p.c) || (act && PRIO[p.type] < 4) || (PRIO[p.type] < 2 && view.z < fitZ * 1.25 && W > 600) || (PRIO[p.type] < 4 && W <= 600 && view.z < fitZ * 1.6))) continue;
+    const txt = hot ? scramble(p.label, tick + p.ph * 10) : p.label, sc = near.has(p.id) ? near.get(p.id).toFixed(2) : '', lw = ctx.measureText(txt).width, w = lw + (sc ? ctx.measureText(sc).width + 14 : 0), z = SIZE[p.type], g = z / 2 + 7;
+    let b = null;
+    for (const c of [[s[0] + g, s[1] - 8], [s[0] - g - w, s[1] - 8], [s[0] - w / 2, s[1] - g - 14], [s[0] - w / 2, s[1] + g - 2]]) {
+      const bx = [c[0] - 3, c[1] - 1, w + 6, 18];
+      if (forced && !b) b = bx;
+      if (bx[0] > 2 && bx[0] + bx[2] < W - 2 && !boxes.some(o => bx[0] < o[0] + o[2] && bx[0] + bx[2] > o[0] && bx[1] < o[1] + o[3] && bx[1] + bx[3] > o[1])) { b = bx; break; }
+      if (!forced) b = null;
+    }
+    if (!b) continue; b[0] = Math.max(2, Math.min(W - b[2] - 2, b[0])); boxes.push(b);
+    paint.push([p, b, txt, sc, lw, w, forced]);
+  }
+  for (const [p, b, txt, sc, lw, w, forced] of paint.reverse()) {  // most important label painted last, on top
+    if (p.id === sel) { ctx.fillStyle = INK; ctx.fillRect(b[0], b[1], b[2], b[3]); ctx.fillStyle = '#FFD400'; }
+    else { ctx.fillStyle = 'rgba(245,242,234,.88)'; ctx.fillRect(b[0], b[1], b[2], b[3]); ctx.fillStyle = act && !forced ? '#8d8a80' : INK; }
+    ctx.fillText(txt, b[0] + 3, b[1] + 9.5);
+    if (sc) { ctx.fillStyle = INK; ctx.fillRect(b[0] + lw + 9, b[1], w - lw - 3, 18); ctx.fillStyle = '#FFD400'; ctx.fillText(sc, b[0] + lw + 13, b[1] + 9.5); }
+  }
+}
+
+/* ---------- interaction ---------- */
+const local = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+function hit(mx, my) { let best = null, bd = 20; for (const id in SP) { const d = Math.hypot(SP[id][0] - mx, SP[id][1] - my); if (d < bd) { bd = d; best = id; } } return best; }
+let drag = null; const ptrs = new Map();
+cv.addEventListener('pointerdown', e => {
+  ptrs.set(e.pointerId, [e.clientX, e.clientY]);
+  if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; drag = {pinch: Math.hypot(a[0] - b[0], a[1] - b[1]), z: view.z, moved: true}; return; }
+  try { cv.setPointerCapture(e.pointerId); } catch {}
+  drag = {x: e.clientX, y: e.clientY, cx: view.cx, cy: view.cy, moved: false};
+});
+cv.addEventListener('pointermove', e => {
+  if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, [e.clientX, e.clientY]);
+  if (drag && drag.pinch && ptrs.size === 2) { const [a, b] = [...ptrs.values()]; view.z = clampZ(drag.z * Math.hypot(a[0] - b[0], a[1] - b[1]) / drag.pinch); touched = true; return need(); }
+  if (drag && !drag.pinch) {
+    const dx = e.clientX - drag.x, dy = e.clientY - drag.y;
+    if (Math.abs(dx) + Math.abs(dy) > 5) { drag.moved = true; cv.classList.add('drag'); }
+    if (drag.moved) { view.cx = drag.cx - dx / view.z; view.cy = drag.cy + dy / view.z; touched = true; vtween = null; need(); }
+    return;
+  }
+  const h = hit(...local(e)); if (h !== hover) { hover = h; cv.style.cursor = h ? 'pointer' : ''; need(); }
+});
+const endPtr = e => { ptrs.delete(e.pointerId); cv.classList.remove('drag'); if (drag && !drag.moved && e.type === 'pointerup') { const h = hit(...local(e)); if (h) select(h, W < 600); } if (!ptrs.size) drag = null; };
+cv.addEventListener('pointerup', endPtr); cv.addEventListener('pointercancel', endPtr);
+cv.addEventListener('pointerleave', () => { if (hover) { hover = null; need(); } });
+cv.addEventListener('dblclick', e => zoomAt(...local(e), 1.6));
+cv.addEventListener('wheel', e => { if (!(e.ctrlKey || e.metaKey)) return; e.preventDefault(); zoomAt(...local(e), Math.exp(-e.deltaY * .012)); }, {passive: false});
+const clampZ = z => Math.max(fitZ * .5, Math.min(fitZ * 8, z));
+function zoomAt(mx, my, f) { const wx = view.cx + (mx - W / 2) / view.z, wy = view.cy - (my - H / 2) / view.z, z = clampZ(view.z * f); view = {z, cx: wx - (mx - W / 2) / z, cy: wy + (my - H / 2) / z}; touched = true; vtween = null; need(); }
+$('#zin').onclick = () => zoomAt(W / 2, H / 2, 1.4); $('#zout').onclick = () => zoomAt(W / 2, H / 2, 1 / 1.4);
+$('#zfit').onclick = () => { fly(fitView()); touched = false; setDim(null); };
+cv.addEventListener('keydown', e => {
+  const k = e.key, pan = 60 / view.z, v = visible();
+  if (k === 'ArrowLeft') view.cx -= pan; else if (k === 'ArrowRight') view.cx += pan; else if (k === 'ArrowUp') view.cy += pan; else if (k === 'ArrowDown') view.cy -= pan;
+  else if (k === '+' || k === '=') return zoomAt(W / 2, H / 2, 1.4); else if (k === '-') return zoomAt(W / 2, H / 2, 1 / 1.4);
+  else if (k === '0') return $('#zfit').click();
+  else if (k === 'n' || k === 'p') { const i = v.indexOf(BY[sel]); return select(v[(i + (k === 'n' ? 1 : v.length - 1) + (i < 0 && k === 'p' ? 1 : 0)) % v.length].id, true); }
+  else if (k === 'Escape') return select(null);
+  else return;
+  e.preventDefault(); touched = true; need();
+});
+
+function setDim(k) { dim = dim === k ? null : k; $$('#legend button').forEach(b => b.setAttribute('aria-pressed', b.dataset.k === dim)); need(); }
+function say(s) { $('#status').textContent = s; }
+function flyTo(p) { fly({cx: p.x, cy: p.y, z: Math.max(view.z, fitZ * (W < 600 ? 2.2 : 1.7))}); }
+function select(id, andFly, quiet) {
+  sel = id; const p = BY[id];
+  try { history.replaceState(null, '', id ? '#' + id : location.pathname + location.search); } catch {}
+  renderPanel(p); need();
+  if (p && andFly) flyTo(p);
+  if (p && !quiet && matchMedia('(max-width:900px)').matches) $('#panel').scrollIntoView({behavior: RM ? 'auto' : 'smooth', block: 'start'});
+}
+
+/* ---------- reader panel ---------- */
+const kind = p => `<p class="chip" style="--c:${p.col}"><i></i>${TYPE[p.type]}${p.c ? ' · ' + CL[p.c].name : ''}${p.meta ? ' · ' + p.meta : ''}</p>`;
+const INTRO = `
+<div class="hero">${LOGO}<div><h2>Don't Panic, V!</h2><p>Vojtěch “V” Kurka · Head of R&amp;D &amp; Co-Founder at Meiro · Brno, Czechia</p></div></div>
+<div class="prose">
+<p class="lead">I write code no one wants to read, but everyone needs to have. Data whatever.</p>
+<p>I like knowing how things work — from CPUs and protocols to databases and containers. Almost ten years of building a data platform in production taught me most of it. Now I spend that curiosity on AI: local models, agentic workflows, and getting it all into production for real customers.</p>
+<p>If I can't explain it to someone else, I don't understand it yet. So here is everything, embedded and projected onto a plane.</p>
+<h4>How to read the figure</h4>
+<ul>
+<li>Every square is something I built, wrote, did or care about. <strong>Solid</strong> squares are projects and work, <strong>hollow</strong> ones are writing, small ones are skills and places.</li>
+<li>Hover or tap a point to see its nearest neighbours. Click it to read it here.</li>
+<li>Type in <em>embed( )</em> to fly to the nearest thing. Not every point is on the map by default.</li>
+</ul>
+<h4>Start somewhere</h4>
+</div>
+<ul class="nn">${['mycroft', 'golem', 'shadow', 'meiro', 'post-analyst', 'contact'].map(id => `<li><button data-id="${id}" style="--c:${BY[id].col}"><i></i>${BY[id].label}<span>${TYPE[BY[id].type]}</span></button></li>`).join('')}</ul>`;
+function renderPanel(p) {
+  const el = $('#panel');
+  if (!p) { el.innerHTML = INTRO; el.scrollTop = 0; return; }
+  const nn = p.nn.length
+    ? `<ul class="nn">${p.nn.map(([q, s]) => `<li><button data-id="${q.id}" style="--c:${q.col}"><i></i>${q.label}<span>cos ${s.toFixed(2)}</span></button></li>`).join('')}</ul>`
+    : `<p class="coords">None. cos = 0.00 with every other point.</p>`;
+  el.innerHTML = `<button class="px back" data-id="">← intro</button>${kind(p)}<h2>${p.title}</h2><div class="prose">${p.html}<h4>Nearest neighbours</h4></div>${nn}<p class="coords">x = ${p.x.toFixed(3)}, y = ${p.y.toFixed(3)} · id: ${p.id}</p>`;
+  el.scrollTop = 0;
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-id]'); if (!b) return;
+  const id = b.dataset.id || null, inPage = !!b.closest('#page');
+  if (inPage) { document.body.classList.remove('listonly'); syncView(); scrollTo({top: 0, behavior: RM ? 'auto' : 'smooth'}); }
+  select(id, true, inPage);
+});
+
+/* ---------- search: "embedding" a query ---------- */
+function search(raw) {
+  const q = raw.trim().toLowerCase(); if (!q) return say('');
+  if (/^(42|forty.?two)$|meaning of life|ultimate question|the answer|life,? the universe/.test(q)) {
+    const p = BY.fortytwo; if (!revealed) { revealed = true; p.hidden = false; $('#nfig').textContent = 'n = ' + visible().length; }
+    select('fortytwo', true); return say('nearest: “42” · cos 1.00 · distance from everything else: considerable');
+  }
+  if (/ignore (all )?(the )?previous/.test(q)) return say('Prompt injection embedded. It landed nowhere near “instructions I follow”.');
+  if (/^(don'?t )?panic!?$/.test(q)) { select('dontpanic', true); return say("DON'T."); }
+  const toks = q.split(/[^a-z0-9]+/).filter(t => t.length > 1); let best = null, bs = 0;
+  for (const p of visible()) {
+    const lab = (p.label + ' ' + p.title).toLowerCase(), body = p.text ??= Object.assign(document.createElement('div'), {innerHTML: p.html}).textContent.toLowerCase();
+    let s = 0; for (const t of toks) { if (lab.includes(t)) s += 3; if ([...p.tagset].some(g => g.startsWith(t))) s += 2; if (body.includes(t)) s += 1; }
+    if (s > bs) { bs = s; best = p; }
+  }
+  if (!best) return say('No neighbours within ε. Try: agents, sqlite, golem, towel.');
+  select(best.id, true, true); say(`nearest: “${best.label}” · cos ${Math.min(.99, .52 + bs * .07).toFixed(2)}`);
+}
+let st = 0; $('#q').addEventListener('input', e => { clearTimeout(st); st = setTimeout(() => search(e.target.value), 320); });
+$('#search').addEventListener('submit', e => { e.preventDefault(); clearTimeout(st); search($('#q').value); });
+
+/* ---------- temperature, re-train, projection ---------- */
+$('#temp').addEventListener('input', e => {
+  temp = +e.target.value; $('#tempv').textContent = temp.toFixed(2);
+  say(temp >= 1.9 ? 'temperature 2.0 — the labels are now creative writing' : temp === 0 ? 'temperature 0 — deterministic, and slightly smug about it' : ''); need();
+});
+let epoch = 0, seed = 0;
+function retrain(msg) {
+  epoch++;
+  if (epoch % 5 === 0) {
+    say(`epoch ${epoch} · mode collapse. Every point is now the same point. Rolling back…`);
+    const all = {}; PTS.forEach(p => all[p.id] = [0, 0]);
+    return morph(all, 900, () => setTimeout(() => { morph(layout(++seed), 1100, settle); }, RM ? 0 : 900));
+  }
+  say(msg || `epoch ${epoch} · loss 0.6931 → 0.0${(42 + epoch * 7) % 90 + 10} · converged, allegedly`);
+  morph(layout(++seed), 1100, settle);
+}
+function settle() { fly(fitView(), 500); touched = false; }
+$('#retrain').onclick = () => retrain();
+const PROJ = ['UMAP', 'PCA', 'vibes', 't-SNE']; let pi = 0;
+$('#proj').onclick = () => { const n = PROJ[++pi % PROJ.length]; $('#proj').textContent = n; retrain(n === 'vibes' ? 'projection: vibes. Statistically indefensible, visually fine.' : `projection: ${n}. Same data, new opinions.`); };
+
+/* ---------- legend, list view, plain page ---------- */
+$('#legend').innerHTML = Object.entries(CL).map(([k, c]) => `<button data-k="${k}" style="--c:${c.col}" aria-pressed="false"><i></i>${c.name}<small>${PTS.filter(p => p.c === k).length}</small></button>`).join('');
+$('#legend').addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; const k = b.dataset.k; setDim(k); if (dim) { const m = PTS.filter(p => p.c === k), cx = m.reduce((a, p) => a + p.x, 0) / m.length, cy = m.reduce((a, p) => a + p.y, 0) / m.length; fly({cx, cy, z: fitZ * 1.8}); } });
+function syncView() { const on = document.body.classList.contains('listonly'); $('#viewbtn').textContent = on ? 'Map view' : 'List view'; $('#viewbtn').setAttribute('aria-pressed', on); if (!on) requestAnimationFrame(resize); }
+$('#viewbtn').onclick = () => { document.body.classList.toggle('listonly'); syncView(); scrollTo(0, 0); };
+
+const entry = id => { const p = BY[id]; return `<article class="entry" id="e-${id}"><aside>${TYPE[p.type]}${p.meta ? '<br>' + p.meta : ''}<br><button class="px" data-id="${id}">◎ locate on map</button></aside><div><h3>${p.title}</h3><div class="prose">${p.html}</div></div></article>`; };
+const chips = ids => `<ul class="chips">${ids.map(id => `<li><button data-id="${id}" style="--c:${BY[id].col}"><i></i>${BY[id].label}</button></li>`).join('')}</ul>`;
+$('#page').innerHTML = `
+<header><p class="chip"><i></i>The same content, without the dimensionality reduction</p>
+<div class="prose"><p class="lead">Vojtěch “V” Kurka. Head of R&amp;D &amp; Co-Founder at Meiro, in Brno. I want to understand systems end to end — how CPUs execute instructions, how operating systems, languages, databases, containers, proxies and protocols fit together. Some of that I picked up out of curiosity, the rest by debugging production.</p>
+<p>What I enjoy most is picking up new technology, understanding how it actually works, and figuring out how to apply it. Right now that means AI — running Qwen locally, building agentic workflows, designing self-learning data analysis tools. In production, not just demos.</p></div></header>
+<h2 class="sec">01 — Projects <span>4 points</span></h2>${['mycroft', 'golem', 'shadow', 'analyst'].map(entry).join('')}
+<h2 class="sec">02 — Writing <span>7 points</span></h2>${['post-analyst', 'post-codebases', 'post-codex', 'post-gaslight', 'note-trench', 'note-jevons', 'note-prompt'].map(entry).join('')}
+<h2 class="sec">03 — Work &amp; education <span>3 points</span></h2>${['meiro', 'keboola', 'vutfit'].map(entry).join('')}
+<article class="entry"><aside>Skills<br>the small squares</aside><div><h3>Things I know my way around</h3>${chips(PTS.filter(p => p.type === 'skill').map(p => p.id))}</div></article>
+<h2 class="sec">04 — Contact <span>1 point</span></h2>${entry('contact')}`;
+
+/* ---------- boot ---------- */
+$('#nfig').textContent = 'n = ' + visible().length;
+new ResizeObserver(resize).observe(wrap);
+new IntersectionObserver(es => { onscreen = es[0].isIntersecting; if (onscreen) need(); }).observe(wrap);
+document.addEventListener('visibilitychange', need);
+document.fonts && document.fonts.ready.then(need);
+const h0 = decodeURIComponent(location.hash.slice(1));
+if (h0 === 'list') { document.body.classList.add('listonly'); syncView(); }
+if (h0.startsWith('q=')) { $('#q').value = h0.slice(2); renderPanel(null); requestAnimationFrame(() => search(h0.slice(2))); }
+else select(BY[h0] && !BY[h0].hidden ? h0 : null, false, true);
+
+/* ---------- self-check: open with #selftest ---------- */
+if (h0 === 'selftest') requestAnimationFrame(() => {
+  const A = (c, m) => console.log((c ? 'PASS ' : 'FAIL ') + m);
+  A(PTS.every(p => isFinite(p.x) && isFinite(p.y)), 'layout gives every point a position');
+  A(BY.mycroft.nn.some(([q]) => q.id === 'golem') && BY.golem.nn[0][1] > .4, 'mycroft and golem are neighbours');
+  A(BY.towel.nn.length === 0, 'towel is similar to nothing');
+  A(Math.abs(cos(BY.golem, BY.golem) - 1) < 1e-9, 'cos(x, x) = 1');
+  A(hullOf([[0, 0], [2, 0], [1, 1], [1, .2], [0, 2], [2, 2]]).length === 4, 'convex hull drops interior points');
+  A(!SP.fortytwo, '42 is hidden'); search('meaning of life'); A(sel === 'fortytwo' && !BY.fortytwo.hidden, 'search reveals 42');
+  search('sqlite'); A(['golem', 'shadow', 'sql', 'nocloud'].includes(sel), 'search finds sqlite things: ' + sel);
+  search('zzzz'); A($('#status').textContent.startsWith('No neighbours'), 'no match message');
+  const l = layout(3); A(Object.keys(l).length === PTS.length && l.mycroft[0] !== L0.mycroft[0], 're-train moves points');
+  A($$('#page .entry').length === 16 && $('#page').textContent.includes('Vercel AI SDK'), 'plain page has all content');
+  select('post-analyst'); A($('#panel h2').textContent.startsWith('Beyond') && $$('#panel .nn button').length === 4, 'panel shows post + neighbours');
+});
+})();
+</script>
+
+<div id="vnav" style="position:fixed;right:12px;bottom:12px;z-index:99999;font:12px/1 ui-monospace,Menlo,monospace;background:#111;color:#fff;border-radius:999px;padding:8px 12px;display:flex;gap:10px;align-items:center;box-shadow:0 2px 10px rgba(0,0,0,.3)"><a href="15-observability.html" style="color:#FFD400;text-decoration:none" aria-label="Previous variation">‹</a><a href="index.html" style="color:#fff;text-decoration:none">16/20 · embedding-map</a><a href="17-big-thumb.html" style="color:#FFD400;text-decoration:none" aria-label="Next variation">›</a></div>
+</body>
+</html>

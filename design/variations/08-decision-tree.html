@@ -1,0 +1,564 @@
+<!doctype html>
+<!--
+08-decision-tree — "a decision model routes you"
+SIGNATURE: the page is a trained decision tree. Click (or Tab + Enter) a branch or a leaf: the path lights up, the
+  wires draw in, the content below is filtered to the predicted leaf and the breadcrumb shows the route.
+  "Skip the model" / "show everything" / "Retrain" always bring every section back. Nothing is locked.
+VISIBLE TOYS: System 1 / System 2 switch (System 2 deliberates theatrically before routing);
+  "Grow a random forest" (42 tiny trees vote, the majority routes you).
+EASTER EGGS
+  1. Type 42 anywhere            → Deep Thought counts down 7.5 million years, then routes you to the 42 leaf.
+  2. Type towel anywhere         → a towel leaf is grafted onto the "lost" branch.
+  3. Click `max_depth = 2` in the model card four times → the model overfits: an absurd depth-42 tree appears.
+  4. Double-click any branch or leaf → it is pruned and falls off the tree ("Retrain" grows it back).
+  5. Pick the "lost" branch three times → Marvin has an opinion in the 42 section.
+  6. Open the dev console        → the model card, as a log line.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Don't Panic, V! — a decision tree</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght,SOFT@9..144,400..800,60&family=JetBrains+Mono:wght@400;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#f3eee3; --card:#fbf8f1; --ink:#1d1b16; --muted:#665f51; --line:#c9bfaa; --hi:#FFD400;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --serif:"Source Serif 4",Georgia,"Times New Roman",serif;
+  --disp:"Fraunces",Georgia,serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--paper);color:var(--ink);font:18.5px/1.65 var(--serif);
+  background-image:radial-gradient(rgba(29,27,22,.09) 1px,transparent 1.2px);background-size:22px 22px;overflow-x:hidden}
+a{color:inherit;text-decoration-color:var(--hi);text-decoration-thickness:3px;text-underline-offset:3px}
+a:hover{background:var(--hi)}
+button{font:inherit;color:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--ink);outline-offset:3px;border-radius:6px}
+code,.mono{font-family:var(--mono);font-size:.78em}
+.wrap{max-width:1240px;margin:0 auto;padding:0 28px}
+
+/* top bar */
+.top{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;justify-content:space-between;padding:20px 0 8px}
+.brand{display:flex;align-items:center;gap:12px;font:700 22px/1 var(--disp);text-decoration:none}
+.brand:hover{background:none}
+.logo svg{width:44px;height:auto;display:block}
+.ctl{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center;font:13px/1 var(--mono)}
+.sw{display:inline-flex;border:1.5px solid var(--ink);border-radius:999px;overflow:hidden;background:var(--card)}
+.sw button{border:0;background:none;padding:9px 13px}
+.sw button[aria-pressed=true]{background:var(--ink);color:var(--paper)}
+.skip{padding:9px 13px;border:1.5px solid var(--ink);border-radius:999px;background:var(--hi);text-decoration:none;font-weight:600}
+.skip:hover{background:var(--ink);color:var(--paper)}
+
+/* intro */
+.intro{display:grid;grid-template-columns:1.25fr .9fr;gap:40px;align-items:start;padding:34px 0 26px}
+.intro>*,.col,.grid2>*{min-width:0}
+.who{font:13px/1.5 var(--mono);color:var(--muted);margin:0 0 14px;letter-spacing:.02em}
+h1{font:700 clamp(40px,6.2vw,84px)/.98 var(--disp);letter-spacing:-.025em;margin:0 0 20px}
+h1 mark{background:linear-gradient(transparent 62%,var(--hi) 62% 92%,transparent 92%);color:inherit}
+.lede{font-size:21px;line-height:1.55;max-width:34em;margin:0}
+.card{background:var(--card);border:1.5px solid var(--ink);border-radius:16px;box-shadow:4px 4px 0 var(--ink);padding:18px 20px}
+.model{font:13.5px/1.75 var(--mono)}
+.model pre{margin:0 0 12px;font:inherit;white-space:pre-wrap}
+.model .hp{border:0;background:none;padding:0;border-bottom:1.5px dotted var(--ink);font:inherit}
+.fi{list-style:none;margin:6px 0 14px;padding:0}
+.fi li{display:grid;grid-template-columns:11.5em 1fr 3em;gap:8px;align-items:center}
+.fi i{display:block;height:9px;background:var(--ink);border-radius:2px;width:calc(var(--v)*220%);max-width:100%;transform-origin:left;animation:grow .9s cubic-bezier(.2,.8,.2,1) both}
+.fi li:first-child i{background:var(--hi);outline:1.5px solid var(--ink)}
+@keyframes grow{from{transform:scaleX(0)}}
+.btns{display:flex;flex-wrap:wrap;gap:8px}
+.btn{border:1.5px solid var(--ink);background:var(--paper);border-radius:999px;padding:7px 13px;font:600 13px/1 var(--mono)}
+.btn:hover{background:var(--hi)}
+
+/* tree */
+.crumb{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font:13px/1.4 var(--mono);min-height:34px;margin:10px 0 4px}
+.crumb b{background:var(--hi);border:1.5px solid var(--ink);border-radius:999px;padding:3px 10px;font-weight:600}
+.crumb span{color:var(--muted)}
+.tree{position:relative;padding:14px 0 30px}
+#wires{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;overflow:visible}
+#wires path{fill:none;stroke:var(--line);stroke-width:2}
+#wires path.hi{stroke:var(--hi);stroke-width:9;stroke-linecap:round}
+#wires path.on{stroke:var(--ink);stroke-width:2.5}
+#wires circle{fill:var(--ink);opacity:.55}
+.rootrow{display:flex;justify-content:center;margin-bottom:92px;position:relative}
+.cols{display:grid;grid-template-columns:repeat(4,1fr);gap:26px;position:relative}
+.leaves{display:grid;gap:12px;margin:20px 0 0 38px}
+.node{position:relative;display:block;width:100%;text-align:left;background:var(--card);border:1.5px solid var(--ink);border-radius:16px;
+  padding:16px 16px 13px;box-shadow:3px 3px 0 var(--ink);transition:transform .18s,box-shadow .18s,opacity .3s,background .2s}
+button.node:hover{transform:translate(-2px,-2px);box-shadow:5px 5px 0 var(--ink)}
+.node strong{display:block;font:700 21px/1.15 var(--disp);letter-spacing:-.01em}
+.node code{display:block;margin-top:7px;color:var(--ink)}
+.node small{display:block;font:12px/1.5 var(--mono);color:var(--muted);margin-top:2px}
+.node .edge{position:absolute;top:-12px;left:14px;background:var(--paper);border:1.5px solid var(--ink);border-radius:999px;padding:3px 9px;font:600 11.5px/1.2 var(--mono);white-space:nowrap}
+.node.root{width:min(430px,100%);text-align:center;padding:20px 22px 16px;cursor:default}
+.node.root strong{font-size:30px}
+.node.leaf{border-radius:12px;padding:11px 13px 9px;box-shadow:2px 2px 0 var(--ink)}
+.node.leaf strong{font-size:17px}
+.node.on{background:var(--hi)}
+.node.on small{color:var(--ink)}
+.tree.chosen .node:not(.on):not(.root){opacity:.5}
+.tree.chosen .node:not(.on):hover{opacity:1}
+.node.pruned{animation:fall .7s cubic-bezier(.5,0,.9,.4) forwards;pointer-events:none}
+@keyframes fall{to{transform:translateY(160px) rotate(18deg);opacity:0;visibility:hidden}}
+.think{min-height:1.6em;font:12.5px/1.6 var(--mono);color:var(--ink);margin-top:8px}
+.think:not(:empty)::before{content:"";display:inline-block;width:9px;height:9px;margin-right:8px;border-radius:50%;background:var(--hi);outline:1.5px solid var(--ink);animation:pulse .6s infinite alternate}
+@keyframes pulse{to{transform:scale(.4)}}
+
+/* forest + overfit panels */
+.panel{margin:0 0 34px}
+.panel h3{font:700 24px/1.2 var(--disp);margin:0 0 4px}
+.panel p{margin:0 0 14px;max-width:62ch}
+.grove{display:grid;grid-template-columns:repeat(auto-fill,minmax(46px,1fr));gap:6px 4px;margin-bottom:14px}
+.mini{text-align:center;font:600 11px/1 var(--mono);opacity:.35;transition:opacity .2s}
+.mini svg{display:block;margin:0 auto 2px;width:38px;height:40px}
+.mini.voted{opacity:1}
+.tally{display:grid;gap:5px;font:13px/1.3 var(--mono);max-width:560px}
+.tally div{display:grid;grid-template-columns:11.5em 1fr 2em;gap:10px;align-items:center}
+.tally i{height:12px;background:var(--ink);border-radius:2px;width:calc(var(--n)/42*100%);transition:width .2s}
+.tally .win i{background:var(--hi);outline:1.5px solid var(--ink)}
+.of{position:relative;margin-left:calc(var(--d)*26px);padding:0 0 10px 22px;font:13.5px/1.5 var(--mono)}
+.of::before{content:"";position:absolute;left:4px;top:-10px;width:12px;height:22px;border-left:2px solid var(--ink);border-bottom:2px solid var(--ink);border-bottom-left-radius:9px}
+.of span{display:inline-block;background:var(--card);border:1.5px solid var(--ink);border-radius:10px;padding:5px 10px}
+.of.end span{background:var(--hi);font-weight:600}
+
+/* leaves = content */
+main{position:relative;padding:8px 0 80px}
+main::before{content:"";position:absolute;left:11px;top:0;bottom:60px;border-left:2px dashed var(--line)}
+.banner{position:sticky;top:8px;z-index:5;margin:0 0 26px 44px;display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;
+  background:var(--ink);color:var(--paper);border-radius:14px;padding:10px 16px;font:13px/1.5 var(--mono)}
+.banner button{border:1.5px solid var(--paper);background:none;color:var(--paper);border-radius:999px;padding:5px 11px;font:600 12.5px/1 var(--mono)}
+.banner button:hover{background:var(--hi);color:var(--ink);border-color:var(--hi)}
+section.leafsec{position:relative;padding:22px 0 46px 44px;scroll-margin-top:70px}
+section.leafsec::before{content:"";position:absolute;left:3px;top:38px;width:18px;height:18px;border-radius:50%;background:var(--hi);border:2px solid var(--ink)}
+.tag{display:inline-block;font:12.5px/1.4 var(--mono);border:1.5px solid var(--ink);border-radius:999px;padding:3px 11px;background:var(--card);margin-bottom:10px}
+h2{font:700 clamp(34px,4.4vw,56px)/1.02 var(--disp);letter-spacing:-.02em;margin:0 0 18px}
+h3{font:700 25px/1.2 var(--disp);margin:0 0 6px;letter-spacing:-.01em}
+.prose{max-width:66ch}
+.prose p{margin:0 0 1.05em}
+.aboutgrid{display:grid;grid-template-columns:minmax(0,66ch) minmax(0,1fr);gap:20px 64px;align-items:start}
+.aboutgrid .sub{margin-top:6px}
+.cv{list-style:none;padding:0;margin:12px 0 0;max-width:66ch;border-top:1.5px solid var(--ink)}
+.cv li{display:grid;grid-template-columns:7.5em 1fr;gap:16px;padding:13px 0;border-bottom:1.5px solid var(--line)}
+.cv time{font:13px/1.9 var(--mono);color:var(--muted)}
+.cv b{font-family:var(--disp);font-size:20px}
+.grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px;max-width:1080px}
+.proj{transition:background .3s,transform .3s}
+.proj p{margin:8px 0 10px;font-size:17.5px;line-height:1.6}
+.proj .tagline{font-style:italic;margin:0}
+.meta{font:12.5px/1.6 var(--mono);color:var(--muted)}
+.focus{background:#fff6c2;transform:translate(-2px,-2px);box-shadow:7px 7px 0 var(--ink)}
+.posts{list-style:none;margin:0;padding:0;max-width:74ch}
+.posts>li{padding:18px 0;border-bottom:1.5px solid var(--line)}
+.posts time,.posts .kind{font:12.5px/1.4 var(--mono);color:var(--muted)}
+.posts h3 a{text-decoration-thickness:2px}
+.posts p{margin:6px 0 0;max-width:66ch}
+details{margin-top:12px}
+summary{cursor:pointer;display:inline-block;list-style:none;font:600 13px/1 var(--mono);border:1.5px solid var(--ink);border-radius:999px;padding:8px 14px;background:var(--hi)}
+summary::-webkit-details-marker{display:none}
+details[open] summary{background:var(--card)}
+.reading{margin:22px 0 6px;padding:30px 34px 26px;background:var(--card);border:1.5px solid var(--ink);border-radius:16px;box-shadow:4px 4px 0 var(--ink);max-width:72ch}
+.reading h4{font:700 32px/1.12 var(--disp);letter-spacing:-.015em;margin:4px 0 18px}
+.reading p{font-size:19.5px;line-height:1.7;margin:0 0 1.1em;max-width:64ch}
+.reading p:first-of-type::first-letter{font:700 3.4em/.82 var(--disp);float:left;padding:6px 10px 0 0}
+blockquote{margin:16px 0 0;padding:4px 0 4px 18px;border-left:5px solid var(--hi);font:italic 21px/1.45 var(--serif);max-width:60ch}
+.sub{font:600 13px/1 var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:30px 0 4px}
+.links{list-style:none;padding:0;margin:0;display:grid;gap:10px;font:600 clamp(20px,2.6vw,30px)/1.25 var(--disp)}
+.links small{font:13px var(--mono);color:var(--muted);font-weight:400;margin-left:8px}
+.big42{font:800 clamp(110px,20vw,240px)/.8 var(--disp);letter-spacing:-.05em;margin:0 0 20px}
+.big42 span{background:linear-gradient(transparent 58%,var(--hi) 58% 90%,transparent 90%)}
+footer{font:13px/1.7 var(--mono);color:var(--muted);padding:0 0 90px 44px;max-width:76ch}
+#toast{position:fixed;left:16px;bottom:16px;z-index:99998;max-width:min(430px,calc(100vw - 32px));background:var(--ink);color:var(--paper);
+  font:13.5px/1.5 var(--mono);padding:11px 15px;border-radius:12px;border:1.5px solid var(--hi);transform:translateY(calc(100% + 40px));transition:transform .3s}
+#toast.show{transform:none}
+[hidden]{display:none!important}
+
+@media (max-width:899px){
+  body{font-size:17.5px}
+  .wrap{padding:0 18px}
+  .intro{grid-template-columns:1fr;gap:24px;padding-top:18px}
+  .lede{font-size:19px}
+  .rootrow{justify-content:flex-start;margin-bottom:30px}
+  .node.root{text-align:left}
+  .cols{grid-template-columns:1fr;gap:26px;margin-left:42px}
+  .leaves{margin-left:42px}
+  .grid2,.aboutgrid{grid-template-columns:minmax(0,1fr)}
+  .model pre{font-size:12.5px}
+  section.leafsec,footer{padding-left:34px}
+  .banner{margin-left:34px}
+  .cv li{grid-template-columns:1fr;gap:0}
+  .reading{padding:22px 18px 18px}
+  .reading p{font-size:18.5px}
+  .fi li{grid-template-columns:minmax(0,8.6em) minmax(0,1fr) 2.6em;font-size:12.5px}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  *,*::before{animation:none!important;transition:none!important}
+  #wires circle{display:none}
+}
+</style>
+</head>
+<body id="top">
+<div class="wrap">
+
+<header class="top">
+  <a class="brand" href="#top" aria-label="Don't Panic, V! — home"><span class="logo" aria-hidden="true"><svg xmlns="http://www.w3.org/2000/svg" xmlns:v="https://svgstorm.com" viewBox="451 289 696 666" width="696" height="666"> <g fill="#101418" fill-opacity="1.00" stroke="None"> <path d=" M 454.00 363.00 C 453.62 367.79 453.62 373.21 454.00 378.00 C 454.68 386.53 457.75 395.81 460.22 403.78 C 462.69 411.74 465.78 419.41 469.08 426.92 C 472.37 434.44 475.17 441.80 479.22 448.78 C 483.28 455.76 485.01 462.96 489.23 469.77 C 493.45 476.58 496.49 482.99 501.08 489.92 C 505.67 496.85 507.22 503.32 512.75 510.25 C 518.29 517.18 522.69 506.75 523.22 497.22 C 523.75 487.70 532.18 484.04 537.25 492.75 C 542.32 501.46 547.57 502.54 552.25 509.75 C 556.92 516.96 563.74 519.45 567.70 526.30 C 571.66 533.16 577.81 536.55 582.25 542.75 C 586.69 548.96 592.95 553.61 597.25 559.75 C 601.55 565.90 608.04 570.46 612.70 576.30 C 617.36 582.14 622.10 587.27 627.00 593.00 C 632.86 598.86 638.61 604.69 644.00 611.00 C 652.56 621.01 662.20 631.25 671.25 640.75 C 680.29 650.25 690.27 660.53 699.92 669.08 C 709.57 677.64 719.57 687.67 729.30 695.70 C 739.03 703.72 750.54 721.24 761.75 709.75 C 772.96 698.26 779.46 687.59 780.00 672.00 C 780.54 656.41 771.35 643.52 763.31 631.70 C 755.26 619.87 749.22 609.01 741.77 597.23 C 734.32 585.45 727.16 573.60 720.31 561.70 C 713.45 549.79 706.73 536.96 699.25 525.75 C 691.78 514.53 682.66 504.85 671.75 497.25 C 660.83 489.66 644.41 481.41 631.67 480.33 C 618.93 479.25 590.83 478.28 596.08 462.08 C 601.32 445.87 613.27 442.59 625.78 434.78 C 638.28 426.97 658.07 425.78 672.99 426.01 C 687.92 426.24 699.57 436.77 710.25 445.75 C 720.93 454.74 729.48 463.01 740.00 472.00 C 746.83 477.84 759.06 486.92 763.00 495.00 C 763.00 495.00 762.80 495.60 763.00 496.00 C 769.53 500.57 774.14 507.89 780.00 513.00 C 809.11 534.65 844.17 540.24 873.00 563.00 C 878.29 567.17 884.01 572.64 888.00 578.00 C 893.66 585.61 898.96 593.06 903.68 601.32 C 908.40 609.58 911.87 617.93 916.22 626.78 C 920.58 635.62 923.55 644.64 926.69 654.31 C 929.84 663.97 932.26 674.38 934.07 684.93 C 935.89 695.47 936.92 709.09 938.00 720.00 C 939.08 730.91 936.05 745.30 936.00 756.00 C 935.95 766.69 931.35 778.13 929.93 787.93 C 928.50 797.72 922.23 806.92 919.26 815.26 C 916.28 823.60 906.29 834.74 913.75 841.25 C 921.22 847.75 929.83 851.35 936.75 856.25 C 943.68 861.14 954.32 867.27 959.77 871.23 C 965.22 875.19 982.92 882.77 977.25 888.25 C 971.57 893.72 958.35 897.21 951.00 900.00 C 950.34 900.85 950.51 902.35 950.00 903.00 C 960.56 905.68 969.68 914.23 980.31 917.69 C 990.93 921.16 999.80 927.96 1010.77 931.23 C 1021.74 934.50 1031.97 940.73 1043.33 943.67 C 1054.69 946.62 1067.89 950.54 1080.00 951.00 C 1089.09 951.35 1098.94 951.80 1108.00 951.00 C 1134.34 948.69 1145.59 926.16 1144.00 902.00 C 1142.41 877.84 1129.31 861.87 1121.31 840.69 C 1113.30 819.52 1100.64 805.49 1094.33 783.67 C 1088.01 761.85 1107.33 742.26 1113.23 721.23 C 1119.13 700.20 1127.30 677.32 1130.02 654.02 C 1132.75 630.72 1133.91 599.30 1130.00 576.00 C 1126.09 552.70 1122.47 528.16 1114.99 507.01 C 1107.51 485.86 1100.40 466.90 1089.77 448.23 C 1079.14 429.56 1068.84 415.12 1054.75 399.25 C 1040.67 383.38 1027.69 370.68 1010.75 358.25 C 993.80 345.82 978.53 335.61 959.08 325.92 C 939.62 316.24 921.06 307.98 899.07 301.93 C 877.09 295.87 849.42 292.58 825.00 292.00 C 800.58 291.42 770.58 293.38 748.00 299.00 C 725.42 304.62 705.52 310.01 685.08 320.08 C 664.63 330.15 651.77 337.95 633.08 352.08 C 614.39 366.21 591.97 350.81 572.23 342.77 C 552.48 334.73 525.38 328.02 503.00 328.00 C 480.62 327.98 455.99 337.92 454.00 363.00 M 512.00 353.00 C 524.17 353.66 541.60 357.31 552.02 362.98 C 562.45 368.64 577.85 371.70 586.23 379.77 C 594.61 387.85 576.32 402.05 572.25 411.25 C 568.17 420.44 558.47 432.68 552.25 442.25 C 546.03 451.82 540.27 463.79 532.25 473.25 C 524.23 482.70 515.19 464.24 509.25 454.75 C 503.30 445.27 496.70 433.40 491.23 421.77 C 485.76 410.15 482.34 396.90 479.02 382.98 C 475.71 369.06 480.03 356.54 496.00 353.00 C 501.15 351.86 506.94 352.18 512.00 353.00 M 982.00 397.00 C 1000.26 400.43 1001.63 417.47 1016.25 428.75 C 1030.87 440.03 1021.11 458.83 1007.75 468.75 C 994.39 478.67 985.38 488.69 973.25 500.25 C 961.12 511.81 949.97 518.01 938.25 531.25 C 926.53 544.49 904.56 543.73 894.25 529.75 C 883.93 515.77 867.28 504.27 873.98 487.98 C 880.67 471.68 895.12 465.27 906.25 454.25 C 917.37 443.23 928.73 431.50 940.25 422.25 C 951.77 412.99 966.06 394.01 982.00 397.00 M 1054.00 549.00 C 1049.70 553.30 1045.61 558.06 1041.00 562.00 C 1029.56 571.78 1021.32 580.55 1009.25 590.25 C 997.17 599.95 991.18 611.02 974.99 615.99 C 958.80 620.97 947.78 602.84 937.23 592.77 C 926.68 582.70 920.40 563.84 932.75 552.75 C 945.10 541.67 952.40 532.64 964.25 523.25 C 976.09 513.85 984.41 503.59 995.75 494.75 C 1007.10 485.91 1019.11 470.12 1033.69 478.31 C 1048.28 486.49 1050.83 497.11 1061.77 510.23 C 1072.71 523.35 1066.84 538.03 1054.00 549.00 M 982.00 637.00 C 986.96 630.06 994.59 623.47 1001.00 618.00 C 1013.41 607.39 1023.09 592.96 1039.68 588.68 C 1056.27 584.39 1066.93 603.94 1079.25 615.75 C 1091.57 627.56 1089.47 649.00 1073.75 659.75 C 1058.04 670.51 1053.11 680.34 1037.77 691.77 C 1022.43 703.20 1005.03 697.05 994.23 681.77 C 983.43 666.49 968.75 655.55 982.00 637.00 M 1104.00 926.00 C 1099.42 927.47 1094.95 929.11 1090.00 927.00 C 1089.50 927.00 1088.50 927.01 1088.00 927.00 C 1076.28 926.70 1063.60 921.86 1052.92 918.08 C 1042.25 914.29 1031.55 909.67 1021.77 904.23 C 1011.99 898.79 1000.97 895.62 991.77 889.23 C 982.57 882.84 1000.60 872.97 1006.25 866.25 C 1011.90 859.53 1023.17 851.16 1029.75 844.75 C 1036.33 838.34 1045.99 829.38 1052.75 823.75 C 1059.51 818.12 1070.06 801.72 1077.75 810.25 C 1085.45 818.78 1089.41 827.59 1095.92 837.08 C 1102.42 846.58 1106.65 855.56 1111.31 866.69 C 1115.96 877.83 1119.64 887.51 1122.77 900.23 C 1125.90 912.95 1115.52 923.33 1104.00 926.00 Z"/> </g> <g fill="#101418" fill-opacity="1.00" stroke="None"> <path d=" M 504.00 594.00 C 504.00 604.00 504.00 614.00 504.00 624.00 C 504.00 636.33 505.77 650.28 507.02 661.98 C 508.28 673.67 512.29 683.53 514.67 694.33 C 517.05 705.13 520.28 715.12 524.07 724.93 C 527.86 734.73 531.42 743.80 536.03 752.97 C 540.64 762.15 544.78 770.34 550.08 778.92 C 555.38 787.49 560.12 794.68 566.08 802.92 C 572.05 811.16 577.50 816.58 584.25 824.75 C 590.99 832.92 597.41 836.49 604.77 845.23 C 612.13 853.97 622.16 853.46 627.75 843.75 C 633.34 834.05 642.04 832.02 647.70 823.70 C 653.36 815.37 660.71 810.14 666.75 802.75 C 672.80 795.37 680.44 789.00 685.75 781.75 C 691.07 774.50 701.22 768.47 705.25 761.25 C 709.28 754.02 723.92 747.29 723.00 739.00 C 722.58 737.02 713.76 729.63 712.00 728.00 C 702.62 720.60 694.24 711.90 685.00 704.00 C 680.34 700.02 676.26 695.26 672.00 691.00 C 643.78 664.60 617.43 636.60 591.75 608.25 C 566.08 579.90 543.67 547.23 518.00 520.00 C 508.94 543.13 504.00 568.43 504.00 594.00 Z"/> </g> <g fill="#101418" fill-opacity="1.00" stroke="None"> <path d=" M 943.00 904.00 C 944.31 902.97 945.36 902.08 945.00 900.00 C 935.80 895.76 925.38 885.25 916.08 881.92 C 906.78 878.59 896.13 864.08 886.08 866.08 C 876.02 868.08 869.77 881.66 860.75 886.75 C 851.73 891.85 845.15 902.16 836.25 908.25 C 827.35 914.33 812.15 928.30 829.00 928.00 C 845.85 927.70 857.38 926.70 872.00 925.00 C 886.61 923.30 896.60 919.58 909.77 916.77 C 922.94 913.96 930.40 907.03 943.00 904.00 Z"/> </g> </svg></span><span>Don't Panic, V!</span></a>
+  <div class="ctl">
+    <div class="sw" role="group" aria-label="How the model thinks">
+      <button id="s1" aria-pressed="true" title="Fast, intuitive, instant">System 1</button>
+      <button id="s2" aria-pressed="false" title="Slow, deliberate, theatrical">System 2</button>
+    </div>
+    <a class="skip" href="#leaves" id="skip">Skip the model — show everything ↓</a>
+  </div>
+</header>
+
+<div class="intro">
+  <div>
+    <p class="who">Vojtěch “V” Kurka · Head of R&amp;D &amp; Co-Founder at Meiro · Brno, Czechia</p>
+    <h1>This page is a <mark>decision&nbsp;tree.</mark></h1>
+    <p class="lede">It was trained on 1,337 imaginary visitors to guess why you came. Pick a branch and it routes you to the right leaf. Or ignore the model completely: every leaf is printed below either way, because a model that hides the data is just a bug with confidence.</p>
+  </div>
+  <aside class="card model" aria-label="Model card">
+<pre>DecisionTreeClassifier(
+  criterion    = "gini",
+  <button class="hp" id="depth" title="hyperparameter">max_depth    = <b id="depthv">2</b></button>,
+  random_state = 42
+)
+<b>feature_importances_</b></pre>
+    <ul class="fi">
+      <li>coffee <i style="--v:.42"></i> 0.42</li>
+      <li>curiosity <i style="--v:.27"></i> 0.27</li>
+      <li>debugging prod <i style="--v:.19"></i> 0.19</li>
+      <li>schooling <i style="--v:.12"></i> 0.12</li>
+      <li>hype <i style="--v:0"></i> 0.00</li>
+    </ul>
+    <div class="btns">
+      <button class="btn" id="growForest">Grow a random forest</button>
+      <button class="btn" id="retrain">↺ Retrain</button>
+    </div>
+  </aside>
+</div>
+
+<div class="crumb" id="crumb" aria-live="polite"><span>path: root — nothing chosen yet. Every leaf is visible below.</span></div>
+
+<div class="tree" id="tree" aria-label="Decision tree: choose why you are here"><svg id="wires" aria-hidden="true"></svg><div id="nodes"></div></div>
+
+<div class="panel card" id="overfit" hidden></div>
+<div class="panel card" id="forest" hidden aria-live="polite"></div>
+
+<main id="leaves">
+  <div class="banner" id="banner" hidden><span id="bannerText"></span><button id="showAll">Show every leaf</button></div>
+
+  <section class="leafsec" id="about" data-leaf="about">
+    <span class="tag">leaf · class = "about" · samples = 190 · confidence = 0.97</span>
+    <h2>About</h2>
+    <div class="aboutgrid">
+    <div class="prose">
+      <p>I like knowing how things work — from CPUs and protocols to databases and containers. Almost ten years of building a data platform in production taught me most of it. Now I spend that curiosity on AI: local models, agentic workflows, and getting it all into production for real customers. If I can't explain it to someone else, I don't understand it yet.</p>
+      <p>I want to understand systems end to end: how CPUs execute instructions, how operating systems, programming languages, databases, containers, proxies and protocols all fit together. Some of that I picked up out of curiosity, the rest by debugging production. The domains I know best are customer data infrastructure, identity resolution and real-time pipelines.</p>
+      <p>Right now that means running Qwen locally, building agentic workflows and designing self-learning data analysis tools — in production, not just demos. I'm also the person who ends up explaining everything, on stage when the occasion calls for it. Teaching is how I verify I actually understand something.</p>
+    </div>
+    <div>
+    <p class="sub">Training data</p>
+    <ul class="cv">
+      <li><time>2024 → now</time><div><b>Meiro</b> · Head of R&amp;D &amp; Co-Founder, Brno</div></li>
+      <li><time>2018 → 2024</time><div><b>Meiro</b> · CTO &amp; Co-Founder. Owned product architecture, development and implementations of the Meiro CDP.</div></li>
+      <li><time>2015 → 2018</time><div><b>Keboola</b> · Head Nerd / Solutions Architect. Designed data integrations end to end, partly from Bali, Indonesia.</div></li>
+      <li><time>before that</time><div><b>VUT FIT</b> · Brno University of Technology, Faculty of Information Technology.</div></li>
+    </ul>
+    </div>
+    </div>
+  </section>
+
+  <section class="leafsec" id="contact" data-leaf="contact">
+    <span class="tag">leaf · class = "contact" · samples = 122 · confidence = 0.99</span>
+    <h2>Contact</h2>
+    <ul class="links">
+      <li><a href="mailto:kurka.vojtech@gmail.com">kurka.vojtech@gmail.com</a><small>email</small></li>
+      <li><a href="https://github.com/dontpanicv">github.com/dontpanicv</a><small>code</small></li>
+      <li><a href="https://x.com/dontpanicv">x.com/dontpanicv</a><small>short opinions</small></li>
+      <li><a href="https://www.linkedin.com/in/kurkavojtech/">linkedin.com/in/kurkavojtech</a><small>long opinions</small></li>
+    </ul>
+  </section>
+
+  <section class="leafsec" id="projects" data-leaf="projects">
+    <span class="tag">leaf · class = "projects" · samples = 540 · confidence = 0.91</span>
+    <h2>Projects</h2>
+    <div class="grid2">
+      <article class="card proj" id="p-mycroft">
+        <span class="meta">runs_on = "phone" · Swift · ★ 41</span>
+        <h3><a href="https://github.com/dontpanicv/mycroft">Mycroft</a></h3>
+        <p class="tagline">A self-modifying, durable agent that lives on your iPhone. Brain on the phone, hands on your machines.</p>
+        <p>The agent loop, its state and its own source code live on the phone. It edits its own behaviour and its own screen, keeps known-good generations and can roll back. <code>hands</code> is a small daemon for macOS and Linux that gives it files, a shell and supervised jobs; it also drives a Mac. Voice in every thread, and one infinite chat with a memory tree.</p>
+        <span class="meta">Named after Mycroft Holmes, the brother who stayed in his armchair.</span>
+      </article>
+      <article class="card proj" id="p-golem">
+        <span class="meta">runs_on = "home server" · TypeScript</span>
+        <h3><a href="https://github.com/dontpanicv/golem">Golem</a></h3>
+        <p class="tagline">Family AI assistant and second brain on our own machines. No cloud, no central server.</p>
+        <p>One server at home, one app for the whole family on the web, iPhone and Android. It remembers — topic briefs, learned facts — and does real work on your machines. It asks before it sends, buys or deletes.</p>
+        <span class="meta">In Prague legend, Rabbi Loew shaped the Golem from clay. This one is made from SQLite and Markdown.</span>
+      </article>
+      <article class="card proj" id="p-shadow">
+        <span class="meta">runs_on = "company server" · TypeScript</span>
+        <h3><a href="https://github.com/dontpanicv/shadow">Shadow</a></h3>
+        <p class="tagline">A shadow company for your team.</p>
+        <p>Every employee gets a shadow: an agent that reads their Slack and mail, tracks what each conversation asks of them, and helps do the work when asked. It lives in Slack, stays quiet, and runs on your own server: one SQLite database and Markdown files.</p>
+        <span class="meta">It notifies you only when you must act.</span>
+      </article>
+      <article class="card proj" id="p-meiro">
+        <span class="meta">runs_on = "production" · day job since 2018</span>
+        <h3><a href="https://meiro.io">Meiro</a></h3>
+        <p class="tagline">Customer data infrastructure, with AI included, that you own, control and audit.</p>
+        <p>Pipes handles sources, events, identity and destinations. Engage handles audiences, journeys and campaigns. The AI Analyst is an analytical agent built on bash, a mounted in-memory filesystem and a JSON renderer instead of a tool-calling loop. All of it is self-hostable.</p>
+        <span class="meta">Co-founded it. Still debugging it.</span>
+      </article>
+    </div>
+  </section>
+
+  <section class="leafsec" id="writing" data-leaf="writing">
+    <span class="tag">leaf · class = "writing" · samples = 398 · confidence = 0.89</span>
+    <h2>Writing</h2>
+    <div id="w-published">
+      <p class="sub">published = true</p>
+      <ul class="posts">
+        <li>
+          <time datetime="2026-04-29">2026-04-29</time>
+          <h3><a href="https://dontpanicv.com/posts/ai-analyst-architecture/">Beyond the Tool-Calling Loop: How We Built an AI Analyst with Bash, a Mounted Filesystem, and a JSON Renderer</a></h3>
+          <p>Why the naive AI SDK + tools + markdown loop runs out of room for analytical agents, and the three ideas that replaced it.</p>
+          <details id="read">
+            <summary>Read an excerpt here</summary>
+            <article class="reading">
+              <span class="meta">2026-04-29 · reading view</span>
+              <h4>Beyond the Tool-Calling Loop</h4>
+              <p>Most AI features built today follow the same recipe: take the Vercel AI SDK, register a handful of tools, write a system prompt, and stream the result into a markdown component. It works. It is also where most teams stop — and where most AI products start to feel limited.</p>
+              <p>This article walks through the architecture we ended up with for the AI Analyst in Engage, and contrasts it with the more conventional Piper chatbot that lives next door in the same codebase. Both ship in the same product. They are wildly different inside.</p>
+              <p>The textbook recipe works great for operational assistants — “create an audience”, “show me the last failed delivery”. The conversation is short, each tool returns a small, well-shaped object, and the markdown is the answer. It stops working the moment the model needs to think with data.</p>
+              <p>The first wall you hit is large tool outputs. Whatever the tool returns goes straight into the model's context. A query that returns 50k rows is now 50k rows of JSON sitting in the conversation, on every subsequent turn, paid for in tokens, and pushing earlier reasoning out of the window. You can paginate. You can truncate. You can summarize. All of these are coping mechanisms.</p>
+              <p>The second wall is subtler and arrives earlier: metadata bloat. To answer almost any analytical question the model needs to know what exists, and one inventory tool per kind of thing fills the context before the first question is asked. Three ideas replaced the loop: just-bash with an in-memory filesystem, a SQL execution layer that mounts results as files, and a JSON renderer with a predefined component manifest.</p>
+              <p><a href="https://dontpanicv.com/posts/ai-analyst-architecture/">Continue reading the full article →</a></p>
+            </article>
+          </details>
+        </li>
+        <li>
+          <time datetime="2026-02-10">2026-02-10</time>
+          <h3><a href="https://dontpanicv.com/posts/ai-agents-codebases/">Stop Letting AI Agents Guess Where Code Goes</a></h3>
+          <p>A modular-monolith refactor designed for AI agents: predictable module layout, centralized auth, and a strict <code>public.ts</code> boundary.</p>
+        </li>
+      </ul>
+    </div>
+    <div id="w-drafts">
+      <p class="sub">published = false</p>
+      <ul class="posts">
+        <li><span class="kind">draft</span>
+          <h3>Claude Code vs Codex: Same Coding AI, Different People</h3>
+          <p>Why the two aren't interchangeable: prompting style and ambiguity tolerance shape the outcome.</p></li>
+        <li><span class="kind">idea in the drawer</span>
+          <h3>Gaslighting Coding Agents for Better Security</h3>
+          <p>Tell an agent, as fact, that a pentester already got RCE, and let it work out how.</p></li>
+      </ul>
+      <p class="sub">short notes</p>
+      <blockquote>Most “AI agents” shipped in 2026 are a streamText() call in a trench coat.</blockquote>
+      <blockquote>Your AI doesn't need more tools. It needs fewer tools and a filesystem. Possibly also therapy, but we're starting with the filesystem.</blockquote>
+      <blockquote>How you prompt still matters. Human creativity still beats AI. For now.</blockquote>
+    </div>
+  </section>
+
+  <section class="leafsec" id="fortytwo" data-leaf="fortytwo">
+    <span class="tag">leaf · class = "lost" · samples = 87 · confidence = 0.42</span>
+    <p class="big42" aria-hidden="true"><span>42</span></p>
+    <h2>The model has no idea why you are here.</h2>
+    <div class="prose">
+      <p>That makes two of us, and it is fine. A confidence of 0.42 is the model's polite way of shrugging. Some mostly harmless suggestions:</p>
+      <p><a href="#p-mycroft">Start with Mycroft</a>, an agent that lives on a phone and rewrites itself. Or <a href="#read">read the one about giving an AI a filesystem</a> instead of more tools. Or simply <a href="#contact">say hello</a>.</p>
+      <p id="deep" hidden><b>Deep Thought finished early.</b> The answer is 42. It would like to point out, again, that nobody trained it on the question.</p>
+      <p id="marvin" hidden><i>Third visit to this leaf.</i> “Brain the size of a planet, and they have me classifying visitors.” — the model, off the record.</p>
+    </div>
+  </section>
+</main>
+
+<footer>No visitors were tracked to train this model. The 1,337 samples are imaginary; you are the only real one, and you leave no trace. <span id="acc">Train accuracy 0.93 · test accuracy: you tell me.</span></footer>
+</div>
+
+<div id="toast" role="status"></div>
+
+<script>
+(()=>{
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const RM=matchMedia('(prefers-reduced-motion: reduce)').matches;
+const WIDE=matchMedia('(min-width: 900px)');
+const T={id:'root',title:'Why are you here?',rule:'split on: intent',samples:1337,kids:[
+  {id:'work',edge:'to hire or collaborate',title:'Work with V',rule:'intent = "work"',samples:312,conf:.93,show:['about','contact'],kids:[
+    {id:'who',title:'Who is this?',rule:'needs = "context"',samples:190,conf:.97,show:['about']},
+    {id:'inbox',title:'Just the address',rule:'needs = "inbox"',samples:122,conf:.99,show:['contact']}]},
+  {id:'projects',edge:'curious about the projects',title:'See what he builds',rule:'intent = "projects"',samples:540,conf:.91,show:['projects'],kids:[
+    {id:'mycroft',title:'Mycroft',rule:'runs_on = "phone"',samples:201,conf:.94,show:['projects'],focus:'p-mycroft'},
+    {id:'golem',title:'Golem',rule:'runs_on = "home"',samples:142,conf:.92,show:['projects'],focus:'p-golem'},
+    {id:'shadow',title:'Shadow',rule:'runs_on = "company"',samples:118,conf:.9,show:['projects'],focus:'p-shadow'},
+    {id:'meiro',title:'Meiro',rule:'runs_on = "production"',samples:79,conf:.88,show:['projects'],focus:'p-meiro'}]},
+  {id:'read',edge:'here to read',title:'Read something',rule:'intent = "read"',samples:398,conf:.89,show:['writing'],kids:[
+    {id:'published',title:'Finished articles',rule:'published = true',samples:287,conf:.96,show:['writing'],focus:'w-published'},
+    {id:'drafts',title:'Drafts & notes',rule:'published = false',samples:111,conf:.71,show:['writing'],focus:'w-drafts'}]},
+  {id:'lost',edge:'honestly, lost',title:'No idea',rule:'intent = NaN',samples:87,conf:.42,show:['fortytwo'],kids:[
+    {id:'answer',title:'42',rule:'question = undefined',samples:87,conf:.42,show:['fortytwo']}]}
+]};
+const S={path:[],pruned:new Set(),sys2:false,busy:false,lost:0,tk:0};
+const find=(id,n=T,trail=[])=>{const t=[...trail,n];if(n.id===id)return t;for(const k of n.kids||[]){const r=find(id,k,t);if(r)return r}return null};
+
+/* ---------- render ---------- */
+function nodeHTML(n,cls){
+  const stats=`samples = <b data-s="${n.id}">${n.samples}</b> · confidence = ${n.conf.toFixed(2)}`;
+  return `<button class="node ${cls}${S.pruned.has(n.id)?' pruned':''}" id="n-${n.id}" data-id="${n.id}">${n.edge?`<span class="edge">${n.edge}</span>`:''}<strong>${n.title}</strong><code>${n.rule}</code><small>${stats}</small></button>`;
+}
+function render(){
+  $('#nodes').innerHTML=`<div class="rootrow"><div class="node root" id="n-root"><strong>${T.title}</strong><code>${T.rule}</code>
+    <small>gini = 0.69 · samples = <b data-s="root">${T.samples}</b> · value = [${T.kids.map(k=>k.samples).join(', ')}]</small><div class="think" id="think" aria-live="polite"></div></div></div>
+    <div class="cols">${T.kids.map(b=>`<div class="col">${nodeHTML(b,'branch')}<div class="leaves">${b.kids.map(l=>nodeHTML(l,'leaf')).join('')}</div></div>`).join('')}</div>`;
+  paint(false);
+}
+const box=(el,o)=>{const r=el.getBoundingClientRect();return{l:r.left-o.left,t:r.top-o.top,b:r.bottom-o.top,cx:r.left-o.left+r.width/2,cy:r.top-o.top+r.height/2}};
+function wires(animate){
+  const tree=$('#tree'),o=tree.getBoundingClientRect(),wide=WIDE.matches,out=[],on=new Set(S.path);
+  const edge=(p,c,curve)=>{
+    if(S.pruned.has(c.id))return;
+    const a=box($('#n-'+p.id),o),b=box($('#n-'+c.id),o);let d;
+    if(curve){const m=(a.b+b.t)/2;d=`M${a.cx},${a.b} C${a.cx},${m} ${b.cx},${m} ${b.cx},${b.t}`}
+    else{const x=a.l+20,r=10;d=`M${x},${a.b} V${b.cy-r} Q${x},${b.cy} ${x+r},${b.cy} H${b.l}`}
+    const live=on.has(c.id);
+    if(live)out.push(`<path class="hi" d="${d}"/>`);
+    out.push(`<path id="e-${c.id}" class="${live?'on':''}" d="${d}"/>`);
+    if(!RM)for(let i=0,n=Math.max(1,Math.round(c.samples/150));i<n;i++){const dur=(3.5+((c.samples*7+i*13)%30)/10).toFixed(1);
+      out.push(`<circle r="3"><animateMotion dur="${dur}s" begin="-${(i*dur/n).toFixed(2)}s" repeatCount="indefinite"><mpath href="#e-${c.id}"/></animateMotion></circle>`)}
+  };
+  T.kids.forEach(b=>{edge(T,b,wide);b.kids.forEach(l=>edge(b,l,false))});
+  $('#wires').innerHTML=out.join('');
+  if(animate&&!RM)$$('#wires path.on, #wires path.hi').forEach(p=>{const len=p.getTotalLength();
+    p.style.strokeDasharray=len;p.animate([{strokeDashoffset:len},{strokeDashoffset:0}],{duration:520,easing:'ease-out',fill:'backwards',
+      delay:S.path.indexOf((p.id||p.nextElementSibling.id).slice(2))>1?420:0}).onfinish=()=>p.style.strokeDasharray=''});
+}
+function paint(animate){
+  const on=new Set(S.path),chosen=S.path.length>1;
+  $$('.node').forEach(n=>n.classList.toggle('on',on.has(n.dataset.id)));
+  $('#tree').classList.toggle('chosen',chosen);
+  const leaf=chosen?S.path[S.path.length-1]:null;
+  $('#crumb').innerHTML=chosen?S.path.map(n=>`<b>${n===T.id?'root':find(n).pop().title}</b>`).join('<span>→</span>')+`<span>· predicted with confidence ${find(leaf).pop().conf.toFixed(2)}</span>`
+    :'<span>path: root — nothing chosen yet. Every leaf is visible below.</span>';
+  const node=leaf&&find(leaf).pop();
+  $$('section[data-leaf]').forEach(s=>s.hidden=chosen&&!node.show.includes(s.dataset.leaf));
+  $$('.focus').forEach(e=>e.classList.remove('focus'));
+  if(node&&node.focus)document.getElementById(node.focus).classList.add('focus');
+  $('#banner').hidden=!chosen;
+  if(chosen)$('#bannerText').textContent=`prediction: class = "${node.show.join('" + "')}" · confidence ${node.conf.toFixed(2)} · other leaves hidden`;
+  wires(animate);
+}
+function land(node){
+  const el=document.getElementById(node.focus||node.show[0]);
+  setTimeout(()=>el.scrollIntoView({behavior:RM?'auto':'smooth',block:'start'}),RM?0:900);
+}
+const THOUGHTS=['Considering priors…','Checking whether you look like a recruiter…','Weighing 1,337 imaginary visitors…','Asking Deep Thought. ETA: 7.5 million years…','Skipping that. Splitting on intent.'];
+function think(lines,step,done){
+  if(RM){done();return}
+  S.busy=true;let i=0;const el=$('#think'),tk=++S.tk;
+  const tick=()=>{if(tk!==S.tk)return;if(i<lines.length){el.textContent=lines[i++];setTimeout(tick,step)}else{el.textContent='';S.busy=false;done()}};tick();
+}
+function choose(id,force){
+  if(S.busy)return;
+  const trail=find(id);if(!trail)return;
+  const go=()=>{
+    S.path=trail.map(n=>n.id);
+    trail.forEach(n=>{n.samples++;$$(`[data-s="${n.id}"]`).forEach(b=>b.textContent=n.samples)});
+    if(trail.some(n=>n.id==='lost')&&++S.lost>=3)$('#marvin').hidden=false;
+    paint(true);land(trail[trail.length-1]);
+  };
+  S.sys2&&!force?think(THOUGHTS,480,go):go();
+}
+function reset(scroll){
+  S.path=[];S.pruned.clear();render();
+  if(scroll)$('#leaves').scrollIntoView({behavior:RM?'auto':'smooth'});
+}
+let toastT;function toast(msg){const t=$('#toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove('show'),4200)}
+
+/* ---------- events ---------- */
+$('#nodes').addEventListener('click',e=>{const n=e.target.closest('button.node');if(n)choose(n.dataset.id)});
+$('#nodes').addEventListener('dblclick',e=>{            // egg 4: pruning
+  const n=e.target.closest('button.node');if(!n)return;
+  S.pruned.add(n.dataset.id);(find(n.dataset.id).pop().kids||[]).forEach(k=>S.pruned.add(k.id));
+  S.path=[];S.busy=false;S.tk++;render();
+  toast(`Pruned "${n.querySelector('strong').textContent}". Cost-complexity alpha = 0.042. Its content is still below — pruning a tree deletes no data. "Retrain" grows it back.`);
+});
+$('#skip').addEventListener('click',e=>{e.preventDefault();reset(true)});
+$('#showAll').addEventListener('click',()=>reset(false));
+$('#retrain').addEventListener('click',()=>{reset(false);$('#forest').hidden=$('#overfit').hidden=true;depth=2;$('#depthv').textContent=2;toast('Retrained from scratch. Same data, same tree: random_state = 42.')});
+const setSys=v=>{S.sys2=v;$('#s1').setAttribute('aria-pressed',!v);$('#s2').setAttribute('aria-pressed',v);
+  toast(v?'System 2: slow, deliberate, slightly dramatic. The model will now think before it routes you.':'System 1: fast and intuitive. Answers before you finish clicking.')};
+$('#s1').addEventListener('click',()=>setSys(false));$('#s2').addEventListener('click',()=>setSys(true));
+
+/* egg 3: overfit */
+let depth=2;
+$('#depth').addEventListener('click',()=>{
+  depth++;
+  if(depth<6){$('#depthv').textContent=depth;toast(depth<5?`max_depth = ${depth}. Validation score unchanged. Surely one more level will help.`:'max_depth = 5. Train accuracy is climbing suspiciously. One more?');return}
+  $('#depthv').textContent=42;
+  const q=['has_towel ≤ 0.5','coffee_today > 3','uses_tabs = true','screen_width = 1440 and it_is_tuesday','has_said("works on my machine") = true','mouse_moved_left_at = 12:04:07','is_it_dns = true'];
+  $('#overfit').innerHTML=`<h3>Congratulations, the model is overfit.</h3><p>At depth 42 it has memorised every training visitor individually. It is perfect on people it has met and useless on everyone else — the definition of overfitting, and of a fair share of personalisation demos.</p>`
+    +q.map((r,i)=>`<div class="of" style="--d:${i}"><span>${r}</span></div>`).join('')
+    +`<div class="of end" style="--d:${q.length}"><span>class = "visitor #1338, specifically" · train 100% · test 12%</span></div><div class="btns" style="margin-top:14px"><button class="btn" id="unfit">Prune it back to max_depth = 2</button></div>`;
+  $('#overfit').hidden=false;$('#acc').textContent='Train accuracy 1.00 · test accuracy 0.12.';
+  $('#unfit').onclick=()=>{depth=2;$('#depthv').textContent=2;$('#overfit').hidden=true;$('#acc').textContent='Train accuracy 0.93 · test accuracy: you tell me.'};
+  $('#overfit').scrollIntoView({behavior:RM?'auto':'smooth',block:'center'});
+});
+
+/* visible toy: random forest */
+$('#growForest').addEventListener('click',()=>{
+  const F=$('#forest'),classes=T.kids.filter(k=>!S.pruned.has(k.id)),total=classes.reduce((a,k)=>a+k.samples,0),count={};
+  if(!classes.length){toast('There is nothing left to vote for. You pruned everything. Retrain first.');return}
+  const tree=i=>{const a=(i*37%17)-8;return `<svg viewBox="0 0 38 40" aria-hidden="true"><g transform="rotate(${a} 19 38)" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M19 38V24M19 24L9 14M19 24l10-10M9 14L5 6M9 14l5-8M29 14l-5-8M29 14l4-8"/><circle cx="19" cy="24" r="2.6" fill="#fbf8f1"/><circle cx="9" cy="14" r="2.4" fill="#fbf8f1"/><circle cx="29" cy="14" r="2.4" fill="#fbf8f1"/></g></svg>`};
+  F.innerHTML=`<h3>Random forest · n_estimators = 42</h3><p id="fmsg">Forty-two small trees, each trained on a different bootstrap sample of the same imaginary visitors, are voting on where to send you.</p>
+    <div class="grove">${Array.from({length:42},(_,i)=>`<div class="mini" id="m${i}">${tree(i)}<span>·</span></div>`).join('')}</div>
+    <div class="tally">${classes.map(c=>`<div id="t-${c.id}" style="--n:0"><span>${c.title}</span><i></i><b>0</b></div>`).join('')}</div>`;
+  F.hidden=false;F.scrollIntoView({behavior:RM?'auto':'smooth',block:'center'});
+  const vote=i=>{let r=Math.random()*total,c=classes.find(k=>(r-=k.samples)<0)||classes[0];count[c.id]=(count[c.id]||0)+1;
+    const m=$('#m'+i);m.classList.add('voted');m.lastChild.textContent=c.title[0];
+    const row=$('#t-'+c.id);row.style.setProperty('--n',count[c.id]);row.lastChild.textContent=count[c.id]};
+  const finish=()=>{const win=classes.reduce((a,c)=>(count[c.id]||0)>(count[a.id]||0)?c:a);$('#t-'+win.id).classList.add('win');
+    $('#fmsg').textContent=`The forest has spoken: ${count[win.id]} of 42 trees say “${win.title}”. Routing you there. Democracy is a fine way to average out individually wrong trees.`;
+    setTimeout(()=>choose(win.id,true),RM?0:1300)};
+  if(RM){for(let i=0;i<42;i++)vote(i);finish()}
+  else{for(let i=0;i<42;i++)setTimeout(()=>vote(i),300+i*60);setTimeout(finish,300+42*60+250)}
+});
+
+/* eggs 1 + 2: typed words */
+let buf='';
+addEventListener('keydown',e=>{
+  if(e.metaKey||e.ctrlKey||e.altKey||e.key.length!==1)return;
+  buf=(buf+e.key.toLowerCase()).slice(-5);
+  if(buf.endsWith('42')){buf='';
+    $('#n-root').scrollIntoView({behavior:RM?'auto':'smooth',block:'center'});
+    const years=[7500000,4200000,1337000,420000,42000,4200,420,42].map(y=>`Deep Thought is computing. ${y.toLocaleString('en')} years remaining…`);
+    think(years,300,()=>{$('#deep').hidden=false;choose('answer',true)});
+  }
+  if(buf==='towel'){buf='';const lost=T.kids[3];
+    if(lost.kids.some(k=>k.id==='towel')){toast('You already have a towel. One is enough. Two is showing off.');return}
+    lost.kids.push({id:'towel',title:'Has a towel',rule:'has_towel = true',samples:1,conf:1,show:['fortytwo']});
+    S.pruned.delete('lost');render();$('#n-towel').scrollIntoView({behavior:RM?'auto':'smooth',block:'center'});
+    toast('A towel leaf has been grafted onto the “lost” branch. Confidence 1.00: you will be fine.');
+  }
+});
+
+/* layout upkeep */
+let raf;const relayout=()=>{cancelAnimationFrame(raf);raf=requestAnimationFrame(()=>wires(false))};
+new ResizeObserver(relayout).observe($('#tree'));
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(relayout);
+render();
+if(location.hash==='#read'){$('#read').open=true;$('#read').scrollIntoView()}
+if(location.hash.startsWith('#go='))choose(location.hash.slice(4),true); // shareable path, e.g. #go=mycroft
+$$('a[href="#read"]').forEach(a=>a.addEventListener('click',()=>{$('#writing').hidden=false;$('#read').open=true}));
+$$('a[href^="#p-"],a[href="#contact"]').forEach(a=>a.addEventListener('click',()=>reset(false)));
+console.log('%cDecisionTreeClassifier(max_depth=2, random_state=42)','font:600 13px monospace;background:#FFD400;color:#1d1b16;padding:4px 8px',
+  '\nTrained on 1,337 visitors who do not exist. Type 42 or towel on the page. Double-click a node to prune it.');
+})();
+</script>
+<div id="vnav" style="position:fixed;right:12px;bottom:12px;z-index:99999;font:12px/1 ui-monospace,Menlo,monospace;background:#111;color:#fff;border-radius:999px;padding:8px 12px;display:flex;gap:10px;align-items:center;box-shadow:0 2px 10px rgba(0,0,0,.3)"><a href="07-agent-trace.html" style="color:#FFD400;text-decoration:none" aria-label="Previous variation">‹</a><a href="index.html" style="color:#fff;text-decoration:none">08/20 · decision-tree</a><a href="09-pixel-quest.html" style="color:#FFD400;text-decoration:none" aria-label="Next variation">›</a></div>
+</body>
+</html>

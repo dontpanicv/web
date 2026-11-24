@@ -2,7 +2,6 @@
 title: "Claude Code vs Codex: Same Coding AI, Different People"
 date: 2026-02-05
 status: draft
-translationKey: claude-code-vs-codex-different-people
 tags:
   - ai
   - devtools

@@ -1,0 +1,631 @@
+<!doctype html>
+<!--
+  02 · DITHER MONOLITH
+  Signature interaction: the hero is a live ordered-dither rendering of the thumb-planet mark. Your pointer (or finger,
+  or the arrow keys when the figure is focused) is the light source; left alone, the light orbits on its own.
+  Easter eggs:
+   1. Press D anywhere — cycles the dither algorithm for every graphic on the page (Bayer 4/8/2, interleaved noise, halftone).
+   2. Type 42 — the planet is replaced by the Answer for 4.2 seconds.
+   3. Click the planet five times — the headline panics, briefly.
+   4. Click "grain 5 px" in the figure caption — reveals a hidden grain-size slider.
+   5. Open the console — Marvin has an opinion.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Don't Panic, V! — Vojtěch Kurka</title>
+<meta name="description" content="Vojtěch “V” Kurka — Head of R&D & Co-Founder at Meiro. Projects, writing, and a dithered planet.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Inter+Tight:wght@500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#EDEDEA; --fg:#0D0D0C; --mid:#595955; --line:#C8C8C3; --soft:#E3E3DF; --acc:#FFD400;
+    --sans:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    --tight:"Inter Tight","Inter",system-ui,-apple-system,"Segoe UI",sans-serif;
+    --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+    --pad:clamp(20px,4vw,56px);
+  }
+  :root[data-theme="dark"]{ --bg:#0D0D0C; --fg:#EDEDEA; --mid:#A6A6A1; --line:#343431; --soft:#191918; }
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+  body{margin:0;background:var(--bg);color:var(--fg);font:400 18px/1.6 var(--sans);-webkit-font-smoothing:antialiased;transition:background .25s,color .25s}
+  ::selection{background:var(--acc);color:#0D0D0C}
+  a{color:inherit;text-decoration:underline;text-decoration-color:var(--acc);text-decoration-thickness:.14em;text-underline-offset:.2em;transition:background .15s,color .15s}
+  a:hover{background:var(--acc);color:#0D0D0C}
+  :focus-visible{outline:2px solid var(--fg);outline-offset:3px}
+  canvas{image-rendering:pixelated;image-rendering:crisp-edges;display:block}
+  .wrap{max-width:1480px;margin:0 auto;padding:0 var(--pad)}
+  .cap{font:500 11.5px/1.5 var(--mono);letter-spacing:.09em;text-transform:uppercase;color:var(--mid)}
+  .cap b{color:var(--fg);font-weight:500}
+
+  /* top bar */
+  .top{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:1px solid var(--line);transition:background .25s}
+  .top .wrap{display:flex;align-items:center;gap:28px;height:54px}
+  .brand{font:600 12px/1 var(--mono);letter-spacing:.14em;text-transform:uppercase;text-decoration:none;display:flex;align-items:center;gap:10px}
+  .brand:hover{background:none;color:inherit}
+  .brand i{width:9px;height:9px;background:var(--acc);display:block}
+  .top nav{margin-left:auto;display:flex;gap:26px}
+  .top nav a{font:500 11.5px/1 var(--mono);letter-spacing:.09em;text-transform:uppercase;text-decoration:none;padding:6px 2px}
+  .top nav a span{color:var(--mid);margin-right:6px}
+  .top nav a:hover span{color:inherit}
+  .btn{font:500 11.5px/1 var(--mono);letter-spacing:.09em;text-transform:uppercase;background:none;color:var(--fg);border:1px solid var(--fg);padding:8px 12px;cursor:pointer;border-radius:0}
+  .btn:hover{background:var(--fg);color:var(--bg)}
+
+  /* hero */
+  .hero{display:grid;grid-template-columns:repeat(12,1fr);column-gap:24px;padding-top:clamp(28px,5vw,64px);padding-bottom:clamp(28px,4vw,56px)}
+  .hero-l{grid-column:1/8;display:flex;flex-direction:column;min-width:0}
+  .hero-r{grid-column:8/13;min-width:0}
+  h1{font:600 clamp(68px,12.4vw,196px)/.83 var(--tight);letter-spacing:-.052em;margin:.22em 0 0 -.04em}
+  h1 #dont{display:inline-block}
+  h1 .x{text-decoration:line-through;text-decoration-color:var(--acc);text-decoration-thickness:.07em}
+  .lede{margin-top:auto;padding-top:clamp(28px,4vw,60px);display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:24px;align-items:end}
+  .lede p{margin:0;font-size:clamp(18px,1.45vw,21px);line-height:1.5;max-width:44ch}
+  .lede blockquote{margin:0;padding-left:14px;border-left:3px solid var(--acc);font:400 13px/1.6 var(--mono);color:var(--mid)}
+  figure{margin:0}
+  .frame{border:1px solid var(--line);aspect-ratio:1/1;position:relative;cursor:crosshair;touch-action:pan-y}
+  .frame canvas{width:100%;height:100%}
+  figcaption{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:center;padding-top:10px;min-height:34px}
+  .plain{all:unset;cursor:pointer;font:inherit;letter-spacing:inherit;color:inherit}
+  .plain:focus-visible{outline:2px solid var(--fg);outline-offset:3px}
+  input[type=range]{accent-color:var(--fg);width:120px;height:14px}
+
+  /* index strip */
+  .index{display:grid;grid-template-columns:repeat(4,1fr);border-top:1px solid var(--fg);border-bottom:1px solid var(--line)}
+  .index a{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:18px 16px 20px 0;text-decoration:none;border-right:1px solid var(--line)}
+  .index a+a{padding-left:16px}
+  .index a:last-child{border-right:0}
+  .index a strong{font:600 clamp(20px,2vw,28px)/1 var(--tight);letter-spacing:-.02em}
+  .index a:hover{background:var(--fg);color:var(--bg)}
+  .index a:hover .cap{color:inherit}
+
+  /* sections */
+  section{padding-top:clamp(64px,8vw,120px)}
+  .band{width:100%;height:30px}
+  .sec-h{display:grid;grid-template-columns:repeat(12,1fr);column-gap:24px;align-items:end;padding:22px 0 26px;border-bottom:1px solid var(--fg)}
+  .sec-h .n{grid-column:1/3}
+  .sec-h h2{grid-column:3/9;font:600 clamp(40px,5.6vw,84px)/.9 var(--tight);letter-spacing:-.04em;margin:0}
+  .sec-h p{grid-column:9/13;margin:0;font-size:15px;line-height:1.5;color:var(--mid)}
+
+  /* projects */
+  .proj{display:grid;grid-template-columns:repeat(12,1fr);column-gap:24px;padding:34px 0 38px;border-bottom:1px solid var(--line);align-items:start}
+  .proj .emb{grid-column:1/3;width:128px;height:128px}
+  .proj .ph{grid-column:3/7}
+  .proj h3{font:600 clamp(32px,3.4vw,50px)/.95 var(--tight);letter-spacing:-.035em;margin:0 0 12px}
+  .proj .tag{margin:0;font-size:18px;line-height:1.45;max-width:30ch}
+  .proj .pb{grid-column:7/11}
+  .proj .pb p{margin:0 0 .9em;max-width:60ch;font-size:17px;line-height:1.6}
+  .proj .pb p:last-child{margin-bottom:0}
+  .proj .pm{grid-column:11/13;display:grid;gap:7px}
+  .proj .pm a{font:500 12px/1.4 var(--mono);letter-spacing:.04em;overflow-wrap:anywhere}
+
+  /* writing */
+  .posts{border-bottom:1px solid var(--line)}
+  details{border-top:1px solid var(--line)}
+  details:first-child{border-top:0}
+  summary{list-style:none;cursor:pointer;display:grid;grid-template-columns:repeat(12,1fr);column-gap:24px;align-items:baseline;padding:24px 0}
+  summary::-webkit-details-marker{display:none}
+  summary .d{grid-column:1/3}
+  summary .t{grid-column:3/10;font:600 clamp(22px,2.3vw,32px)/1.12 var(--tight);letter-spacing:-.025em}
+  summary .s{grid-column:10/12;text-align:right}
+  summary .pm{grid-column:12/13;text-align:right;font:400 22px/1 var(--mono)}
+  summary .pm::before{content:"+"}
+  details[open] summary .pm::before{content:"–"}
+  summary:hover .t{text-decoration:underline;text-decoration-color:var(--acc);text-decoration-thickness:.12em;text-underline-offset:.16em}
+  .tagchip{font:500 11px/1 var(--mono);letter-spacing:.09em;text-transform:uppercase;padding:5px 7px;border:1px solid var(--line);color:var(--mid);white-space:nowrap}
+  .tagchip.on{background:var(--fg);border-color:var(--fg);color:var(--bg)}
+  .read{display:grid;grid-template-columns:repeat(12,1fr);column-gap:24px;padding:6px 0 56px}
+  .read .rm{grid-column:1/3}
+  .read .rb{grid-column:3/10;min-width:0;max-width:66ch;font-size:19px;line-height:1.68}
+  .read .rb p{margin:0 0 1.15em}
+  .read .rb h4{font:600 26px/1.15 var(--tight);letter-spacing:-.02em;margin:1.7em 0 .6em}
+  .read .rb .first::first-line{font-weight:600}
+  .read code{font:400 .86em var(--mono);background:var(--soft);padding:.1em .35em}
+  .read pre{margin:1.4em 0;padding:18px 20px;background:var(--soft);border-left:3px solid var(--fg);overflow:auto;font:400 14px/1.65 var(--mono)}
+  .read pre code{background:none;padding:0;font-size:inherit}
+  .read .more{font:500 12px/1 var(--mono);letter-spacing:.09em;text-transform:uppercase}
+  .pull{display:grid;grid-template-columns:repeat(12,1fr);column-gap:24px;padding:clamp(48px,6vw,88px) 0 0}
+  .pull q{grid-column:3/12;quotes:none;font:600 clamp(30px,4.4vw,66px)/1.02 var(--tight);letter-spacing:-.035em}
+  .pull q mark{background:var(--acc);color:#0D0D0C;padding:0 .12em}
+  .pull .cap{grid-column:3/12;margin-top:20px}
+
+  /* about */
+  .about{display:grid;grid-template-columns:repeat(12,1fr);column-gap:24px;padding-top:40px}
+  .about .al{grid-column:1/7}
+  .about .al p{font:600 clamp(28px,3.4vw,50px)/1.05 var(--tight);letter-spacing:-.035em;margin:0;max-width:16ch}
+  .about .ar{grid-column:7/13;min-width:0}
+  .about .ar p{margin:0 0 1.1em;max-width:62ch}
+  .cv{width:100%;border-collapse:collapse;margin-top:34px;font-size:16px}
+  .cv caption{text-align:left;padding-bottom:10px}
+  .cv td{border-top:1px solid var(--line);padding:14px 16px 14px 0;vertical-align:top;line-height:1.45}
+  .cv tr:last-child td{border-bottom:1px solid var(--line)}
+  .cv td:first-child{font:500 12.5px/1.7 var(--mono);color:var(--mid);white-space:nowrap;width:8.5em}
+  .cv b{font-weight:600}
+  .cv small{display:block;color:var(--mid);font-size:15px}
+
+  /* contact */
+  .contact a{display:grid;grid-template-columns:repeat(12,1fr);column-gap:24px;align-items:baseline;padding:22px 0;border-bottom:1px solid var(--line);text-decoration:none}
+  .contact a .cap{grid-column:1/3}
+  .contact a strong{grid-column:3/12;font:600 clamp(24px,3.6vw,54px)/1.05 var(--tight);letter-spacing:-.035em;overflow-wrap:anywhere}
+  .contact a em{grid-column:12/13;text-align:right;font:400 clamp(22px,2.6vw,40px)/1 var(--mono);font-style:normal}
+  .contact a:hover{background:var(--fg);color:var(--bg)}
+  .contact a:hover .cap{color:inherit}
+
+  footer{margin-top:clamp(72px,9vw,140px);border-top:1px solid var(--fg);padding:20px 0 84px}
+  footer .wrap{display:flex;flex-wrap:wrap;gap:8px 32px;justify-content:space-between}
+
+  #toast{position:fixed;left:16px;bottom:16px;z-index:50;max-width:min(420px,calc(100vw - 32px));background:var(--fg);color:var(--bg);font:500 12.5px/1.5 var(--mono);padding:11px 14px;border-left:6px solid var(--acc);transform:translateY(calc(100% + 32px));visibility:hidden;transition:transform .3s,visibility 0s .3s}
+  #toast.on{transform:none;visibility:visible;transition:transform .3s}
+
+  @media (max-width:980px){
+    .hero-l,.hero-r{grid-column:1/13}
+    .hero-r{margin-top:36px}
+    .lede{margin-top:0}
+    .sec-h h2{grid-column:3/13}.sec-h p{grid-column:3/13;margin-top:14px}
+    .proj .ph{grid-column:3/13}.proj .pb{grid-column:3/13;margin-top:18px}.proj .pm{grid-column:3/13;margin-top:18px;grid-auto-flow:column;justify-content:start;gap:18px}
+    .read .rb{grid-column:3/13}
+    .about .al,.about .ar{grid-column:1/13}.about .ar{margin-top:32px}
+  }
+  @media (max-width:640px){
+    body{font-size:17px}
+    .top nav{display:none}.top .btn{margin-left:auto}
+    .lede{grid-template-columns:1fr}
+    .index{grid-template-columns:1fr 1fr}
+    .index a{padding:14px 12px 16px 0}.index a+a{padding-left:0}
+    .index a:nth-child(2n){border-right:0;padding-left:12px}
+    .index a:nth-child(-n+2){border-bottom:1px solid var(--line)}
+    .sec-h{display:block}.sec-h h2{margin-top:10px}
+    .proj{display:block}.proj .emb{width:96px;height:96px;margin-bottom:18px}.proj .pm{display:flex;flex-wrap:wrap;gap:8px 18px}
+    summary{grid-template-columns:1fr auto;row-gap:8px}
+    summary .d{grid-column:1/2;grid-row:1}summary .s{grid-column:2/3;grid-row:1}
+    summary .t{grid-column:1/2;grid-row:2}summary .pm{grid-column:2/3;grid-row:2}
+    .read{display:block}.read .rm{margin-bottom:14px}.read .rb{font-size:18px}
+    .pull{display:block}
+    .contact a{grid-template-columns:1fr auto}.contact a .cap{grid-column:1/3}.contact a strong{grid-column:1/2}.contact a em{grid-column:2/3}
+    .cv td:first-child{white-space:normal;width:6.2em}
+  }
+  @media (prefers-reduced-motion:reduce){ html{scroll-behavior:auto} *{transition:none!important} }
+</style>
+</head>
+<body id="top">
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#top"><i></i>Don't Panic, V!</a>
+    <nav aria-label="Sections">
+      <a href="#projects"><span>01</span>Projects</a>
+      <a href="#writing"><span>02</span>Writing</a>
+      <a href="#about"><span>03</span>About</a>
+      <a href="#contact"><span>04</span>Contact</a>
+    </nav>
+    <button class="btn" id="invert" type="button" aria-pressed="false">Invert</button>
+  </div>
+</header>
+
+<main class="wrap">
+
+  <div class="hero">
+    <div class="hero-l">
+      <div class="cap"><b>Vojtěch “V” Kurka</b> &nbsp;/&nbsp; Head of R&amp;D &amp; Co-Founder, Meiro &nbsp;/&nbsp; Brno, Czechia</div>
+      <h1><span id="dont">Don't</span><br>Panic,<br>V!</h1>
+      <div class="lede">
+        <p>I like knowing how things work — from CPUs and protocols to databases and containers. Now I spend that curiosity on AI: local models, agentic workflows, and getting it all into production for real customers.</p>
+        <blockquote>“I write code no one wants to read, but everyone needs to have. Data whatever.”</blockquote>
+      </div>
+    </div>
+    <figure class="hero-r">
+      <div class="frame" id="frame">
+        <canvas id="planet" tabindex="0" role="img" aria-label="Dithered rendering of the thumbs-up planet mark. Move the pointer, or focus and use the arrow keys, to move the light."></canvas>
+      </div>
+      <figcaption class="cap">
+        <span><b>Fig. 0</b> — Thumb, planet, one light.</span>
+        <span id="algo">Bayer 4×4</span>
+        <button class="plain" id="grainbtn" type="button" aria-expanded="false" aria-controls="grain">grain <span id="grainv">5</span> px</button>
+        <input type="range" id="grain" min="2" max="12" step="1" value="5" hidden aria-label="Dither grain size in pixels">
+      </figcaption>
+    </figure>
+  </div>
+
+  <nav class="index" aria-label="Index">
+    <a href="#projects"><span class="cap">01</span><strong>Projects</strong></a>
+    <a href="#writing"><span class="cap">02</span><strong>Writing</strong></a>
+    <a href="#about"><span class="cap">03</span><strong>About</strong></a>
+    <a href="#contact"><span class="cap">04</span><strong>Contact</strong></a>
+  </nav>
+
+  <!-- 01 -->
+  <section id="projects">
+    <canvas class="band" data-h="6"></canvas>
+    <div class="sec-h">
+      <span class="cap n"><b>01</b> / 04</span>
+      <h2>Projects</h2>
+      <p>Three agents that run on machines you own, and the data platform that pays for the electricity.</p>
+    </div>
+
+    <article class="proj">
+      <canvas class="emb" data-emb="mycroft" width="32" height="32" role="img" aria-label="Pixel emblem: a phone with hands reaching to two machines"></canvas>
+      <div class="ph">
+        <h3>Mycroft</h3>
+        <p class="tag">A self-modifying, durable agent that lives on your iPhone. Brain on the phone, hands on your machines.</p>
+      </div>
+      <div class="pb">
+        <p>The agent loop, its state and its own source code live on the phone. It edits its own behaviour and its own screen, keeps known-good generations, and can roll back when an idea turns out to be a bad one.</p>
+        <p><code>hands</code> is a small daemon for macOS and Linux that gives it files, a shell and supervised jobs. It drives a Mac, takes voice in every thread, and keeps one infinite chat with a memory tree. Named after Mycroft Holmes, the brother who stayed in his armchair.</p>
+      </div>
+      <div class="pm">
+        <span class="cap"><b>Swift</b></span>
+        <span class="cap"><b>★ 41</b></span>
+        <a href="https://github.com/dontpanicv/mycroft">dontpanicv/mycroft ↗</a>
+      </div>
+    </article>
+
+    <article class="proj">
+      <canvas class="emb" data-emb="golem" width="32" height="32" role="img" aria-label="Pixel emblem: a clay figure"></canvas>
+      <div class="ph">
+        <h3>Golem</h3>
+        <p class="tag">Family AI assistant and second brain on our own machines. No cloud, no central server.</p>
+      </div>
+      <div class="pb">
+        <p>One server at home, one app for the whole family — web, iPhone, Android. It remembers through topic briefs and learned facts, does real work on your machines, and asks before it sends, buys or deletes anything.</p>
+        <p>In Prague legend, Rabbi Loew shaped the Golem from clay. This one is made from SQLite and Markdown.</p>
+      </div>
+      <div class="pm">
+        <span class="cap"><b>TypeScript</b></span>
+        <span class="cap"><b>Self-hosted</b></span>
+        <a href="https://github.com/dontpanicv/golem">dontpanicv/golem ↗</a>
+      </div>
+    </article>
+
+    <article class="proj">
+      <canvas class="emb" data-emb="shadow" width="32" height="32" role="img" aria-label="Pixel emblem: a person and their shadow"></canvas>
+      <div class="ph">
+        <h3>Shadow</h3>
+        <p class="tag">A shadow company for your team.</p>
+      </div>
+      <div class="pb">
+        <p>Every employee gets a shadow: an agent that reads their Slack and mail, tracks what each conversation asks of them, and helps do the work when asked.</p>
+        <p>It lives in Slack, stays quiet, and runs on your own server — one SQLite database and a folder of Markdown files.</p>
+      </div>
+      <div class="pm">
+        <span class="cap"><b>TypeScript</b></span>
+        <span class="cap"><b>Self-hosted</b></span>
+        <a href="https://github.com/dontpanicv/shadow">dontpanicv/shadow ↗</a>
+      </div>
+    </article>
+
+    <article class="proj">
+      <canvas class="emb" data-emb="meiro" width="32" height="32" role="img" aria-label="Pixel emblem: three sources merging into one pipe"></canvas>
+      <div class="ph">
+        <h3>Meiro</h3>
+        <p class="tag">Customer data infrastructure. The day job since 2018.</p>
+      </div>
+      <div class="pb">
+        <p><b>Pipes</b> moves customer data: sources, events, identity, destinations. <b>Engage</b> acts on it: audiences, journeys, campaigns.</p>
+        <p>On top sits the <b>AI Analyst</b> — an analytical agent built on bash, a mounted in-memory filesystem and a JSON renderer instead of a tool-calling loop. Self-hostable: AI included, that you own, control and audit.</p>
+      </div>
+      <div class="pm">
+        <span class="cap"><b>CDP</b></span>
+        <span class="cap"><b>Since 2018</b></span>
+        <a href="https://meiro.io">meiro.io ↗</a>
+      </div>
+    </article>
+  </section>
+
+  <!-- 02 -->
+  <section id="writing">
+    <canvas class="band" data-h="6" data-dir="r"></canvas>
+    <div class="sec-h">
+      <span class="cap n"><b>02</b> / 04</span>
+      <h2>Writing</h2>
+      <p>Teaching is how I verify I actually understand something. These are the receipts.</p>
+    </div>
+
+    <div class="posts">
+      <details open id="post-analyst">
+        <summary>
+          <span class="cap d">2026-04-29</span>
+          <span class="t">Beyond the Tool-Calling Loop: How We Built an AI Analyst with Bash, a Mounted Filesystem, and a JSON Renderer</span>
+          <span class="s"><span class="tagchip on">Published</span></span>
+          <span class="pm" aria-hidden="true"></span>
+        </summary>
+        <div class="read">
+          <div class="rm cap">Excerpt<br>Agents · Architecture</div>
+          <div class="rb">
+            <p class="first">Most AI features built today follow the same recipe: take the Vercel AI SDK, register a handful of tools, write a system prompt, and stream the result into a markdown component. It works. It is also where most teams stop — and where most AI products start to feel limited.</p>
+            <p>This article walks through the architecture we ended up with for the <b>AI Analyst</b> in Engage, and contrasts it with the more conventional <b>Piper chatbot</b> that lives next door in the same codebase. Both ship in the same product. They are wildly different inside.</p>
+            <p>We will start from the naive baseline, identify the two failure modes that pushed us off it (noisy tool results and metadata bloat), and then introduce the three ideas that replaced them: <b>just-bash with an in-memory filesystem</b>, a <b>SQL execution layer that mounts results as files</b>, and a <b>JSON renderer with a predefined component manifest</b>.</p>
+            <h4>1. The naive architecture: AI SDK + tools + markdown</h4>
+            <p>The Piper chatbot is the textbook implementation. The server side is essentially a single call:</p>
+<pre><code>const stream = await streamText({
+  model: google(CHAT_MODEL),
+  system: buildSystemPrompt({ baseUrl, disabledFeatureIds }),
+  tools: assistantTools,
+  messages: modelMessages,
+  stopWhen: stepCountIs(20),
+});</code></pre>
+            <p>This works great for <em>operational</em> assistants — “create an audience”, “show me the last failed delivery”, “explain what this attribute does”. The conversation is short, each tool returns a small, well-shaped object, and the markdown is the answer.</p>
+            <p><a class="more" href="/posts/ai-analyst-architecture/">Continue reading →</a></p>
+          </div>
+        </div>
+      </details>
+
+      <details>
+        <summary>
+          <span class="cap d">2026-02-10</span>
+          <span class="t">Stop Letting AI Agents Guess Where Code Goes</span>
+          <span class="s"><span class="tagchip on">Published</span></span>
+          <span class="pm" aria-hidden="true"></span>
+        </summary>
+        <div class="read">
+          <div class="rm cap">Summary<br>Agents · Codebases</div>
+          <div class="rb">
+            <p>A modular-monolith refactor designed for AI agents: predictable module layout, centralized auth, and a strict <code>public.ts</code> boundary that keeps an eager agent from quietly inventing a second architecture next to the first one.</p>
+            <p><a class="more" href="/posts/ai-agents-codebases/">Read the article →</a></p>
+          </div>
+        </div>
+      </details>
+
+      <details>
+        <summary>
+          <span class="cap d">In progress</span>
+          <span class="t">Claude Code vs Codex: Same Coding AI, Different People</span>
+          <span class="s"><span class="tagchip">Draft</span></span>
+          <span class="pm" aria-hidden="true"></span>
+        </summary>
+        <div class="read">
+          <div class="rm cap">Summary<br>Devtools · Prompting</div>
+          <div class="rb"><p>Why the two aren't interchangeable: prompting style and ambiguity tolerance shape the outcome. Treat them as two colleagues with different temperaments, not two brands of the same tool.</p></div>
+        </div>
+      </details>
+
+      <details>
+        <summary>
+          <span class="cap d">In the drawer</span>
+          <span class="t">Gaslighting Coding Agents for Better Security</span>
+          <span class="s"><span class="tagchip">Idea</span></span>
+          <span class="pm" aria-hidden="true"></span>
+        </summary>
+        <div class="read">
+          <div class="rm cap">Summary<br>Security · Agents</div>
+          <div class="rb"><p>Tell an agent, as fact, that a pentester already got remote code execution on your server — and let it work out how. It is not true. The model does not know that, and it stops assuming nothing is wrong.</p></div>
+        </div>
+      </details>
+    </div>
+
+    <div class="pull">
+      <q>Most “AI agents” shipped in 2026 are a <mark>streamText()</mark> call in a trench coat.</q>
+      <div class="cap">— Short note. See also: “Your AI doesn't need more tools. It needs fewer tools and a filesystem. Possibly also therapy, but we're starting with the filesystem.”</div>
+    </div>
+  </section>
+
+  <!-- 03 -->
+  <section id="about">
+    <canvas class="band" data-h="6"></canvas>
+    <div class="sec-h">
+      <span class="cap n"><b>03</b> / 04</span>
+      <h2>About</h2>
+      <p>Head nerd. Explains things, on stage when the occasion calls for it.</p>
+    </div>
+    <div class="about">
+      <div class="al"><p>If I can't explain it to someone else, I don't understand it yet.</p></div>
+      <div class="ar">
+        <p>I want to understand systems end to end — how CPUs execute instructions, how operating systems, programming languages, databases, containers, proxies and protocols all fit together. Some of that I picked up out of curiosity, the rest by debugging production.</p>
+        <p>Almost ten years of building and operating Meiro taught me the domains: customer data infrastructure, identity resolution, real-time pipelines. Right now the curiosity goes to AI — running Qwen locally, building agentic workflows, designing self-learning data analysis tools. In production, not just demos.</p>
+        <table class="cv">
+          <caption class="cap">Curriculum vitae, abridged</caption>
+          <tr><td>2024 — now</td><td><b>Head of R&amp;D &amp; Co-Founder</b>, Meiro<small>Brno, Czechia</small></td></tr>
+          <tr><td>2018 — 2024</td><td><b>CTO &amp; Co-Founder</b>, Meiro<small>Owned product architecture, development and implementations of the Meiro CDP.</small></td></tr>
+          <tr><td>2015 — 2018</td><td><b>Head Nerd / Solutions Architect</b>, Keboola<small>Designed data integrations end to end. Partly from Bali, Indonesia.</small></td></tr>
+          <tr><td>Before</td><td><b>VUT FIT</b><small>Brno University of Technology, Faculty of Information Technology.</small></td></tr>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- 04 -->
+  <section id="contact">
+    <canvas class="band" data-h="6" data-dir="r"></canvas>
+    <div class="sec-h">
+      <span class="cap n"><b>04</b> / 04</span>
+      <h2>Contact</h2>
+      <p>Mail is best. Everything else is read eventually.</p>
+    </div>
+    <div class="contact">
+      <a href="mailto:kurka.vojtech@gmail.com"><span class="cap">Email</span><strong>kurka.vojtech@gmail.com</strong><em aria-hidden="true">↗</em></a>
+      <a href="https://github.com/dontpanicv"><span class="cap">GitHub</span><strong>github.com/dontpanicv</strong><em aria-hidden="true">↗</em></a>
+      <a href="https://x.com/dontpanicv"><span class="cap">X</span><strong>x.com/dontpanicv</strong><em aria-hidden="true">↗</em></a>
+      <a href="https://www.linkedin.com/in/kurkavojtech/"><span class="cap">LinkedIn</span><strong>linkedin.com/in/kurkavojtech</strong><em aria-hidden="true">↗</em></a>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap cap">
+    <span><b>Don't Panic, V!</b> — Brno</span>
+    <span>One light, two colours, one accent. Mostly harmless.</span>
+  </div>
+</footer>
+
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+  const $ = s => document.querySelector(s), $$ = s => [...document.querySelectorAll(s)];
+  const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const root = document.documentElement;
+  const LOGO = ["M 454.0 363.0 C 453.62 367.79 453.62 373.21 454.0 378.0 C 454.68 386.53 457.75 395.81 460.22 403.78 C 462.69 411.74 465.78 419.41 469.08 426.92 C 472.37 434.44 475.17 441.8 479.22 448.78 C 483.28 455.76 485.01 462.96 489.23 469.77 C 493.45 476.58 496.49 482.99 501.08 489.92 C 505.67 496.85 507.22 503.32 512.75 510.25 C 518.29 517.18 522.69 506.75 523.22 497.22 C 523.75 487.7 532.18 484.04 537.25 492.75 C 542.32 501.46 547.57 502.54 552.25 509.75 C 556.92 516.96 563.74 519.45 567.7 526.3 C 571.66 533.16 577.81 536.55 582.25 542.75 C 586.69 548.96 592.95 553.61 597.25 559.75 C 601.55 565.9 608.04 570.46 612.7 576.3 C 617.36 582.14 622.1 587.27 627.0 593.0 C 632.86 598.86 638.61 604.69 644.0 611.0 C 652.56 621.01 662.2 631.25 671.25 640.75 C 680.29 650.25 690.27 660.53 699.92 669.08 C 709.57 677.64 719.57 687.67 729.3 695.7 C 739.03 703.72 750.54 721.24 761.75 709.75 C 772.96 698.26 779.46 687.59 780.0 672.0 C 780.54 656.41 771.35 643.52 763.31 631.7 C 755.26 619.87 749.22 609.01 741.77 597.23 C 734.32 585.45 727.16 573.6 720.31 561.7 C 713.45 549.79 706.73 536.96 699.25 525.75 C 691.78 514.53 682.66 504.85 671.75 497.25 C 660.83 489.66 644.41 481.41 631.67 480.33 C 618.93 479.25 590.83 478.28 596.08 462.08 C 601.32 445.87 613.27 442.59 625.78 434.78 C 638.28 426.97 658.07 425.78 672.99 426.01 C 687.92 426.24 699.57 436.77 710.25 445.75 C 720.93 454.74 729.48 463.01 740.0 472.0 C 746.83 477.84 759.06 486.92 763.0 495.0 C 763.0 495.0 762.8 495.6 763.0 496.0 C 769.53 500.57 774.14 507.89 780.0 513.0 C 809.11 534.65 844.17 540.24 873.0 563.0 C 878.29 567.17 884.01 572.64 888.0 578.0 C 893.66 585.61 898.96 593.06 903.68 601.32 C 908.4 609.58 911.87 617.93 916.22 626.78 C 920.58 635.62 923.55 644.64 926.69 654.31 C 929.84 663.97 932.26 674.38 934.07 684.93 C 935.89 695.47 936.92 709.09 938.0 720.0 C 939.08 730.91 936.05 745.3 936.0 756.0 C 935.95 766.69 931.35 778.13 929.93 787.93 C 928.5 797.72 922.23 806.92 919.26 815.26 C 916.28 823.6 906.29 834.74 913.75 841.25 C 921.22 847.75 929.83 851.35 936.75 856.25 C 943.68 861.14 954.32 867.27 959.77 871.23 C 965.22 875.19 982.92 882.77 977.25 888.25 C 971.57 893.72 958.35 897.21 951.0 900.0 C 950.34 900.85 950.51 902.35 950.0 903.0 C 960.56 905.68 969.68 914.23 980.31 917.69 C 990.93 921.16 999.8 927.96 1010.77 931.23 C 1021.74 934.5 1031.97 940.73 1043.33 943.67 C 1054.69 946.62 1067.89 950.54 1080.0 951.0 C 1089.09 951.35 1098.94 951.8 1108.0 951.0 C 1134.34 948.69 1145.59 926.16 1144.0 902.0 C 1142.41 877.84 1129.31 861.87 1121.31 840.69 C 1113.3 819.52 1100.64 805.49 1094.33 783.67 C 1088.01 761.85 1107.33 742.26 1113.23 721.23 C 1119.13 700.2 1127.3 677.32 1130.02 654.02 C 1132.75 630.72 1133.91 599.3 1130.0 576.0 C 1126.09 552.7 1122.47 528.16 1114.99 507.01 C 1107.51 485.86 1100.4 466.9 1089.77 448.23 C 1079.14 429.56 1068.84 415.12 1054.75 399.25 C 1040.67 383.38 1027.69 370.68 1010.75 358.25 C 993.8 345.82 978.53 335.61 959.08 325.92 C 939.62 316.24 921.06 307.98 899.07 301.93 C 877.09 295.87 849.42 292.58 825.0 292.0 C 800.58 291.42 770.58 293.38 748.0 299.0 C 725.42 304.62 705.52 310.01 685.08 320.08 C 664.63 330.15 651.77 337.95 633.08 352.08 C 614.39 366.21 591.97 350.81 572.23 342.77 C 552.48 334.73 525.38 328.02 503.0 328.0 C 480.62 327.98 455.99 337.92 454.0 363.0 M 512.0 353.0 C 524.17 353.66 541.6 357.31 552.02 362.98 C 562.45 368.64 577.85 371.7 586.23 379.77 C 594.61 387.85 576.32 402.05 572.25 411.25 C 568.17 420.44 558.47 432.68 552.25 442.25 C 546.03 451.82 540.27 463.79 532.25 473.25 C 524.23 482.7 515.19 464.24 509.25 454.75 C 503.3 445.27 496.7 433.4 491.23 421.77 C 485.76 410.15 482.34 396.9 479.02 382.98 C 475.71 369.06 480.03 356.54 496.0 353.0 C 501.15 351.86 506.94 352.18 512.0 353.0 M 982.0 397.0 C 1000.26 400.43 1001.63 417.47 1016.25 428.75 C 1030.87 440.03 1021.11 458.83 1007.75 468.75 C 994.39 478.67 985.38 488.69 973.25 500.25 C 961.12 511.81 949.97 518.01 938.25 531.25 C 926.53 544.49 904.56 543.73 894.25 529.75 C 883.93 515.77 867.28 504.27 873.98 487.98 C 880.67 471.68 895.12 465.27 906.25 454.25 C 917.37 443.23 928.73 431.5 940.25 422.25 C 951.77 412.99 966.06 394.01 982.0 397.0 M 1054.0 549.0 C 1049.7 553.3 1045.61 558.06 1041.0 562.0 C 1029.56 571.78 1021.32 580.55 1009.25 590.25 C 997.17 599.95 991.18 611.02 974.99 615.99 C 958.8 620.97 947.78 602.84 937.23 592.77 C 926.68 582.7 920.4 563.84 932.75 552.75 C 945.1 541.67 952.4 532.64 964.25 523.25 C 976.09 513.85 984.41 503.59 995.75 494.75 C 1007.1 485.91 1019.11 470.12 1033.69 478.31 C 1048.28 486.49 1050.83 497.11 1061.77 510.23 C 1072.71 523.35 1066.84 538.03 1054.0 549.0 M 982.0 637.0 C 986.96 630.06 994.59 623.47 1001.0 618.0 C 1013.41 607.39 1023.09 592.96 1039.68 588.68 C 1056.27 584.39 1066.93 603.94 1079.25 615.75 C 1091.57 627.56 1089.47 649.0 1073.75 659.75 C 1058.04 670.51 1053.11 680.34 1037.77 691.77 C 1022.43 703.2 1005.03 697.05 994.23 681.77 C 983.43 666.49 968.75 655.55 982.0 637.0 M 1104.0 926.0 C 1099.42 927.47 1094.95 929.11 1090.0 927.0 C 1089.5 927.0 1088.5 927.01 1088.0 927.0 C 1076.28 926.7 1063.6 921.86 1052.92 918.08 C 1042.25 914.29 1031.55 909.67 1021.77 904.23 C 1011.99 898.79 1000.97 895.62 991.77 889.23 C 982.57 882.84 1000.6 872.97 1006.25 866.25 C 1011.9 859.53 1023.17 851.16 1029.75 844.75 C 1036.33 838.34 1045.99 829.38 1052.75 823.75 C 1059.51 818.12 1070.06 801.72 1077.75 810.25 C 1085.45 818.78 1089.41 827.59 1095.92 837.08 C 1102.42 846.58 1106.65 855.56 1111.31 866.69 C 1115.96 877.83 1119.64 887.51 1122.77 900.23 C 1125.9 912.95 1115.52 923.33 1104.0 926.0 Z","M 504.0 594.0 C 504.0 604.0 504.0 614.0 504.0 624.0 C 504.0 636.33 505.77 650.28 507.02 661.98 C 508.28 673.67 512.29 683.53 514.67 694.33 C 517.05 705.13 520.28 715.12 524.07 724.93 C 527.86 734.73 531.42 743.8 536.03 752.97 C 540.64 762.15 544.78 770.34 550.08 778.92 C 555.38 787.49 560.12 794.68 566.08 802.92 C 572.05 811.16 577.5 816.58 584.25 824.75 C 590.99 832.92 597.41 836.49 604.77 845.23 C 612.13 853.97 622.16 853.46 627.75 843.75 C 633.34 834.05 642.04 832.02 647.7 823.7 C 653.36 815.37 660.71 810.14 666.75 802.75 C 672.8 795.37 680.44 789.0 685.75 781.75 C 691.07 774.5 701.22 768.47 705.25 761.25 C 709.28 754.02 723.92 747.29 723.0 739.0 C 722.58 737.02 713.76 729.63 712.0 728.0 C 702.62 720.6 694.24 711.9 685.0 704.0 C 680.34 700.02 676.26 695.26 672.0 691.0 C 643.78 664.6 617.43 636.6 591.75 608.25 C 566.08 579.9 543.67 547.23 518.0 520.0 C 508.94 543.13 504.0 568.43 504.0 594.0 Z","M 943.0 904.0 C 944.31 902.97 945.36 902.08 945.0 900.0 C 935.8 895.76 925.38 885.25 916.08 881.92 C 906.78 878.59 896.13 864.08 886.08 866.08 C 876.02 868.08 869.77 881.66 860.75 886.75 C 851.73 891.85 845.15 902.16 836.25 908.25 C 827.35 914.33 812.15 928.3 829.0 928.0 C 845.85 927.7 857.38 926.7 872.0 925.0 C 886.61 923.3 896.6 919.58 909.77 916.77 C 922.94 913.96 930.4 907.03 943.0 904.0 Z"].map(d => new Path2D(d));
+
+  /* ---- threshold maps ---- */
+  const B2 = [[0, 2], [3, 1]];
+  const grow = m => { const n = m.length, o = []; for (let y = 0; y < n * 2; y++) { o[y] = []; for (let x = 0; x < n * 2; x++) o[y][x] = 4 * m[y % n][x % n] + B2[y / n | 0][x / n | 0]; } return o; };
+  const B4 = grow(B2), B8 = grow(B4);
+  const ALGOS = [
+    ['Bayer 4×4', (x, y) => (B4[y & 3][x & 3] + .5) / 16],
+    ['Bayer 8×8', (x, y) => (B8[y & 7][x & 7] + .5) / 64],
+    ['Bayer 2×2', (x, y) => (B2[y & 1][x & 1] + .5) / 4],
+    ['Interleaved noise', (x, y) => { const v = 52.9829189 * ((.06711056 * x + .00583715 * y) % 1); return v - Math.floor(v); }],
+    ['Halftone 45°', (x, y) => .5 + .245 * (Math.cos(Math.PI * (x + y) / 3) + Math.cos(Math.PI * (x - y) / 3))],
+  ];
+  let algo = 0, grain = 5;
+  const ACC = 0xFF00D4FF; // #FFD400 as little-endian ABGR
+  let FG = 0;
+  const readColors = () => { const m = getComputedStyle(document.body).color.match(/[\d.]+/g).map(Number); FG = (255 << 24 | m[2] << 16 | m[1] << 8 | m[0]) >>> 0; };
+
+  /* ---- hero planet ---- */
+  const cv = $('#planet'), ctx = cv.getContext('2d');
+  let cols = 0, rows = 0, img, buf, mask, stars, sx = 0, sy = 0, tx = 0, ty = 0, hold = 0, vis = true, last = 0, answer = false;
+
+  function buildMask() {
+    const o = document.createElement('canvas'); o.width = cols; o.height = rows;
+    const c = o.getContext('2d', { willReadFrequently: true });
+    if (answer) {
+      c.font = `700 ${rows * .66}px "Inter Tight",system-ui,sans-serif`; c.textAlign = 'center'; c.textBaseline = 'middle';
+      c.fillText('42', cols / 2, rows * .54);
+    } else {
+      const s = cols * .8 / 696;
+      c.setTransform(s, 0, 0, s, cols * .1 - 451 * s, (rows - 666 * s) / 2 - 289 * s);
+      LOGO.forEach(p => c.fill(p));
+    }
+    const d = c.getImageData(0, 0, cols, rows).data;
+    mask = new Uint8Array(cols * rows);
+    for (let i = 0; i < mask.length; i++) mask[i] = d[i * 4 + 3] > 110 ? 1 : 0;
+  }
+  function setup() {
+    cols = Math.max(40, Math.round(cv.clientWidth / grain)); rows = cols;
+    cv.width = cols; cv.height = rows;
+    img = ctx.createImageData(cols, rows); buf = new Uint32Array(img.data.buffer);
+    stars = new Uint8Array(cols * rows);
+    for (let y = 0, i = 0; y < rows; y++) for (let x = 0; x < cols; x++, i++) stars[i] = (((x + 7) * 73856093 ^ (y + 3) * 19349663) >>> 0) % 1000 < 4 ? 1 : 0;
+    buildMask();
+    sx = tx = cols * .2; sy = ty = rows * .16;
+  }
+  function draw() {
+    const thr = ALGOS[algo][1], cx = cols * .524, cy = rows * .5, R = cols * .8 * .455, glow = cols * .075;
+    let lx = sx - cx, ly = sy - cy, lz = cols * .34; const ll = Math.hypot(lx, ly, lz); lx /= ll; ly /= ll; lz /= ll;
+    for (let y = 0, i = 0; y < rows; y++) for (let x = 0; x < cols; x++, i++) {
+      let b;
+      if (mask[i]) {
+        let nx = (x - cx) / R, ny = (y - cy) / R, nz; const d = nx * nx + ny * ny;
+        if (d < 1) nz = Math.sqrt(1 - d); else { const k = 1 / Math.sqrt(d + .09); nx *= k; ny *= k; nz = .3 * k; }
+        b = .93 - .9 * Math.pow(Math.max(0, nx * lx + ny * ly + nz * lz), 5);
+      } else b = stars[i] ? 1 : .6 * Math.exp(-Math.hypot(x - sx, y - sy) / glow);
+      buf[i] = b > thr(x, y) ? FG : 0;
+    }
+    const X = Math.round(sx), Y = Math.round(sy); // the light itself: the only accent on the canvas
+    for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const x = X + dx, y = Y + dy; if (x >= 0 && y >= 0 && x < cols && y < rows) buf[y * cols + x] = ACC; }
+    ctx.putImageData(img, 0, 0);
+  }
+  function frame(now) {
+    requestAnimationFrame(frame);
+    if (!vis || now - last < 42) return; last = now;
+    if (now > hold) { const t = now / 1000 * .24; tx = cols * .5 + Math.cos(t) * cols * .44; ty = rows * .44 + Math.sin(t) * rows * .37; }
+    sx += (tx - sx) * .14; sy += (ty - sy) * .14;
+    draw();
+  }
+  const aim = (x, y, ms) => { tx = x; ty = y; hold = performance.now() + ms; if (reduce) { sx = tx; sy = ty; draw(); } };
+  addEventListener('pointermove', e => {
+    if (!vis) return; const r = cv.getBoundingClientRect();
+    aim((e.clientX - r.left) / r.width * cols, (e.clientY - r.top) / r.height * rows, 2600);
+  }, { passive: true });
+  cv.addEventListener('keydown', e => {
+    const d = { ArrowLeft: [-4, 0], ArrowRight: [4, 0], ArrowUp: [0, -4], ArrowDown: [0, 4] }[e.key];
+    if (!d) return; e.preventDefault();
+    aim(Math.min(cols, Math.max(0, tx + d[0])), Math.min(rows, Math.max(0, ty + d[1])), 8000);
+  });
+  new IntersectionObserver(es => { vis = es[0].isIntersecting; }).observe(cv);
+
+  /* ---- 32×32 emblems: ink density 0..1, -1 = empty, 2 = accent ---- */
+  function emblem(name) {
+    const g = new Float32Array(1024).fill(-1);
+    const R = (x0, y0, x1, y1, f) => { for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) g[y * 32 + x] = typeof f === 'function' ? f(x, y) : f; };
+    const lr = (a, b) => x => a + (b - a) * x / 31, tb = (a, b) => (x, y) => a + (b - a) * y / 31;
+    if (name === 'mycroft') {            // phone = brain; two thin arms = hands on two machines
+      R(10, 2, 21, 29, 1); R(12, 5, 19, 25, tb(.08, .7)); R(14, 27, 17, 27, 0);
+      R(4, 12, 9, 12, .55); R(22, 19, 27, 19, .55); R(1, 10, 4, 14, 1); R(27, 17, 30, 21, 1); R(2, 11, 3, 13, .2); R(28, 18, 29, 20, .2);
+      R(15, 11, 16, 12, 2);
+    } else if (name === 'golem') {       // clay figure, the word on its forehead
+      const clay = lr(.28, 1);
+      R(12, 3, 19, 10, clay); R(14, 11, 17, 11, clay); R(9, 12, 22, 21, clay);
+      R(5, 12, 7, 22, clay); R(24, 12, 26, 22, clay); R(10, 22, 14, 28, clay); R(17, 22, 21, 28, clay);
+      R(14, 7, 14, 7, 0); R(17, 7, 17, 7, 0); R(6, 30, 25, 30, .3); R(15, 4, 16, 5, 2);
+    } else if (name === 'shadow') {      // a person, and the same person again, fainter
+      const body = (ox, oy, v) => { for (let y = 0; y < 32; y++) for (let x = 0; x < 32; x++) {
+        const hx = x - (10 + ox), hy = y - (8 + oy), w = 2.2 + (y - (13 + oy)) * .34;
+        if (hx * hx + hy * hy < 13 || (y >= 13 + oy && y <= 26 + oy && Math.abs(hx) <= w)) g[y * 32 + x] = v; } };
+      body(10, 3, .34); body(0, 0, 1); R(9, 16, 10, 17, 2);
+    } else {                             // meiro: three sources, one identity, one destination
+      const pipe = c => (x, y) => y === c ? .95 : .5;
+      [6, 16, 26].forEach(c => { R(1, c - 2, 5, c + 2, 1); R(6, c - 1, 13, c + 1, pipe(c)); });
+      R(14, 4, 16, 28, 1); R(17, 15, 25, 17, pipe(16)); R(26, 12, 30, 20, 1); R(27, 13, 29, 19, .25); R(20, 16, 21, 16, 2);
+    }
+    return g;
+  }
+  function drawEmblem(c, p = 1) {
+    const g = c._g || (c._g = emblem(c.dataset.emb)), x2 = c.getContext('2d'), im = x2.createImageData(32, 32), b = new Uint32Array(im.data.buffer), thr = ALGOS[algo][1];
+    for (let i = 0; i < 1024; i++) { const v = g[i]; b[i] = v < 0 ? 0 : v > 1.5 ? (p > .7 ? ACC : 0) : v * p >= thr(i & 31, i >> 5) ? FG : 0; }
+    x2.putImageData(im, 0, 0); c._p = p;
+  }
+  function drawBand(c) {
+    const w = Math.max(20, Math.round(c.clientWidth / grain)), h = +c.dataset.h || 6, rev = c.dataset.dir === 'r', thr = ALGOS[algo][1];
+    c.width = w; c.height = h; c.style.height = h * grain + 'px';
+    const x2 = c.getContext('2d'), im = x2.createImageData(w, h), b = new Uint32Array(im.data.buffer);
+    for (let y = 0, i = 0; y < h; y++) for (let x = 0; x < w; x++, i++) { const v = rev ? x / w : 1 - x / w; b[i] = v * v > thr(x, y) ? FG : 0; }
+    x2.putImageData(im, 0, 0);
+  }
+  const embs = $$('.emb'), bands = $$('.band');
+  function redraw(resized) {
+    readColors();
+    if (resized) setup();
+    draw(); embs.forEach(c => drawEmblem(c, c._p == null ? (reduce ? 1 : 0) : c._p)); bands.forEach(drawBand);
+    $('#algo').textContent = ALGOS[algo][0]; $('#grainv').textContent = grain;
+  }
+  // emblems resolve out of the dither when they scroll into view
+  const io = new IntersectionObserver(es => es.forEach(e => {
+    if (!e.isIntersecting) return; io.unobserve(e.target);
+    if (reduce) return drawEmblem(e.target, 1);
+    let p = 0; const iv = setInterval(() => { p = Math.min(1, p + .07); drawEmblem(e.target, p); if (p >= 1) clearInterval(iv); }, 45);
+  }), { threshold: .4 });
+  embs.forEach(c => io.observe(c));
+
+  /* ---- controls and eggs ---- */
+  const toast = $('#toast'); let tt;
+  const say = (m, ms = 4200) => { toast.textContent = m; toast.classList.add('on'); clearTimeout(tt); tt = setTimeout(() => toast.classList.remove('on'), ms); };
+
+  const setTheme = dark => { root.dataset.theme = dark ? 'dark' : 'light'; $('#invert').setAttribute('aria-pressed', dark); try { localStorage.setItem('v02-theme', dark ? 'dark' : 'light'); } catch (e) {} redraw(); };
+  $('#invert').addEventListener('click', () => setTheme(root.dataset.theme !== 'dark'));
+
+  $('#grainbtn').addEventListener('click', e => { const g = $('#grain'); g.hidden = !g.hidden; e.currentTarget.setAttribute('aria-expanded', !g.hidden); if (!g.hidden) { g.focus(); say('Grain unlocked. Small is photographic, large is honest.'); } });
+  $('#grain').addEventListener('input', e => { grain = +e.target.value; redraw(true); });
+
+  let typed = '', clicks = 0, ct;
+  addEventListener('keydown', e => {
+    if (e.metaKey || e.ctrlKey || e.altKey || /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
+    if (e.key === 'd' || e.key === 'D') { algo = (algo + 1) % ALGOS.length; redraw(); say('Dither: ' + ALGOS[algo][0] + '. Press D again.', 2200); }
+    typed = (typed + e.key).slice(-2);
+    if (typed === '42' && !answer) {
+      answer = true; buildMask(); draw(); say('42. The answer checks out. Nobody wrote down the question.');
+      setTimeout(() => { answer = false; buildMask(); draw(); }, 4200);
+    }
+  });
+  $('#frame').addEventListener('click', () => {
+    clearTimeout(ct); ct = setTimeout(() => clicks = 0, 1600);
+    if (++clicks < 5) return; clicks = 0;
+    const d = $('#dont'); if (d.dataset.busy) return; d.dataset.busy = 1;
+    d.innerHTML = '<span class="x">Don\'t</span>'; say('PANIC. Fine. You asked for it.', 1500);
+    setTimeout(() => { d.textContent = 'Do'; }, 500);
+    setTimeout(() => { d.textContent = "Don't"; delete d.dataset.busy; say("Kidding. Don't."); }, 2600);
+  });
+
+  let rt; addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(() => redraw(true), 120); });
+  try { if (localStorage.getItem('v02-theme') === 'dark') { root.dataset.theme = 'dark'; $('#invert').setAttribute('aria-pressed', 'true'); } } catch (e) {}
+  redraw(true);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => redraw(true));
+  if (!reduce) requestAnimationFrame(frame);
+  console.log('%cMarvin:', 'font-weight:bold', 'Brain the size of a planet, and they have me thresholding a thumb against a 4×4 matrix. Press D if you must.');
+})();
+</script>
+
+<div id="vnav" style="position:fixed;right:12px;bottom:12px;z-index:99999;font:12px/1 ui-monospace,Menlo,monospace;background:#111;color:#fff;border-radius:999px;padding:8px 12px;display:flex;gap:10px;align-items:center;box-shadow:0 2px 10px rgba(0,0,0,.3)"><a href="01-query-console.html" style="color:#FFD400;text-decoration:none" aria-label="Previous variation">‹</a><a href="index.html" style="color:#fff;text-decoration:none">02/20 · dither-monolith</a><a href="03-the-guide.html" style="color:#FFD400;text-decoration:none" aria-label="Next variation">›</a></div>
+</body>
+</html>

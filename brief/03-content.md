@@ -20,5 +20,4 @@
 - Optional: tags
 
 ## Languages
-- English default
-- Czech alternative routes under `/cs/`
+- English only (old `/cs/` URLs redirect to English)

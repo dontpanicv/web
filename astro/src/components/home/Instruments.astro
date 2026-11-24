@@ -1,0 +1,18 @@
+---
+// What the model is doing, for real: its context window and which model it is. Filled in by src/agent/main.ts.
+---
+
+<section class="ctx">
+  <h2>Context window <b id="pct">0%</b></h2>
+  <div id="grid" aria-hidden="true"></div>
+  <div class="kv"><span>tokens in last prompt</span><b id="tok">0</b></div>
+  <div class="kv"><span>limit</span><b id="lim">—</b></div>
+  <div class="kv"><span>speed</span><b id="speed">—</b></div>
+</section>
+<section class="model">
+  <h2>Model <b data-run-status></b></h2>
+  <p class="is" data-model-name>looking…</p>
+  <p class="hint">Runs on this device. Nothing you type leaves the browser.</p>
+  <button class="btn" type="button" id="changemodel">Change model</button>
+  <button class="btn quiet" type="button" id="newrun">Start over</button>
+</section>

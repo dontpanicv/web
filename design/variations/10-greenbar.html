@@ -1,0 +1,587 @@
+<!doctype html>
+<!--
+  10 · GREENBAR — the site is a job printed on green-bar continuous paper by a mainframe line printer.
+  Signature interaction: the paper. It prints in line by line on load (click, scroll or any key skips it), and every
+    perforation has a "TEAR HERE" control that tears off the pages above into the output tray (REATTACH puts them
+    back). FORM FEED / TOP OF FORM on the operator console page through the job.
+  Easter eggs:
+    1. Punch card (page 6): click holes or type to punch; the reader decodes it. Punch "42", "TOWEL" or "PANIC".
+    2. ABEND S0C7: on the personnel record (page 5), click the starred-out SALARY value — it is a hidden button.
+    3. The last page is PAGE 42 OF 42; pages 7–41 are "intentionally left blank" (and say why).
+    4. The ribbon runs dry on the last page (text fades). Click the yellow "RIBBON LOW" note to replace it.
+    5. Paper jam: press FORM FEED five times within two seconds.
+    6. SECURITY CLEARANCE on the personnel record reads "MOSTLY HARMLESS".
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Don't Panic, V! — JOB VKURKA</title>
+<meta name="description" content="Vojtěch “V” Kurka — Head of R&D & Co-Founder at Meiro. Printed on PRT1.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;600&family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --desk: #1E2520; --metal: #2C352F; --paper: #FAF9EE; --green: #DAEAD4; --rule: rgba(40, 110, 66, .17);
+    --ink: #17231B; --faint: #4F5F54; --accent: #FFD400; --pen: #B3261E;
+    --lh: 26px; --strip: 40px; --pad: 24px; --printed: 100000px;
+    --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html { scroll-behavior: smooth; }
+  body { background: var(--desk); color: var(--ink); font: 400 17px/var(--lh) var(--mono); -webkit-font-smoothing: antialiased; }
+  a { color: inherit; text-underline-offset: 4px; }
+  a:hover, a:focus-visible { background: var(--ink); color: var(--paper); text-decoration: none; }
+  #vnav a:hover, #vnav a:focus-visible { background: none; }
+  :focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+  button { font: inherit; color: inherit; }
+  b, strong, .b { font-weight: 700; text-shadow: .4px 0 0 currentColor; } /* overstrike */
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+
+  /* the continuous form */
+  .paper { position: relative; width: min(944px, 100%); margin: 0 auto; background: var(--paper); box-shadow: 0 0 0 1px rgba(0,0,0,.25), 0 30px 90px rgba(0,0,0,.5); }
+  .paper::before, .paper::after { content: ""; position: absolute; top: 0; bottom: 0; width: var(--strip); z-index: 3; pointer-events: none;
+    background: radial-gradient(circle at 50% 13px, var(--desk) 0 var(--hole, 5.5px), rgba(0,0,0,.18) calc(var(--hole, 5.5px) + .6px), transparent calc(var(--hole, 5.5px) + 1.4px)) 0 0 / 100% 52px repeat-y; }
+  .paper::before { left: 0; border-right: 1px dotted rgba(23,35,27,.3); }
+  .paper::after { right: 0; border-left: 1px dotted rgba(23,35,27,.3); }
+  .wear { position: absolute; inset: 0; z-index: 2; pointer-events: none; mix-blend-mode: screen; /* worn hammers: some columns print lighter */
+    background: repeating-linear-gradient(90deg, transparent 0 133px, #1b1b1b 133px 143px, transparent 143px 318px, #141414 318px 324px, transparent 324px 503px, #1f1f1f 503px 513px, transparent 513px 690px); }
+  .page { position: relative; padding: 52px calc(var(--strip) + var(--pad)) 78px; border-bottom: 1px dashed rgba(23,35,27,.38); scroll-margin-top: 0;
+    background: repeating-linear-gradient(180deg, transparent 0 25px, var(--rule) 25px 26px), repeating-linear-gradient(180deg, var(--green) 0 78px, transparent 78px 156px); }
+  .page.tearing { transition: transform .45s cubic-bezier(.5,0,.8,.4), opacity .45s; transform: translate(-60px, -30px) rotate(-2.5deg); opacity: 0; }
+  .page.torn { display: none; }
+  .page.ragged::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 5px; background: radial-gradient(circle at 5px 0, var(--desk) 3px, transparent 3.6px) 0 0 / 10px 5px repeat-x; z-index: 4; }
+  .paper.jam { animation: jam .5s linear 2; }
+  @keyframes jam { 20% { transform: translateX(-7px) rotate(-.4deg); } 60% { transform: translateX(8px) rotate(.5deg); } }
+
+  /* print-in: a cover of blank form below the print line, plus the hammer bank */
+  .cover, .hammers { display: none; }
+  .printing .cover, .printing .hammers { display: block; }
+  .cover { position: absolute; left: 0; right: 0; top: var(--printed); bottom: 0; z-index: 2; pointer-events: none;
+    background: repeating-linear-gradient(180deg, transparent 0 25px, var(--rule) 25px 26px), repeating-linear-gradient(180deg, var(--green) 0 78px, var(--paper) 78px 156px);
+    background-position: 0 calc(-1 * var(--printed)); }
+  .hammers { position: absolute; left: 0; right: 0; top: calc(var(--printed) - 3px); height: 32px; z-index: 5; pointer-events: none; background: linear-gradient(#3a443d, #171c18); box-shadow: 0 8px 18px rgba(0,0,0,.4);
+    color: #9fb0a4; font: 500 11px/32px var(--mono); letter-spacing: .2em; text-align: center; }
+
+  /* tear control at each perforation */
+  .tear { position: absolute; left: var(--strip); right: var(--strip); top: 0; height: 26px; border: 0; background: none; cursor: pointer; color: var(--faint); font: 500 11.5px/26px var(--mono); letter-spacing: .22em; text-align: center; }
+  .tear:hover, .tear:focus-visible { opacity: 1; background: var(--ink); color: var(--paper); }
+
+  /* printed matter */
+  .ph { display: flex; justify-content: space-between; gap: 2ch; flex-wrap: wrap; font-weight: 500; margin-bottom: var(--lh); }
+  .ph span:nth-child(2) { font-weight: 700; text-shadow: .4px 0 0 currentColor; }
+  .fill { display: block; overflow: hidden; white-space: nowrap; }
+  .fill::before { content: attr(data-c) attr(data-c) attr(data-c) attr(data-c) attr(data-c) attr(data-c) attr(data-c) attr(data-c) attr(data-c) attr(data-c); }
+  h2, h3 { font: inherit; font-weight: 700; text-shadow: .4px 0 0 currentColor; text-transform: uppercase; letter-spacing: .02em; }
+  .sp { height: var(--lh); }
+  .fill + h3 { margin-top: var(--lh); }
+  p { max-width: 72ch; }
+  p + p { margin-top: var(--lh); }
+  .up { text-transform: uppercase; }
+  .faint { color: var(--faint); }
+  .hi { background: linear-gradient(98deg, transparent 0 2px, rgba(255, 212, 0, .62) 2px calc(100% - 3px), transparent calc(100% - 3px)); padding: 0 3px; margin: 0 -3px; -webkit-box-decoration-break: clone; box-decoration-break: clone; }
+  .pen { font: 600 23px/26px "Caveat", "Bradley Hand", cursive; color: var(--pen); display: inline-block; transform: rotate(-2.5deg); white-space: nowrap; text-shadow: none; letter-spacing: 0; text-transform: none; }
+
+  /* key ........ value */
+  .f { display: flex; gap: 1ch; }
+  .f .k { flex: 0 0 var(--kw, 18ch); overflow: hidden; white-space: nowrap; text-transform: uppercase; }
+  .f .k::after { content: " ........................................"; }
+  .f .v { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+
+  /* banner */
+  .banner { font: 700 min(24px, calc((100vw - 2 * var(--strip) - 2 * var(--pad)) / 32.6))/1.0834 var(--mono); white-space: pre; overflow: hidden; margin: var(--lh) 0; text-shadow: .5px 0 0 currentColor; }
+  .toc { display: flex; gap: 1ch; text-decoration: none; }
+  .toc .lead { flex: 1; overflow: hidden; white-space: nowrap; }
+  .toc .lead::before { content: "................................................................................"; }
+
+  /* publications table */
+  .pub { display: grid; grid-template-columns: 4ch 11ch 10ch minmax(0, 1fr); column-gap: 2ch; }
+  .pub.head { font-weight: 700; text-shadow: .4px 0 0 currentColor; }
+  .pub .sum { grid-column: 4; color: var(--ink); max-width: 56ch; }
+  .listing { white-space: pre-wrap; overflow-wrap: anywhere; font-size: 15.5px; }
+  .listing i { font-style: normal; color: var(--faint); }
+
+  /* hidden ABEND trigger looks like printed text */
+  #salary { border: 0; background: none; padding: 0; cursor: text; }
+  #salary:focus-visible { cursor: pointer; }
+  #abend { display: none; margin-top: var(--lh); }
+  #abend.on { display: block; }
+  #abend pre { font: inherit; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .key { border: 0; background: var(--ink); color: var(--paper); padding: 0 1ch; cursor: pointer; }
+  .key:hover, .key:focus-visible { background: var(--accent); color: var(--ink); }
+
+  /* punch card */
+  .card { --cols: 16; position: relative; background: #F1E6C3; color: #6B5B34; padding: 26px 14px 14px; max-width: 520px; clip-path: polygon(22px 0, 100% 0, 100% 100%, 0 100%, 0 22px); box-shadow: inset 0 0 0 1px rgba(107,91,52,.35); }
+  .card .read { display: grid; grid-template-columns: repeat(var(--cols), 1fr); font: 700 15px/26px var(--mono); color: var(--ink); text-align: center; height: 26px; }
+  .card .holes { display: grid; grid-template-columns: repeat(var(--cols), 1fr); gap: 3px 0; }
+  .card .holes button { border: 0; background: none; padding: 0; height: 17px; font: 400 10px/17px var(--mono); color: inherit; cursor: pointer; position: relative; }
+  .card .holes button::after { content: ""; position: absolute; inset: 1px 22%; border-radius: 1.5px; }
+  .card .holes button:hover::after { box-shadow: inset 0 0 0 1px #6B5B34; }
+  .card .holes button[aria-pressed="true"] { color: transparent; }
+  .card .holes button[aria-pressed="true"]::after { background: var(--desk); box-shadow: inset 0 1px 2px #000; }
+  .punchin { font: inherit; text-transform: uppercase; background: transparent; border: 0; border-bottom: 2px solid var(--ink); width: 18ch; padding: 0; height: 26px; color: var(--ink); border-radius: 0; }
+
+  /* dry ribbon on the trailer page */
+  .dry .l1 { opacity: .78; } .dry .l2 { opacity: .58; } .dry .l3 { opacity: .42; } .dry .l4 { opacity: .3; } .dry .l5 { opacity: .2; } .dry .l6 { opacity: .13; }
+  #p42 .f, #p42 .fill, #p42 .up { transition: opacity .9s; }
+  .note { position: absolute; right: calc(var(--strip) + 16px); top: 190px; width: 172px; padding: 14px 14px 16px; background: var(--accent); color: #17231B; border: 0; cursor: pointer; transform: rotate(3deg); box-shadow: 2px 6px 14px rgba(0,0,0,.25); font: 600 22px/24px "Caveat", "Bradley Hand", cursive; text-align: left; z-index: 4; }
+  .note:hover, .note:focus-visible { transform: rotate(1deg) scale(1.03); }
+  .note small { display: block; font: 500 10.5px/1.4 var(--mono); letter-spacing: .08em; margin-top: 8px; }
+  .page:not(.dry) .note { display: none; }
+
+  /* the printer the paper feeds from */
+  .printer { width: min(1010px, 100%); margin: 0 auto 120px; background: linear-gradient(#39433c, #252d27); border-radius: 0 0 14px 14px; padding: 20px 28px 26px; color: #9fb0a4; font: 500 11.5px/1.6 var(--mono); letter-spacing: .16em; display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; box-shadow: 0 -10px 20px rgba(0,0,0,.35) inset; }
+
+  /* operator console */
+  .console { position: fixed; left: max(14px, calc(50% - 472px - 232px)); top: 28px; width: 204px; z-index: 20; background: var(--metal); color: #B8C6BC; border-radius: 6px; padding: 14px; font: 500 11px/1.5 var(--mono); letter-spacing: .1em; text-transform: uppercase; box-shadow: 0 10px 30px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.08); }
+  .console h2 { font: 700 11px/1.5 var(--mono); letter-spacing: .14em; color: #E7EFE9; text-shadow: none; margin-bottom: 10px; }
+  .leds { display: flex; gap: 12px; margin-bottom: 12px; }
+  .led::before { content: ""; display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #55D17A; box-shadow: 0 0 8px #55D17A; margin-right: 5px; }
+  .led.off::before { background: #4A554D; box-shadow: none; }
+  .led.warn::before { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+  .led.bad::before { background: #F0553F; box-shadow: 0 0 8px #F0553F; animation: blink 1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: .25; } }
+  .keys { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .console button { border: 0; border-radius: 3px; background: #171C18; color: #E7EFE9; padding: 8px 4px; font: 500 10.5px/1.2 var(--mono); letter-spacing: .08em; text-transform: uppercase; cursor: pointer; box-shadow: 0 2px 0 #000; }
+  .console button:hover, .console button:focus-visible { background: var(--accent); color: #17231B; outline: 0; }
+  .console button:active { transform: translateY(2px); box-shadow: none; }
+  .console nav { margin-top: 12px; border-top: 1px solid #47524A; padding-top: 10px; }
+  .console nav a { display: flex; gap: 1ch; padding: 2px 0; text-decoration: none; color: #B8C6BC; }
+  .console nav a:hover, .console nav a:focus-visible { background: none; color: var(--accent); }
+  #msg { margin-top: 10px; border-top: 1px solid #47524A; padding-top: 10px; color: var(--accent); min-height: 2.6em; }
+  #tray { grid-column: 1 / -1; display: none; }
+  #tray.on { display: block; }
+  #skip { grid-column: 1 / -1; }
+
+  @media (max-width: 1415px) {
+    .console { position: sticky; top: 0; left: 0; width: auto; border-radius: 0; padding: 8px 12px; display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; }
+    .console h2 { margin: 0 auto 0 0; }
+    .console nav, .leds .led:nth-child(n+2) { display: none; }
+    .leds { margin: 0; }
+    .keys { display: flex; }
+    .console button { padding: 7px 9px; }
+    #msg { margin: 0; padding: 0; border: 0; min-height: 0; flex-basis: 100%; }
+    #msg:empty { display: none; }
+    .page { scroll-margin-top: 44px; }
+  }
+  @media (max-width: 700px) {
+    :root { --strip: 14px; --pad: 10px; --hole: 3.2px; }
+    .f { --kw: 11ch; flex-wrap: wrap; gap: 0 1ch; }
+    .f .k { flex-basis: min(var(--kw), 100%); }
+    .f .v { min-width: 18ch; }
+    .f[style*="13ch"] .v { min-width: 100%; } /* long values get the full measure */
+    .pub { grid-template-columns: 4ch 11ch minmax(0, 1fr); }
+    .pub .t, .pub .sum { grid-column: 1 / -1; }
+    .pub.head span:nth-child(4) { display: none; }
+    .pen { white-space: normal; }
+    .note { position: relative; right: auto; top: auto; display: block; margin: var(--lh) 0 0 auto; }
+    .printer { margin-bottom: 90px; }
+    .listing { font-size: 13.5px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+
+<aside class="console" aria-label="Printer operator console">
+  <h2>PRT1 · Line printer</h2>
+  <div class="leds"><span class="led" id="led-ready">Ready</span><span class="led" id="led-ribbon">Ribbon</span><span class="led off" id="led-check">Check</span></div>
+  <div class="keys">
+    <button type="button" id="tof">Top of form</button>
+    <button type="button" id="ff">Form feed</button>
+    <button type="button" id="skip">Skip print-in</button>
+    <button type="button" id="tray">Reattach <span id="trayn">0</span> torn</button>
+  </div>
+  <nav aria-label="Reports">
+    <a href="#p1"><span>01</span>Job banner</a>
+    <a href="#p2"><span>02</span>Projects</a>
+    <a href="#p3"><span>03</span>Publications</a>
+    <a href="#p4"><span>04</span>Document</a>
+    <a href="#p5"><span>05</span>Personnel</a>
+    <a href="#p6"><span>06</span>Contact</a>
+    <a href="#p42"><span>42</span>End of job</a>
+  </nav>
+  <div id="msg" role="status"></div>
+</aside>
+
+<main class="paper" id="paper">
+  <div class="wear" aria-hidden="true"></div>
+
+  <!-- PAGE 1 -->
+  <section class="page" id="p1">
+    <div class="ph"><span>VKURKA.PRT1</span><span>JOB SEPARATOR</span><span>PAGE 1 OF 42</span></div>
+    <span class="fill" data-c="**********" aria-hidden="true"></span>
+    <div class="up">*&nbsp; START OF JOB &nbsp;·&nbsp; dontpanicv.com</div>
+    <span class="fill" data-c="**********" aria-hidden="true"></span>
+    <h1 class="banner" id="banner" aria-label="Don't Panic, V!">DON'T PANIC, V!</h1>
+    <div class="f"><span class="k">Job</span><span class="v">VKURKA &nbsp; CLASS=A &nbsp; MSGCLASS=X &nbsp; PRTY=42</span></div>
+    <div class="f"><span class="k">User</span><span class="v"><b>KURKA, VOJTĚCH “V”</b></span></div>
+    <div class="f"><span class="k">Title</span><span class="v">HEAD OF R&amp;D &amp; CO-FOUNDER, <span class="hi">MEIRO</span></span></div>
+    <div class="f"><span class="k">Location</span><span class="v">BRNO, CZECHIA</span></div>
+    <div class="f"><span class="k">Printed</span><span class="v"><span class="today">2026-11-21</span> ON PRT1 &nbsp; FORMS=GRNBAR</span></div>
+    <div class="sp"></div>
+    <h2>Operator notes</h2>
+    <span class="fill" data-c="----------" aria-hidden="true"></span>
+    <p>I like knowing how things work — from CPUs and protocols to databases and containers. Almost ten years of building a data platform in production taught me most of it.</p>
+    <p>Now I spend that curiosity on AI: local models, agentic workflows, and getting it all into production for real customers. <span class="hi">If I can't explain it to someone else, I don't understand it yet.</span></p>
+    <p class="faint">“I write code no one wants to read, but everyone needs to have. Data whatever.” <span class="pen">← accurate</span></p>
+    <div class="sp"></div>
+    <h2>Index of reports</h2>
+    <span class="fill" data-c="----------" aria-hidden="true"></span>
+    <a class="toc" href="#p2"><span>PROJECT STATUS REPORT</span><span class="lead" aria-hidden="true"></span><span>PAGE 2</span></a>
+    <a class="toc" href="#p3"><span>PUBLICATIONS LISTING</span><span class="lead" aria-hidden="true"></span><span>PAGE 3</span></a>
+    <a class="toc" href="#p4"><span>DOCUMENT PRINT</span><span class="lead" aria-hidden="true"></span><span>PAGE 4</span></a>
+    <a class="toc" href="#p5"><span>PERSONNEL RECORD</span><span class="lead" aria-hidden="true"></span><span>PAGE 5</span></a>
+    <a class="toc" href="#p6"><span>CONTACT DIRECTORY</span><span class="lead" aria-hidden="true"></span><span>PAGE 6</span></a>
+    <a class="toc" href="#p42"><span>END OF JOB</span><span class="lead" aria-hidden="true"></span><span>PAGE 42</span></a>
+  </section>
+
+  <!-- PAGE 2 -->
+  <section class="page" id="p2">
+    <button class="tear" type="button">- - - ✂ TEAR HERE - - -</button>
+    <div class="ph"><span>VKURKA.PRT1</span><span>PROJECT STATUS REPORT</span><span>PAGE 2 OF 42</span></div>
+    <span class="fill" data-c="==========" aria-hidden="true"></span>
+    <div class="sp"></div>
+
+    <h3><span class="hi">Mycroft</span> &nbsp; <span class="pen">★41 — people actually starred it</span></h3>
+    <div class="f"><span class="k">Status</span><span class="v">ACTIVE &nbsp; RC=0000</span></div>
+    <div class="f"><span class="k">Language</span><span class="v">SWIFT &nbsp; OPEN SOURCE</span></div>
+    <div class="f"><span class="k">Location</span><span class="v"><a href="https://github.com/dontpanicv/mycroft">github.com/dontpanicv/mycroft</a></span></div>
+    <div class="sp"></div>
+    <p><b>A self-modifying, durable agent that lives on your iPhone. Brain on the phone, hands on your machines.</b></p>
+    <p>The agent loop, its state and its own source code live on the phone. It edits its own behaviour and its own screen, keeps known-good generations and rolls back when it gets it wrong. A small daemon called “hands” gives it files, shell and supervised jobs on macOS and Linux. Named after the Holmes brother who stayed in his armchair.</p>
+    <span class="fill faint" data-c="- - - - - " aria-hidden="true"></span>
+
+    <h3><span class="hi">Golem</span></h3>
+    <div class="f"><span class="k">Status</span><span class="v">ACTIVE &nbsp; RC=0000</span></div>
+    <div class="f"><span class="k">Language</span><span class="v">TYPESCRIPT &nbsp; OPEN SOURCE</span></div>
+    <div class="f"><span class="k">Location</span><span class="v"><a href="https://github.com/dontpanicv/golem">github.com/dontpanicv/golem</a></span></div>
+    <div class="sp"></div>
+    <p><b>Family AI assistant and second brain on our own machines. No cloud, no central server.</b></p>
+    <p>One server at home, one app for the whole family on the web, iPhone and Android. It remembers what was decided, does real work on your machines, and asks before it sends, buys or deletes. In Prague legend, Rabbi Loew shaped the Golem from clay. This one is made from SQLite and Markdown.</p>
+    <span class="fill faint" data-c="- - - - - " aria-hidden="true"></span>
+
+    <h3><span class="hi">Shadow</span></h3>
+    <div class="f"><span class="k">Status</span><span class="v">ACTIVE &nbsp; RC=0000</span></div>
+    <div class="f"><span class="k">Language</span><span class="v">TYPESCRIPT &nbsp; OPEN SOURCE</span></div>
+    <div class="f"><span class="k">Location</span><span class="v"><a href="https://github.com/dontpanicv/shadow">github.com/dontpanicv/shadow</a></span></div>
+    <div class="sp"></div>
+    <p><b>A shadow company for your team.</b></p>
+    <p>Every employee gets a shadow: an agent that reads their Slack and mail, keeps track of what each conversation asks of them, and helps do the work when asked. It lives in Slack, stays quiet, and runs on your own server — one SQLite database and Markdown files.</p>
+    <span class="fill faint" data-c="- - - - - " aria-hidden="true"></span>
+
+    <h3><span class="hi">Meiro</span></h3>
+    <div class="f"><span class="k">Status</span><span class="v">IN PRODUCTION SINCE 2018</span></div>
+    <div class="f"><span class="k">Class</span><span class="v">DAY JOB &nbsp; CUSTOMER DATA INFRASTRUCTURE</span></div>
+    <div class="f"><span class="k">Location</span><span class="v"><a href="https://meiro.io">meiro.io</a></span></div>
+    <div class="sp"></div>
+    <p><b>Customer data infrastructure with AI included — that you own, control and audit.</b></p>
+    <p>Pipes moves the data: sources, events, identity, destinations. Engage acts on it: audiences, journeys, campaigns. The AI Analyst sits on top — an analytical agent built on bash, a mounted in-memory filesystem and a JSON renderer instead of a tool-calling loop. Self-hostable.</p>
+    <div class="sp"></div>
+    <span class="fill" data-c="==========" aria-hidden="true"></span>
+    <div class="up b">4 projects listed &nbsp; · &nbsp; can run on machines you own: 4 of 4</div>
+  </section>
+
+  <!-- PAGE 3 -->
+  <section class="page" id="p3">
+    <button class="tear" type="button">- - - ✂ TEAR HERE - - -</button>
+    <div class="ph"><span>VKURKA.PRT1</span><span>PUBLICATIONS LISTING</span><span>PAGE 3 OF 42</span></div>
+    <span class="fill" data-c="==========" aria-hidden="true"></span>
+    <div class="pub head"><span>SEQ</span><span>DATE</span><span>STATUS</span><span>TITLE</span></div>
+    <span class="fill" data-c="----------" aria-hidden="true"></span>
+    <div class="pub"><span>001</span><span>2026-04-29</span><span>PUBLISHED</span><span class="t"><a href="#p4"><b>Beyond the Tool-Calling Loop: How We Built an AI Analyst with Bash, a Mounted Filesystem, and a JSON Renderer</b></a></span>
+      <span class="sum">Why the naive AI SDK + tools + markdown loop runs out of room for analytical agents, and the three ideas that replaced it. <span class="pen">printed on page 4 →</span></span></div>
+    <div class="sp"></div>
+    <div class="pub"><span>002</span><span>2026-02-10</span><span>PUBLISHED</span><span class="t"><a href="https://dontpanicv.com/posts/ai-agents-codebases/"><b>Stop Letting AI Agents Guess Where Code Goes</b></a></span>
+      <span class="sum">A modular-monolith refactor designed for AI agents: predictable module layout, centralized auth, and a strict public.ts boundary.</span></div>
+    <div class="sp"></div>
+    <div class="pub"><span>003</span><span>----------</span><span>DRAFT</span><span class="t"><b>Claude Code vs Codex: Same Coding AI, Different People</b></span>
+      <span class="sum">Why the two aren't interchangeable: prompting style and ambiguity tolerance shape the outcome.</span></div>
+    <div class="sp"></div>
+    <div class="pub"><span>004</span><span>----------</span><span>IDEA</span><span class="t"><b>Gaslighting Coding Agents for Better Security</b></span>
+      <span class="sum">Tell an agent, as fact, that a pentester already got RCE — and let it work out how.</span></div>
+    <div class="sp"></div>
+    <span class="fill" data-c="----------" aria-hidden="true"></span>
+    <h2>Remarks on file</h2>
+    <div class="sp"></div>
+    <p>“Most ‘AI agents’ shipped in 2026 are a <span class="hi">streamText() call in a trench coat</span>.”</p>
+    <p>“Your AI doesn't need more tools. It needs fewer tools and a filesystem. Possibly also therapy, but we're starting with the filesystem.”</p>
+    <p>Jevons paradox vs Engel's law: will token spend behave like food spend?</p>
+    <p>“How you prompt still matters. Human creativity still beats AI. For now.”</p>
+    <div class="sp"></div>
+    <div class="up b">4 records listed &nbsp; · &nbsp; 2 published &nbsp; · &nbsp; 0 written by a chatbot</div>
+  </section>
+
+  <!-- PAGE 4 -->
+  <section class="page" id="p4">
+    <button class="tear" type="button">- - - ✂ TEAR HERE - - -</button>
+    <div class="ph"><span>VKURKA.PRT1</span><span>DOCUMENT PRINT · SEQ 001</span><span>PAGE 4 OF 42</span></div>
+    <span class="fill" data-c="==========" aria-hidden="true"></span>
+    <div class="sp"></div>
+    <h2>Beyond the Tool-Calling Loop: How We Built an AI Analyst with Bash, a Mounted Filesystem, and a JSON Renderer</h2>
+    <div class="faint up">V. Kurka &nbsp; · &nbsp; 2026-04-29 &nbsp; · &nbsp; first 60 lines of 412</div>
+    <div class="sp"></div>
+    <p>Most AI features built today follow the same recipe: take the Vercel AI SDK, register a handful of tools, write a system prompt, and stream the result into a markdown component. It works. It is also where most teams stop — and where most AI products start to feel limited.</p>
+    <p>This works great for operational assistants — “create an audience”, “show me the last failed delivery”. The conversation is short, each tool returns a small, well-shaped object, and the markdown is the answer. <span class="hi">It stops working the moment the model needs to think with data.</span></p>
+    <div class="sp"></div>
+    <h3>Problem one: tool results that flood the context</h3>
+    <div class="sp"></div>
+<div class="listing"><i>0001 |</i> execute: async ({ sql }) =&gt; {
+<i>0002 |</i>   const { columns, rows } = await warehouse.execute(sql);
+<i>0003 |</i>   return { columns, rows }; // &lt;-- 50,000 rows of JSON
+<i>0004 |</i> }</div>
+    <div class="sp"></div>
+    <p>Whatever the tool returns goes straight into the model's context. A query that returns 50k rows is now 50k rows of JSON sitting in the conversation, on every subsequent turn, paid for in tokens, and pushing earlier reasoning out of the window. You can paginate, truncate, summarize. All of these are coping mechanisms.</p>
+    <div class="sp"></div>
+    <h3>Problem two: metadata bloat</h3>
+    <div class="sp"></div>
+    <p>To answer almost any analytical question, the model needs to know what exists: event types, attributes, audiences, warehouse tables. Expose that as one list tool per entity and the model, being agreeable, calls all of them “to orient itself”. Tens of thousands of tokens land in context before the question is even processed. There is no grep. <span class="pen">this is the good bit</span></p>
+    <div class="sp"></div>
+    <h3>What replaced it</h3>
+    <div class="sp"></div>
+    <p><b>1. just-bash with an in-memory filesystem</b>, so the agent can look things up instead of being told everything.</p>
+    <p><b>2. A SQL execution layer that mounts results as files</b>, so data lives next to the model rather than inside it.</p>
+    <p><b>3. A JSON renderer with a predefined component manifest</b>, so the answer is a chart and a table rather than a paragraph about a chart and a table.</p>
+    <div class="sp"></div>
+    <span class="fill" data-c="**********" aria-hidden="true"></span>
+    <div class="up">* Listing truncated after 60 lines to save paper.</div>
+    <div class="up">* Full document: <a href="https://dontpanicv.com/posts/ai-analyst-architecture/">dontpanicv.com/posts/ai-analyst-architecture</a></div>
+    <span class="fill" data-c="**********" aria-hidden="true"></span>
+  </section>
+
+  <!-- PAGE 5 -->
+  <section class="page" id="p5">
+    <button class="tear" type="button">- - - ✂ TEAR HERE - - -</button>
+    <div class="ph"><span>VKURKA.PRT1</span><span>PERSONNEL RECORD</span><span>PAGE 5 OF 42</span></div>
+    <span class="fill" data-c="==========" aria-hidden="true"></span>
+    <div class="sp"></div>
+    <div class="f" style="--kw:24ch"><span class="k">Name</span><span class="v"><b>KURKA, VOJTĚCH “V”</b></span></div>
+    <div class="f" style="--kw:24ch"><span class="k">Position</span><span class="v">HEAD OF R&amp;D &amp; CO-FOUNDER, MEIRO</span></div>
+    <div class="f" style="--kw:24ch"><span class="k">Site</span><span class="v">BRNO, CZECHIA</span></div>
+    <div class="f" style="--kw:24ch"><span class="k">Education</span><span class="v">VUT FIT — BRNO UNIVERSITY OF TECHNOLOGY, FACULTY OF INFORMATION TECHNOLOGY</span></div>
+    <div class="f" style="--kw:24ch"><span class="k">Security clearance</span><span class="v">MOSTLY HARMLESS</span></div>
+    <div class="f" style="--kw:24ch"><span class="k">Salary</span><span class="v"><button id="salary" type="button" aria-label="Salary, redacted">********</button></span></div>
+    <div id="abend" role="status">
+      <span class="fill" data-c="**********" aria-hidden="true"></span>
+<pre><b>IEA995I SYSTEM COMPLETION CODE=0C7  REASON CODE=00000042</b>
+JOB VKURKA  STEP PAYROLL  ABEND S0C7 - DATA EXCEPTION
+FIELD SALARY CONTAINS NON-NUMERIC DATA: 'EQUITY AND COFFEE'
+PSW AT TIME OF ERROR  078D1000 0004242A
+000000  C4D6D5E3 40D7C1D5 C9C34B40 40404040  *DONT PANIC.     *
+000010  E3D6E6C5 D340D6D2 4B404040 40404040  *TOWEL OK.       *
+DUMP SUPPRESSED. NOBODY READS THEM ANYWAY.</pre>
+      <button class="key" id="resume" type="button">RESUME JOB</button>
+      <span class="fill" data-c="**********" aria-hidden="true"></span>
+    </div>
+    <div class="sp"></div>
+    <h2>Service history</h2>
+    <span class="fill" data-c="----------" aria-hidden="true"></span>
+    <div class="f" style="--kw:13ch"><span class="k">2024-NOW</span><span class="v"><b>MEIRO — HEAD OF R&amp;D &amp; CO-FOUNDER</b><br>Research that has to survive production: local models, agentic workflows, self-learning data analysis tools.</span></div>
+    <div class="sp"></div>
+    <div class="f" style="--kw:13ch"><span class="k">2018-2024</span><span class="v"><b>MEIRO — CTO &amp; CO-FOUNDER</b><br>Owned product architecture, development and implementations of the Meiro CDP. Customer data infrastructure, identity resolution, real-time pipelines.</span></div>
+    <div class="sp"></div>
+    <div class="f" style="--kw:13ch"><span class="k">2015-2018</span><span class="v"><b>KEBOOLA — HEAD NERD / SOLUTIONS ARCHITECT</b><br>Designed data integrations end to end, partly from Bali, Indonesia. <span class="pen">yes, that was the title</span></span></div>
+    <div class="sp"></div>
+    <h2>Supervisor remarks</h2>
+    <span class="fill" data-c="----------" aria-hidden="true"></span>
+    <p>Wants to understand systems end to end — CPUs, operating systems, languages, databases, containers, proxies, protocols. Some of it picked up out of curiosity, the rest by debugging production.</p>
+    <p>Ends up explaining everything, on stage when needed. In his words: <span class="hi">“Teaching is how I verify I actually understand something.”</span></p>
+    <div class="sp"></div>
+    <h2>Skills inventory (self-reported, not to scale)</h2>
+    <span class="fill" data-c="----------" aria-hidden="true"></span>
+    <div class="f" style="--kw:28ch"><span class="k">Knowing how things work</span><span class="v">XXXXXXXXXXXXXXXXXXXX</span></div>
+    <div class="f" style="--kw:28ch"><span class="k">Databases and pipelines</span><span class="v">XXXXXXXXXXXXXXXXXXX</span></div>
+    <div class="f" style="--kw:28ch"><span class="k">Agents in production</span><span class="v">XXXXXXXXXXXXXXXXX</span></div>
+    <div class="f" style="--kw:28ch"><span class="k">Explaining things</span><span class="v">XXXXXXXXXXXXXXXXXX</span></div>
+    <div class="f" style="--kw:28ch"><span class="k">Tolerance for hype</span><span class="v">X</span></div>
+  </section>
+
+  <!-- PAGE 6 -->
+  <section class="page" id="p6">
+    <button class="tear" type="button">- - - ✂ TEAR HERE - - -</button>
+    <div class="ph"><span>VKURKA.PRT1</span><span>CONTACT DIRECTORY</span><span>PAGE 6 OF 42</span></div>
+    <span class="fill" data-c="==========" aria-hidden="true"></span>
+    <div class="sp"></div>
+    <div class="f" style="--kw:13ch"><span class="k">Email</span><span class="v"><a href="mailto:kurka.vojtech@gmail.com"><b>kurka.vojtech@gmail.com</b></a> <span class="pen">← fastest</span></span></div>
+    <div class="f" style="--kw:13ch"><span class="k">GitHub</span><span class="v"><a href="https://github.com/dontpanicv">github.com/dontpanicv</a></span></div>
+    <div class="f" style="--kw:13ch"><span class="k">X</span><span class="v"><a href="https://x.com/dontpanicv">x.com/dontpanicv</a></span></div>
+    <div class="f" style="--kw:13ch"><span class="k">LinkedIn</span><span class="v"><a href="https://www.linkedin.com/in/kurkavojtech/">linkedin.com/in/kurkavojtech</a></span></div>
+    <div class="sp"></div>
+    <h2>Card reader RDR1</h2>
+    <span class="fill" data-c="----------" aria-hidden="true"></span>
+    <p>No terminal? Punch a card. Click the holes, or type below and the keypunch does it for you.</p>
+    <div class="sp"></div>
+    <div><label for="punchin" class="up">Keypunch: </label><input class="punchin" id="punchin" maxlength="16" value="DONT PANIC" autocomplete="off" spellcheck="false"></div>
+    <div class="sp"></div>
+    <div class="card">
+      <div class="read" id="read" aria-hidden="true"></div>
+      <div class="holes" id="holes" role="group" aria-label="Punch card, 16 columns by 12 rows"></div>
+    </div>
+    <div class="sp"></div>
+    <div class="up b" id="reader" role="status">RDR1: 10 COLUMNS READ.</div>
+  </section>
+
+  <!-- PAGE 42 -->
+  <section class="page dry" id="p42">
+    <button class="tear" type="button">- - - ✂ TEAR HERE - - -</button>
+    <div class="ph"><span>VKURKA.PRT1</span><span>END OF JOB</span><span>PAGE 42 OF 42</span></div>
+    <span class="fill" data-c="==========" aria-hidden="true"></span>
+    <div class="sp"></div>
+    <p class="faint up">Pages 7 through 41 intentionally left blank. Saves paper. Also there was nothing on them.</p>
+    <div class="sp"></div>
+    <button class="note" id="ribbon" type="button">Ribbon low!<br>Click to replace.<small>— OPERATOR, NIGHT SHIFT</small></button>
+    <div class="f l1" style="--kw:26ch"><span class="k">Job</span><span class="v">VKURKA ENDED &nbsp; RC=0000</span></div>
+    <div class="f l1" style="--kw:26ch"><span class="k">Lines printed</span><span class="v">1,337</span></div>
+    <div class="f l2" style="--kw:26ch"><span class="k">Pages printed</span><span class="v">7 OF 42</span></div>
+    <div class="f l3" style="--kw:26ch"><span class="k">CPU time</span><span class="v">0.42 SEC</span></div>
+    <div class="f l4" style="--kw:26ch"><span class="k">Coffee consumed</span><span class="v">FIELD OVERFLOW</span></div>
+    <div class="f l5" style="--kw:26ch"><span class="k">Ribbons used</span><span class="v" id="ribbons">1</span></div>
+    <div class="f l6" style="--kw:26ch"><span class="k">Panic</span><span class="v">NONE DETECTED</span></div>
+    <div class="sp"></div>
+    <span class="fill l6" data-c="**********" aria-hidden="true"></span>
+    <div class="up b l6">* End of job. Thank you for reading the whole printout. Hardly anyone does.</div>
+    <span class="fill l6" data-c="**********" aria-hidden="true"></span>
+  </section>
+
+  <div class="cover" id="cover" aria-hidden="true"></div>
+  <div class="hammers" id="hammers" aria-hidden="true">· · · PRT1 PRINTING · · ·</div>
+</main>
+<div class="printer" aria-hidden="true"><span>LINE PRINTER · PRT1 · 132 COL · 600 LPM (CLAIMED)</span><span>DO NOT OPEN COVER WHILE PANICKING</span></div>
+
+<script>
+(() => {
+  const $ = (s, r = document) => r.querySelector(s), $$ = (s, r = document) => [...r.querySelectorAll(s)];
+  const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const root = document.documentElement, paper = $('#paper');
+  const say = (t, ms = 5000) => { const m = $('#msg'); m.textContent = t; clearTimeout(say.t); if (ms) say.t = setTimeout(() => m.textContent = '', ms); };
+
+  /* banner: block letters built from the letter itself, like every separator page since 1964 */
+  const F = {
+    D: ['####.', '#...#', '#...#', '#...#', '#...#', '#...#', '####.'], O: ['.###.', '#...#', '#...#', '#...#', '#...#', '#...#', '.###.'],
+    N: ['#...#', '##..#', '#.#.#', '#.#.#', '#..##', '#...#', '#...#'], T: ['#####', '..#..', '..#..', '..#..', '..#..', '..#..', '..#..'],
+    P: ['####.', '#...#', '#...#', '####.', '#....', '#....', '#....'], A: ['.###.', '#...#', '#...#', '#####', '#...#', '#...#', '#...#'],
+    I: ['#####', '..#..', '..#..', '..#..', '..#..', '..#..', '#####'], C: ['.####', '#....', '#....', '#....', '#....', '#....', '.####'],
+    V: ['#...#', '#...#', '#...#', '#...#', '.#.#.', '.#.#.', '..#..'], "'": ['##', '.#', '#.', '..', '..', '..', '..'],
+    ',': ['..', '..', '..', '..', '..', '##', '.#'], '!': ['##', '##', '##', '##', '##', '..', '##'], ' ': ['..', '..', '..', '..', '..', '..', '..'],
+  };
+  const block = word => Array.from({ length: 7 }, (_, r) => [...word].map(ch => F[ch][r].replace(/#/g, ch).replace(/\./g, ' ')).join('  ').trimEnd()).join('\n');
+  $('#banner').textContent = block("DON'T") + '\n\n' + block('PANIC, V!');
+  // keep the banner on the 26px line grid at any font size, so the green bars stay under the text
+  const fit = () => { const el = $('#banner'); el.style.height = ''; el.style.height = Math.ceil(el.offsetHeight / 26) * 26 + 'px'; };
+  fit(); addEventListener('resize', fit); document.fonts && document.fonts.ready.then(fit);
+
+  const d = new Date();
+  $$('.today').forEach(e => e.textContent = d.toISOString().slice(0, 10));
+
+  /* slightly uneven impact: every printed block sits a fraction of a pixel off */
+  $$('.page > *:not(.tear):not(.note)').forEach(e => { e.style.transform = `translate(${(Math.random() - .5).toFixed(2)}px, ${(Math.random() * .8 - .4).toFixed(2)}px)`; });
+
+  /* print-in */
+  let printing = false;
+  function donePrinting() {
+    if (!printing) return;
+    printing = false; root.classList.remove('printing'); $('#skip').remove();
+    ['wheel', 'touchstart', 'keydown', 'pointerdown'].forEach(ev => removeEventListener(ev, donePrinting));
+  }
+  if (calm) $('#skip').remove();
+  else {
+    printing = true; root.classList.add('printing');
+    let y = 52; const end = Math.min(innerHeight + 130, 1400);
+    root.style.setProperty('--printed', y + 'px');
+    const t = setInterval(() => {
+      if (!printing) return clearInterval(t);
+      y += 26; root.style.setProperty('--printed', y + 'px');
+      if (y >= end) { clearInterval(t); donePrinting(); }
+    }, 38);
+    ['wheel', 'touchstart', 'keydown', 'pointerdown'].forEach(ev => addEventListener(ev, donePrinting, { passive: true }));
+  }
+
+  /* form feed / top of form / paper jam */
+  const pages = $$('.page');
+  const live = () => pages.filter(p => !p.classList.contains('torn'));
+  const go = el => el.scrollIntoView({ behavior: calm ? 'auto' : 'smooth', block: 'start' });
+  let feeds = [];
+  $('#ff').addEventListener('click', () => {
+    const now = Date.now(); feeds = feeds.filter(t => now - t < 2000).concat(now);
+    if (feeds.length >= 5) {
+      feeds = []; paper.classList.remove('jam'); void paper.offsetWidth; paper.classList.add('jam');
+      $('#led-check').className = 'led bad'; say('Paper jam. Open cover, remove panic.', 4000);
+      return setTimeout(() => { $('#led-check').className = 'led off'; }, 4000);
+    }
+    const next = live().find(p => p.getBoundingClientRect().top > 60);
+    next ? go(next) : say('End of forms.');
+  });
+  $('#tof').addEventListener('click', () => scrollTo({ top: 0, behavior: calm ? 'auto' : 'smooth' }));
+
+  /* tear along the perforation */
+  function tearAt(page) {
+    const above = live().slice(0, live().indexOf(page));
+    if (!above.length) return;
+    above.forEach(p => p.classList.add('tearing'));
+    setTimeout(() => {
+      const before = page.getBoundingClientRect().top;
+      above.forEach(p => { p.classList.remove('tearing'); p.classList.add('torn'); });
+      pages.forEach(p => p.classList.remove('ragged')); page.classList.add('ragged');
+      scrollBy({ top: page.getBoundingClientRect().top - before, behavior: 'instant' }); // keep the reader's place
+      const n = pages.filter(p => p.classList.contains('torn')).length;
+      $('#trayn').textContent = n; $('#tray').classList.add('on');
+      say(`${n} page${n > 1 ? 's' : ''} in the output tray.`);
+    }, calm ? 0 : 460);
+  }
+  $$('.tear').forEach(b => b.addEventListener('click', () => tearAt(b.parentElement)));
+  $('#tray').addEventListener('click', () => {
+    pages.forEach(p => p.classList.remove('torn', 'ragged'));
+    $('#tray').classList.remove('on'); scrollTo({ top: 0, behavior: 'instant' }); say('Pages reattached. Tape not included.');
+  });
+  $('#skip').addEventListener('click', donePrinting);
+
+  /* egg: ABEND S0C7 */
+  $('#salary').addEventListener('click', () => { $('#abend').classList.add('on'); $('#led-check').className = 'led bad'; say('ABEND S0C7 in step PAYROLL.', 0); });
+  $('#resume').addEventListener('click', () => { $('#abend').classList.remove('on'); $('#led-check').className = 'led off'; say('Job resumed. Salary stays redacted.'); });
+
+  /* egg: the ribbon */
+  let ribbons = 1;
+  $('#led-ribbon').className = 'led warn';
+  $('#ribbon').addEventListener('click', () => {
+    $('#p42').classList.remove('dry'); $('#ribbons').textContent = ++ribbons;
+    $('#led-ribbon').className = 'led'; say('Ribbon replaced. Ink on fingers: yes.');
+  });
+
+  /* punch card: IBM 029 zone + digit punches */
+  const ROWS = ['12', '11', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9'], COLS = 16;
+  const enc = ch => /\d/.test(ch) ? [ch] : /[A-I]/.test(ch) ? ['12', String(ch.charCodeAt(0) - 64)] : /[J-R]/.test(ch) ? ['11', String(ch.charCodeAt(0) - 73)] : /[S-Z]/.test(ch) ? ['0', String(ch.charCodeAt(0) - 81)] : [];
+  const key = rows => ROWS.filter(r => rows.includes(r)).join('+');
+  const DEC = Object.fromEntries([...'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'].map(c => [key(enc(c)), c])); DEC[''] = ' ';
+  const card = Array.from({ length: COLS }, () => []);
+  const decode = () => card.map(rows => DEC[key(rows)] ?? '?').join('');
+  const holes = $('#holes'), read = $('#read');
+  read.innerHTML = '<span></span>'.repeat(COLS);
+  holes.innerHTML = ROWS.map(r => Array.from({ length: COLS }, (_, c) => `<button type="button" tabindex="-1" data-r="${r}" data-c="${c}" aria-pressed="false" aria-label="column ${c + 1} row ${r}">${r.length > 1 ? '' : r}</button>`).join('')).join('');
+  function paint(fromInput) {
+    $$('button', holes).forEach(b => b.setAttribute('aria-pressed', card[+b.dataset.c].includes(b.dataset.r)));
+    const text = decode();
+    [...read.children].forEach((s, i) => s.textContent = text[i]);
+    if (!fromInput) $('#punchin').value = text.trimEnd();
+    const t = text.trim();
+    $('#reader').textContent = 'RDR1: ' + (t === '42' ? 'ANSWER ACCEPTED. QUESTION NOT ON FILE.' : t === 'TOWEL' ? 'TOWEL LOCATED. YOU MAY PROCEED.' : t === 'PANIC' ? "DON'T." : text.includes('?') ? 'INVALID PUNCH IN SOME COLUMN. CARD REJECTED, POLITELY.' : `${t.length} COLUMN${t.length === 1 ? '' : 'S'} READ.`);
+  }
+  function punchText(s) { [...s.toUpperCase().padEnd(COLS)].slice(0, COLS).forEach((ch, i) => card[i] = enc(ch)); }
+  holes.addEventListener('click', e => {
+    const b = e.target.closest('button'); if (!b) return;
+    const col = card[+b.dataset.c], i = col.indexOf(b.dataset.r);
+    i < 0 ? col.push(b.dataset.r) : col.splice(i, 1);
+    paint();
+  });
+  $('#punchin').addEventListener('input', e => { punchText(e.target.value); paint(true); });
+  punchText('V42'); console.assert(decode().trim() === 'V42', 'punch card round trip');
+  punchText('DONT PANIC'); paint(true);
+})();
+</script>
+
+<div id="vnav" style="position:fixed;right:12px;bottom:12px;z-index:99999;font:12px/1 ui-monospace,Menlo,monospace;background:#111;color:#fff;border-radius:999px;padding:8px 12px;display:flex;gap:10px;align-items:center;box-shadow:0 2px 10px rgba(0,0,0,.3)"><a href="09-pixel-quest.html" style="color:#FFD400;text-decoration:none" aria-label="Previous variation">‹</a><a href="index.html" style="color:#fff;text-decoration:none">10/20 · greenbar</a><a href="11-datasheet.html" style="color:#FFD400;text-decoration:none" aria-label="Next variation">›</a></div>
+</body>
+</html>

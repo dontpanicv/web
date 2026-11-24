@@ -7,7 +7,7 @@
 - Simple to maintain
 - Fast, static, SEO-friendly
 - Works well on mobile
-- Easy deployment workflow: build static output to `main/`
+- Easy deployment workflow: build static output and deploy it to Cloudflare
 
 ## Non-goals (for now)
 - Complex backend / dynamic CMS

@@ -2,7 +2,6 @@
 title: "Beyond the Tool-Calling Loop: How We Built an AI Analyst with Bash, a Mounted Filesystem, and a JSON Renderer"
 date: 2026-04-29
 status: published
-translationKey: ai-analyst-architecture
 tags:
   - ai
   - agents
