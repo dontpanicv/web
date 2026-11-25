@@ -5,11 +5,11 @@ export const person = {
   role: 'Head of R&D & Co-Founder at Meiro',
   place: 'Brno, Czechia',
   bio: [
-    'I like knowing how things work — from CPUs and protocols to databases and containers. Almost ten years of building a data platform in production taught me most of it.',
-    "Now I spend that curiosity on AI: local models, agentic workflows, and getting it all into production for real customers. If I can't explain it to someone else, I don't understand it yet.",
+    'I co-founded Meiro and spent almost ten years building its data platform and running it in production for enterprise customers. When something is mine, I own all of it: the architecture, the production incident, and the call with the customer afterwards.',
+    "I'm as comfortable in a pre-sales meeting with a C-level executive as in a debugger. Today I point that at AI: local models, agentic workflows, and getting them into production for real customers.",
   ],
   longBio:
-    'I want to understand systems end to end — how CPUs execute instructions, how operating systems, programming languages, databases, containers, proxies, and protocols all fit together. Some of that I picked up out of curiosity, the rest by debugging production. Almost ten years of building and operating Meiro taught me the domains: customer data infrastructure, identity resolution, real-time pipelines, and the edge cases that come with running a CDP for enterprise customers. Right now that means AI — running Qwen locally, building agentic workflows, designing self-learning data analysis tools. I bring these to production, not just demos. I am also the person who ends up explaining everything — to engineers, to customers, on stage when the occasion calls for it.',
+    "Most people pick a side: build the technology or sell it. I've spent almost ten years doing both. As co-founder of Meiro I designed, built and operated a customer data platform for enterprise customers: customer data infrastructure, identity resolution, real-time pipelines. I was also in the room when it was sold, through pre-sales, RFPs, and conversations with stakeholders and C-level executives. Each side sharpens the other. Because I know the system down to the protocols, I only promise a customer what will hold in production. Because I know what the customer is paying for, I build the thing that matters and skip the thing that is merely fun. Right now I apply that to AI: local models, agentic workflows, self-learning data analysis tools, shipped to real customers. I'm also the person who ends up explaining everything, to engineers, to executives, on stage when the occasion calls for it. Teaching is how I verify I actually understand something.",
   githubBio: 'I write code no one wants to read, but everyone needs to have. Data whatever.',
   motto: 'Teaching is how I verify I actually understand something.',
 };
